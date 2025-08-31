@@ -42,19 +42,22 @@ export function BookUploadForm({ onBookAdded }: BookUploadFormProps) {
 
       console.log(`[v0] Successfully uploaded to ${bucket}:`, data.path)
 
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from(bucket).getPublicUrl(data.path)
+      // Get signed URL for private buckets
+      const { data: signedUrlData, error: signedUrlError } = await supabase
+        .storage
+        .from(bucket)
+        .createSignedUrl(data.path, 60 * 60 * 24); // 24 hours
 
-      console.log(`[v0] Generated public URL:`, publicUrl)
-      return publicUrl
+      if (signedUrlError) {
+        throw new Error(`Failed to generate signed URL: ${signedUrlError.message}`);
+      }
+
+      return signedUrlData.signedUrl
     } catch (error) {
       console.error(`[v0] Error uploading file to ${bucket}:`, error)
       throw error
     }
   }
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
