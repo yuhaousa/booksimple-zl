@@ -19,6 +19,8 @@ export function createServerSupabaseClient() {
   })
 }
 
+export const supabase = createClient()
+
 export type Book = {
   id: number
   created_at: string

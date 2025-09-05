@@ -27,8 +27,6 @@ export function BookUploadForm({ onBookAdded }: BookUploadFormProps) {
 
   const uploadFile = async (file: File, bucket: string, folder = ""): Promise<string | null> => {
     try {
-      console.log(`[v0] Uploading file to bucket: ${bucket}, file: ${file.name}, size: ${file.size}`)
-
       const fileExt = file.name.split(".").pop()
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
       const filePath = folder ? `${folder}/${fileName}` : fileName
@@ -36,28 +34,16 @@ export function BookUploadForm({ onBookAdded }: BookUploadFormProps) {
       const { data, error } = await supabase.storage.from(bucket).upload(filePath, file)
 
       if (error) {
-        console.error(`[v0] Error uploading to ${bucket}:`, error.message, error)
         throw new Error(`Upload failed: ${error.message}`)
       }
 
-      console.log(`[v0] Successfully uploaded to ${bucket}:`, data.path)
-
-      // Get signed URL for private buckets
-      const { data: signedUrlData, error: signedUrlError } = await supabase
-        .storage
-        .from(bucket)
-        .createSignedUrl(data.path, 60 * 60 * 24); // 24 hours
-
-      if (signedUrlError) {
-        throw new Error(`Failed to generate signed URL: ${signedUrlError.message}`);
-      }
-
-      return signedUrlData.signedUrl
+      // Return only the file path, not a signed URL
+      return data.path
     } catch (error) {
-      console.error(`[v0] Error uploading file to ${bucket}:`, error)
       throw error
     }
   }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
@@ -71,21 +57,17 @@ export function BookUploadForm({ onBookAdded }: BookUploadFormProps) {
 
       if (coverFile) {
         setUploadProgress("Uploading cover image...")
-        const uploadedCoverUrl = await uploadFile(coverFile, "book-cover")
-        if (uploadedCoverUrl) {
-          coverUrl = uploadedCoverUrl
-        } else {
-          throw new Error("Failed to upload cover image")
+        const uploadedCoverPath = await uploadFile(coverFile, "book-cover")
+        if (uploadedCoverPath) {
+          coverUrl = uploadedCoverPath // Save file path, not signed URL
         }
       }
 
       if (bookFile) {
         setUploadProgress("Uploading book file...")
-        const uploadedFileUrl = await uploadFile(bookFile, "book-file")
-        if (uploadedFileUrl) {
-          fileUrl = uploadedFileUrl
-        } else {
-          throw new Error("Failed to upload book file")
+        const uploadedFilePath = await uploadFile(bookFile, "book-file")
+        if (uploadedFilePath) {
+          fileUrl = uploadedFilePath // Save file path, not signed URL
         }
       }
 

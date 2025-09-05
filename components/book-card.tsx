@@ -3,19 +3,26 @@
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { BookOpen } from "lucide-react"
+import { BookOpen, Edit } from "lucide-react"
 import type { Book } from "@/lib/supabase"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 
 interface BookCardProps {
   book: Book
 }
 
 export function BookCard({ book }: BookCardProps) {
+  const router = useRouter()
+
   const handleReadBook = () => {
     if (book.file_url) {
       window.open(book.file_url, "_blank")
     }
+  }
+
+  const handleEditBook = () => {
+    router.push(`/books/${book.id}/edit`)
   }
 
   return (
@@ -53,12 +60,18 @@ export function BookCard({ book }: BookCardProps) {
               ))}
         </div>
 
-        {book.file_url && (
-          <Button onClick={handleReadBook} className="w-full bg-transparent" variant="outline" size="sm">
-            <BookOpen className="w-4 h-4 mr-2" />
-            Read Book
+        <div className="flex gap-2 w-full">
+          <Button onClick={handleEditBook} variant="outline" size="sm" className="flex-1 bg-transparent">
+            <Edit className="w-4 h-4 mr-2" />
+            Edit
           </Button>
-        )}
+          {book.file_url && (
+            <Button onClick={handleReadBook} variant="outline" size="sm" className="flex-1 bg-transparent">
+              <BookOpen className="w-4 h-4 mr-2" />
+              Read
+            </Button>
+          )}
+        </div>
       </CardFooter>
     </Card>
   )
