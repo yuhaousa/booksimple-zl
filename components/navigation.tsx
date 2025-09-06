@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { BookOpen, Upload, Home } from "lucide-react"
+import { BookOpen, Upload, Home, FileText } from "lucide-react"
 
 export function Navigation() {
   const pathname = usePathname()
@@ -12,6 +12,7 @@ export function Navigation() {
     { href: "/", label: "Home", icon: Home },
     { href: "/books", label: "Books", icon: BookOpen },
     { href: "/upload", label: "Upload", icon: Upload },
+    { href: "/notes", label: "Study Notes", icon: FileText },
   ]
 
   return (

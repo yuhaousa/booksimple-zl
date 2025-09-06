@@ -3,16 +3,21 @@
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { BookOpen, Edit } from "lucide-react"
+import { BookOpen, Trash2, Edit } from "lucide-react"
 import type { Book } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
 import Image from "next/image"
+import { useState } from "react"
+import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
 interface BookCardProps {
   book: Book
+  onBookDeleted?: () => void
 }
 
-export function BookCard({ book }: BookCardProps) {
+export function BookCard({ book, onBookDeleted }: BookCardProps) {
+  const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
 
   const handleReadBook = () => {
@@ -23,6 +28,43 @@ export function BookCard({ book }: BookCardProps) {
 
   const handleEditBook = () => {
     router.push(`/books/${book.id}/edit`)
+  }
+
+  const handleDeleteBook = async () => {
+    if (!confirm(`Are you sure you want to delete "${book.title}"? This action cannot be undone.`)) {
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      // Delete files from storage if they exist
+      if (book.cover_url && book.cover_url.includes("supabase")) {
+        const coverPath = book.cover_url.split("/").pop()
+        if (coverPath) {
+          await supabase.storage.from("book-cover").remove([coverPath])
+        }
+      }
+
+      if (book.file_url && book.file_url.includes("supabase")) {
+        const filePath = book.file_url.split("/").pop()
+        if (filePath) {
+          await supabase.storage.from("book-file").remove([filePath])
+        }
+      }
+
+      // Delete book record from database
+      const { error } = await supabase.from("Booklist").delete().eq("id", book.id)
+
+      if (error) throw error
+
+      toast.success("Book deleted successfully")
+      onBookDeleted?.()
+    } catch (error) {
+      console.error("Error deleting book:", error)
+      toast.error("Failed to delete book")
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -64,6 +106,10 @@ export function BookCard({ book }: BookCardProps) {
           <Button onClick={handleEditBook} variant="outline" size="sm" className="flex-1 bg-transparent">
             <Edit className="w-4 h-4 mr-2" />
             Edit
+          </Button>
+          <Button onClick={handleDeleteBook} variant="destructive" size="sm" className="flex-1" disabled={isDeleting}>
+            <Trash2 className="w-4 h-4 mr-2" />
+            {isDeleting ? "Deleting..." : "Delete"}
           </Button>
           {book.file_url && (
             <Button onClick={handleReadBook} variant="outline" size="sm" className="flex-1 bg-transparent">

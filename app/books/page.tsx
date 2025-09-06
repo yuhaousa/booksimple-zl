@@ -3,13 +3,11 @@
 import { useState, useEffect } from "react"
 import { BookCard } from "@/components/book-card"
 import { createClient, type Book } from "@/lib/supabase"
-import { useRouter } from "next/navigation"
 
 export default function BooksPage() {
   const [books, setBooks] = useState<Book[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
-  const router = useRouter()
 
   const fetchBooks = async () => {
     try {
@@ -25,8 +23,7 @@ export default function BooksPage() {
 
           // Only generate signed URL if file path exists
           if (coverUrl) {
-            const { data: signedCover, error: coverError } = await supabase
-              .storage
+            const { data: signedCover, error: coverError } = await supabase.storage
               .from("book-cover")
               .createSignedUrl(coverUrl.replace(/^book-cover\//, ""), 60 * 60 * 24)
             if (!coverError && signedCover?.signedUrl) {
@@ -35,8 +32,7 @@ export default function BooksPage() {
           }
 
           if (fileUrl) {
-            const { data: signedFile, error: fileError } = await supabase
-              .storage
+            const { data: signedFile, error: fileError } = await supabase.storage
               .from("book-file")
               .createSignedUrl(fileUrl.replace(/^book-file\//, ""), 60 * 60 * 24)
             if (!fileError && signedFile?.signedUrl) {
@@ -45,7 +41,7 @@ export default function BooksPage() {
           }
 
           return { ...book, cover_url: coverUrl, file_url: fileUrl }
-        })
+        }),
       )
 
       setBooks(booksWithSignedUrls)
@@ -54,6 +50,10 @@ export default function BooksPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleBookDeleted = () => {
+    fetchBooks()
   }
 
   useEffect(() => {
@@ -93,16 +93,7 @@ export default function BooksPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {books.map((book) => (
-              <div key={book.id} className="relative">
-                <BookCard book={book} />
-                <button
-                  className="absolute top-2 right-2 bg-primary text-white px-3 py-1 rounded shadow hover:bg-primary/80"
-                  onClick={() => router.push(`/books/edit/${book.id}`)}
-                  aria-label="Edit book"
-                >
-                  Edit
-                </button>
-              </div>
+              <BookCard key={book.id} book={book} onBookDeleted={handleBookDeleted} />
             ))}
           </div>
         )}
