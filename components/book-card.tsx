@@ -10,6 +10,7 @@ import Image from "next/image"
 import { useState } from "react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 interface BookCardProps {
   book: Book
@@ -70,17 +71,23 @@ export function BookCard({ book, onBookDeleted }: BookCardProps) {
   return (
     <Card className="group hover:shadow-lg transition-shadow duration-200 border-border">
       <CardContent className="p-4">
-        <div className="aspect-[3/4] relative mb-4 bg-muted rounded-md overflow-hidden">
-          <Image
-            src={book.cover_url || "/placeholder.svg?height=400&width=300&query=book+cover"}
-            alt={book.title || "Book cover"}
-            fill
-            className="object-cover"
-          />
-        </div>
+        <Link href={`/books/${book.id}`}>
+          <div className="aspect-[3/4] relative mb-4 bg-muted rounded-md overflow-hidden cursor-pointer hover:opacity-90 transition-opacity">
+            <Image
+              src={book.cover_url || "/placeholder.svg?height=400&width=300&query=book+cover"}
+              alt={book.title || "Book cover"}
+              fill
+              className="object-cover"
+            />
+          </div>
+        </Link>
 
         <div className="space-y-2">
-          <h3 className="font-semibold text-foreground line-clamp-2 text-balance">{book.title || "Untitled"}</h3>
+          <Link href={`/books/${book.id}`}>
+            <h3 className="font-semibold text-foreground line-clamp-2 text-balance hover:text-primary transition-colors cursor-pointer">
+              {book.title || "Untitled"}
+            </h3>
+          </Link>
           <p className="text-sm text-muted-foreground">{book.author || "Unknown Author"}</p>
           {book.year && <p className="text-xs text-muted-foreground">Published: {book.year}</p>}
           {book.created_at && (
