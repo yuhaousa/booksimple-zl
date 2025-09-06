@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, FileText, Calendar } from "lucide-react"
+import { Plus, FileText, Calendar, BookOpen } from "lucide-react"
 import { toast } from "sonner"
 
 interface StudyNote {
@@ -18,6 +18,10 @@ interface StudyNote {
   category: string | null
   created_at: string
   updated_at: string
+  book?: {
+    id: number
+    title: string
+  }
 }
 
 export default function NotesPage() {
@@ -30,10 +34,19 @@ export default function NotesPage() {
 
   const fetchNotes = async () => {
     try {
-      const { data, error } = await supabase.from("study_notes").select("*").order("created_at", { ascending: false })
+      const { data, error } = await supabase
+        .from("study_notes")
+        .select(`
+          *,
+          book:Booklist!book_id (
+            id,
+            title
+          )
+        `)
+        .order("created_at", { ascending: false })
 
       if (error) throw error
-      console.log("[v0] Fetched notes:", data) // Debug log to see what's returned
+      console.log("[v0] Fetched notes with books:", data)
       setNotes(data || [])
     } catch (error) {
       console.error("Error fetching notes:", error)
@@ -96,6 +109,15 @@ export default function NotesPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {note.content && <p className="text-sm text-muted-foreground line-clamp-3">{note.content}</p>}
+
+                {note.book && (
+                  <div className="flex items-center text-sm text-primary">
+                    <BookOpen className="h-3 w-3 mr-1" />
+                    <Link href={`/books`} className="hover:underline font-medium">
+                      {note.book.title}
+                    </Link>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <div className="flex items-center text-sm text-muted-foreground">
