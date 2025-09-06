@@ -3,11 +3,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { BookOpen, ArrowLeft, Calendar, User, Building } from "lucide-react"
+import { ArrowLeft, Calendar, User, Building } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { BookActions } from "@/components/book-actions"
 
 interface BookDetailPageProps {
   params: { id: string }
@@ -43,12 +44,6 @@ export default async function BookDetailPage({ params }: BookDetailPageProps) {
 
   const { book, notes } = data
 
-  const handleReadBook = () => {
-    if (book.file_url) {
-      window.open(book.file_url, "_blank")
-    }
-  }
-
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="mb-6">
@@ -74,20 +69,7 @@ export default async function BookDetailPage({ params }: BookDetailPageProps) {
                 />
               </div>
 
-              <div className="space-y-3">
-                {book.file_url && (
-                  <Button onClick={handleReadBook} className="w-full">
-                    <BookOpen className="w-4 h-4 mr-2" />
-                    Read Book
-                  </Button>
-                )}
-
-                <Link href={`/books/${book.id}/edit`} className="block">
-                  <Button variant="outline" className="w-full bg-transparent">
-                    Edit Book
-                  </Button>
-                </Link>
-              </div>
+              <BookActions bookId={book.id.toString()} fileUrl={book.file_url} />
             </CardContent>
           </Card>
         </div>
