@@ -22,6 +22,32 @@ async function getBookWithNotes(id: string) {
     return null
   }
 
+  // Generate signed URLs for cover and file (exact same logic as book list page)
+  let coverUrl = book.cover_url
+  let fileUrl = book.file_url
+
+  // Only generate signed URL if file path exists
+  if (coverUrl) {
+    const { data: signedCover, error: coverError } = await supabase.storage
+      .from("book-cover")
+      .createSignedUrl(coverUrl.replace(/^book-cover\//, ""), 60 * 60 * 24)
+    if (!coverError && signedCover?.signedUrl) {
+      coverUrl = signedCover.signedUrl
+    }
+  }
+
+  if (fileUrl) {
+    const { data: signedFile, error: fileError } = await supabase.storage
+      .from("book-file")
+      .createSignedUrl(fileUrl.replace(/^book-file\//, ""), 60 * 60 * 24)
+    if (!fileError && signedFile?.signedUrl) {
+      fileUrl = signedFile.signedUrl
+    }
+  }
+
+  // Create book with signed URLs (exact same pattern as book list)
+  const bookWithSignedUrls = { ...book, cover_url: coverUrl, file_url: fileUrl }
+
   // Fetch related notes
   const { data: notes, error: notesError } = await supabase
     .from("study_notes")
@@ -30,7 +56,7 @@ async function getBookWithNotes(id: string) {
     .order("created_at", { ascending: false })
 
   return {
-    book,
+    book: bookWithSignedUrls,
     notes: notes || [],
   }
 }
@@ -66,6 +92,13 @@ export default async function BookDetailPage({ params }: BookDetailPageProps) {
                   alt={book.title || "Book cover"}
                   fill
                   className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 300px"
+                  priority
+                  onError={(e) => {
+                    console.error("Image failed to load:", book.cover_url)
+                    // Fallback to placeholder if image fails to load
+                    e.currentTarget.src = "/placeholder.svg?height=400&width=300&query=book+cover"
+                  }}
                 />
               </div>
 
