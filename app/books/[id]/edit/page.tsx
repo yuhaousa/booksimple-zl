@@ -9,8 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Edit, Trash2, Calendar, FileText, Tag } from "lucide-react"
 import { toast } from "sonner"
-import ReactQuill from "react-quill"
-import "react-quill/dist/quill.snow.css"
+
 
 interface StudyNote {
   id: number
@@ -188,9 +187,10 @@ export default function NoteDetailsPage() {
 
         <CardContent>
           {note.content ? (
-            <div className="prose prose-sm max-w-none">
-              <ReactQuill value={note.content} readOnly={true} theme="bubble" />
-            </div>
+            <div
+              className="prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: note.content }}
+            />
           ) : (
             <p className="text-muted-foreground italic">No content available</p>
           )}
