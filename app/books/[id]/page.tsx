@@ -14,7 +14,7 @@ interface BookDetailPageProps {
   params: { id: string }
 }
 
-async function getBookWithNotes(id: string) {
+async function getBook(id: string) {
   // Fetch book details
   const { data: book, error: bookError } = await supabase.from("Booklist").select("*").eq("id", id).single()
 
@@ -22,7 +22,7 @@ async function getBookWithNotes(id: string) {
     return null
   }
 
-  // Generate signed URLs for cover and file (exact same logic as book list page)
+  // Generate signed URLs for cover and file
   let coverUrl = book.cover_url
   let fileUrl = book.file_url
 
@@ -45,30 +45,16 @@ async function getBookWithNotes(id: string) {
     }
   }
 
-  // Create book with signed URLs (exact same pattern as book list)
-  const bookWithSignedUrls = { ...book, cover_url: coverUrl, file_url: fileUrl }
-
-  // Fetch related notes
-  const { data: notes, error: notesError } = await supabase
-    .from("study_notes")
-    .select("*")
-    .eq("book_id", id)
-    .order("created_at", { ascending: false })
-
-  return {
-    book: bookWithSignedUrls,
-    notes: notes || [],
-  }
+  // Create book with signed URLs
+  return { ...book, cover_url: coverUrl, file_url: fileUrl }
 }
 
 export default async function BookDetailPage({ params }: BookDetailPageProps) {
-  const data = await getBookWithNotes(params.id)
+  const book = await getBook(params.id)
 
-  if (!data) {
+  if (!book) {
     notFound()
   }
-
-  const { book, notes } = data
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -160,45 +146,6 @@ export default async function BookDetailPage({ params }: BookDetailPageProps) {
                     ))}
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Related Notes */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                Related Study Notes
-                <Link href="/notes/new">
-                  <Button size="sm">Add Note</Button>
-                </Link>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {notes.length > 0 ? (
-                <div className="space-y-4">
-                  {notes.map((note) => (
-                    <Link key={note.id} href={`/notes/${note.id}`}>
-                      <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                        <CardContent className="p-4">
-                          <h4 className="font-semibold mb-2">{note.title}</h4>
-                          <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{note.content}</p>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{note.category}</span>
-                            <span>{new Date(note.created_at).toLocaleDateString()}</span>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">
-                  No study notes for this book yet.{" "}
-                  <Link href="/notes/new" className="text-primary hover:underline">
-                    Create your first note
-                  </Link>
-                </p>
               )}
             </CardContent>
           </Card>
