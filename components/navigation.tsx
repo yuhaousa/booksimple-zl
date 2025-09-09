@@ -13,6 +13,7 @@ export function Navigation() {
     { href: "/books", label: "Books", icon: BookOpen },
     { href: "/upload", label: "Upload", icon: Upload },
     { href: "/notes", label: "Study Notes", icon: FileText },
+    { href: "/reading-list",label:"Reading List",  icon: BookOpen },
   ]
 
   return (

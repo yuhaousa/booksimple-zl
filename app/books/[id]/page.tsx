@@ -1,17 +1,33 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Calendar, User, Building } from "lucide-react"
+import { ArrowLeft, Calendar, User, Building, BookPlus, Check, BookOpen } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { BookActions } from "@/components/book-actions"
+import { toast } from "sonner"
 
 interface BookDetailPageProps {
   params: { id: string }
+}
+
+interface Book {
+  id: number
+  title: string
+  author: string | null
+  publisher: string | null
+  year: number | null
+  cover_url: string | null
+  file_url: string | null
+  description: string | null
+  isbn: string | null
+  tags: string | null
+  created_at: string
 }
 
 async function getBook(id: string) {
@@ -49,11 +65,126 @@ async function getBook(id: string) {
   return { ...book, cover_url: coverUrl, file_url: fileUrl }
 }
 
-export default async function BookDetailPage({ params }: BookDetailPageProps) {
-  const book = await getBook(params.id)
+export default function BookDetailPage({ params }: BookDetailPageProps) {
+  const [book, setBook] = useState<Book | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [isInReadingList, setIsInReadingList] = useState(false)
+  const [readingListStatus, setReadingListStatus] = useState<'to_read' | 'reading' | 'completed' | null>(null)
+  const [addingToList, setAddingToList] = useState(false)
+
+  useEffect(() => {
+    initializePage()
+  }, [params.id])
+
+  const initializePage = async () => {
+    const bookData = await getBook(params.id)
+    
+    if (!bookData) {
+      notFound()
+      return
+    }
+    
+    setBook(bookData)
+    await checkReadingListStatus(bookData.id)
+    setLoading(false)
+  }
+
+  const checkReadingListStatus = async (bookId: number) => {
+    try {
+      const { data, error } = await supabase
+        .from("reading_list")
+        .select("status")
+        .eq("book_id", bookId)
+        .single()
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
+        throw error
+      }
+
+      if (data) {
+        setIsInReadingList(true)
+        setReadingListStatus(data.status)
+      }
+    } catch (error) {
+      console.error("Error checking reading list status:", error)
+    }
+  }
+
+  const addToReadingList = async () => {
+    if (!book || addingToList) return
+
+    setAddingToList(true)
+    
+    try {
+      const { error } = await supabase
+        .from("reading_list")
+        .insert([{
+          book_id: book.id,
+          status: 'to_read'
+        }])
+
+      if (error) throw error
+
+      setIsInReadingList(true)
+      setReadingListStatus('to_read')
+      toast.success("Book added to reading list!")
+    } catch (error) {
+      console.error("Error adding to reading list:", error)
+      toast.error("Failed to add book to reading list")
+    } finally {
+      setAddingToList(false)
+    }
+  }
+
+  const removeFromReadingList = async () => {
+    if (!book || addingToList) return
+
+    setAddingToList(true)
+    
+    try {
+      const { error } = await supabase
+        .from("reading_list")
+        .delete()
+        .eq("book_id", book.id)
+
+      if (error) throw error
+
+      setIsInReadingList(false)
+      setReadingListStatus(null)
+      toast.success("Book removed from reading list")
+    } catch (error) {
+      console.error("Error removing from reading list:", error)
+      toast.error("Failed to remove book from reading list")
+    } finally {
+      setAddingToList(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading book details...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!book) {
     notFound()
+  }
+
+  const getStatusDisplay = () => {
+    const statusLabels = {
+      to_read: 'To Read',
+      reading: 'Currently Reading',
+      completed: 'Completed'
+    }
+    
+    return readingListStatus ? statusLabels[readingListStatus] : null
   }
 
   return (
@@ -86,6 +217,52 @@ export default async function BookDetailPage({ params }: BookDetailPageProps) {
                     e.currentTarget.src = "/placeholder.svg?height=400&width=300&query=book+cover"
                   }}
                 />
+              </div>
+
+              {/* Reading List Actions */}
+              <div className="mb-4 space-y-2">
+                {!isInReadingList ? (
+                  <Button 
+                    onClick={addToReadingList} 
+                    className="w-full"
+                    disabled={addingToList}
+                  >
+                    {addingToList ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <BookPlus className="w-4 h-4 mr-2" />
+                        Add to Reading List
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 p-2 bg-primary/10 rounded-md text-primary text-sm">
+                      <Check className="w-4 h-4" />
+                      <span>In Reading List ({getStatusDisplay()})</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1" asChild>
+                        <Link href="/reading-list">
+                          <BookOpen className="w-3 h-3 mr-1" />
+                          View List
+                        </Link>
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={removeFromReadingList}
+                        disabled={addingToList}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <BookActions bookId={book.id.toString()} fileUrl={book.file_url} />
