@@ -13,7 +13,10 @@ interface Book {
   id: number
   title: string
   author: string | null
+  description: string | null
   cover_url: string | null
+  year: number | null
+  created_at: string
 }
 
 export default function HomePage() {
@@ -28,7 +31,7 @@ export default function HomePage() {
     try {
       const { data, error } = await supabase
         .from("Booklist")
-        .select("id, title, author, cover_url")
+        .select("id, title, author, description, cover_url, year, created_at")
         .order("created_at", { ascending: false })
         .limit(4)
 
@@ -99,34 +102,42 @@ export default function HomePage() {
             ) : latestBooks.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {latestBooks.map((book) => (
-                  <Link key={book.id} href={`/books/${book.id}`}>
-                    <Card className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer group">
-                      <CardContent className="p-0">
-                        <div className="aspect-[3/4] relative overflow-hidden rounded-t-lg bg-muted">
+                  <Card key={book.id} className="group hover:shadow-lg transition-shadow duration-200 border-border">
+                    <CardContent className="p-4">
+                      <Link href={`/books/${book.id}`}>
+                        <div className="aspect-[3/4] relative mb-4 bg-muted rounded-md overflow-hidden cursor-pointer hover:opacity-90 transition-opacity">
                           <Image
-                            src={book.cover_url || "/placeholder.svg?height=300&width=225&query=book+cover"}
+                            src={book.cover_url || "/placeholder.svg?height=400&width=300&query=book+cover"}
                             alt={book.title || "Book cover"}
                             fill
-                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="object-cover"
                             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                             onError={(e) => {
-                              e.currentTarget.src = "/placeholder.svg?height=300&width=225&query=book+cover"
+                              e.currentTarget.src = "/placeholder.svg?height=400&width=300&query=book+cover"
                             }}
                           />
                         </div>
-                        <div className="p-4">
-                          <h3 className="font-semibold text-sm line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+                      </Link>
+
+                      <div className="space-y-2">
+                        <Link href={`/books/${book.id}`}>
+                          <h3 className="font-semibold text-foreground line-clamp-2 text-balance hover:text-primary transition-colors cursor-pointer text-left">
                             {book.title || "Untitled"}
                           </h3>
-                          {book.author && (
-                            <p className="text-xs text-muted-foreground line-clamp-1">
-                              {book.author}
-                            </p>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                        </Link>
+                        <p className="text-sm text-muted-foreground text-left">{book.author || "Unknown Author"}</p>
+                        {book.description && (
+                          <p className="text-xs text-muted-foreground text-left line-clamp-2">{book.description}</p>
+                        )}
+                        {book.year && <p className="text-xs text-muted-foreground text-left">Published: {book.year}</p>}
+                        {book.created_at && (
+                          <p className="text-xs text-muted-foreground text-left">
+                            Added: {new Date(book.created_at).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             ) : (
