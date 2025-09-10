@@ -3,17 +3,19 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { BookOpen, Upload, Home, FileText } from "lucide-react"
+import { BookOpen, Upload, Home, FileText, LogIn, LogOut } from "lucide-react"
+import { useState } from "react"
 
 export function Navigation() {
   const pathname = usePathname()
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   const navItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/books", label: "Books", icon: BookOpen },
     { href: "/upload", label: "Upload", icon: Upload },
     { href: "/notes", label: "Study Notes", icon: FileText },
-    { href: "/reading-list",label:"Reading List",  icon: BookOpen },
+    { href: "/reading-list", label: "Reading List", icon: BookOpen },
   ]
 
   return (
@@ -45,6 +47,25 @@ export function Navigation() {
                 </Button>
               )
             })}
+
+            {isLoggedIn ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center space-x-2"
+                onClick={() => setIsLoggedIn(false)}
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </Button>
+            ) : (
+              <Button asChild variant="ghost" size="sm" className="flex items-center space-x-2">
+                <Link href="/login">
+                  <LogIn className="h-4 w-4" />
+                  <span>Login</span>
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>
