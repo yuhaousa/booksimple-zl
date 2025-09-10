@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Calendar, User, Building, BookPlus, Check, BookOpen } from "lucide-react"
+import { ArrowLeft, Calendar, User, Building, BookPlus, Check, BookOpen, FileText, Plus, Tag, Edit } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import Link from "next/link"
@@ -14,6 +14,16 @@ import { toast } from "sonner"
 
 interface BookDetailPageProps {
   params: { id: string }
+}
+
+interface StudyNote {
+  id: number
+  title: string
+  content: string
+  tags: string | null
+  category: string | null
+  created_at: string
+  updated_at: string
 }
 
 interface Book {
@@ -71,6 +81,8 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   const [isInReadingList, setIsInReadingList] = useState(false)
   const [readingListStatus, setReadingListStatus] = useState<'to_read' | 'reading' | 'completed' | null>(null)
   const [addingToList, setAddingToList] = useState(false)
+  const [notes, setNotes] = useState<StudyNote[]>([])
+  const [notesLoading, setNotesLoading] = useState(true)
 
   useEffect(() => {
     initializePage()
@@ -86,7 +98,25 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     
     setBook(bookData)
     await checkReadingListStatus(bookData.id)
+    await fetchBookNotes(bookData.id)
     setLoading(false)
+  }
+
+  const fetchBookNotes = async (bookId: number) => {
+    try {
+      const { data, error } = await supabase
+        .from("study_notes")
+        .select("*")
+        .eq("book_id", bookId)
+        .order("created_at", { ascending: false })
+
+      if (error) throw error
+      setNotes(data || [])
+    } catch (error) {
+      console.error("Error fetching book notes:", error)
+    } finally {
+      setNotesLoading(false)
+    }
   }
 
   const checkReadingListStatus = async (bookId: number) => {
@@ -322,6 +352,107 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                       </Badge>
                     ))}
                   </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Study Notes Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Study Notes
+                  <Badge variant="secondary">{notes.length}</Badge>
+                </CardTitle>
+                <Button size="sm" asChild>
+                  <Link href={`/notes/new?bookId=${book.id}`}>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Note
+                  </Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {notesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-sm text-muted-foreground">Loading notes...</p>
+                  </div>
+                </div>
+              ) : notes.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <h4 className="text-lg font-medium mb-2">No notes yet</h4>
+                  <p className="text-muted-foreground mb-4">Start taking notes while reading this book</p>
+                  <Button size="sm" asChild>
+                    <Link href={`/notes/new?bookId=${book.id}`}>
+                      <Plus className="w-4 h-4 mr-1" />
+                      Create First Note
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {notes.map((note) => (
+                    <div
+                      key={note.id}
+                      className="border border-border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <Link 
+                          href={`/notes/${note.id}`}
+                          className="font-medium hover:text-primary transition-colors flex-1"
+                        >
+                          {note.title}
+                        </Link>
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link href={`/notes/${note.id}/edit`}>
+                            <Edit className="w-3 h-3" />
+                          </Link>
+                        </Button>
+                      </div>
+                      
+                      {note.content && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                          {note.content.replace(/<[^>]*>/g, '').substring(0, 150)}
+                          {note.content.length > 150 && '...'}
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap gap-2">
+                          {note.category && (
+                            <Badge variant="outline" className="text-xs">
+                              {note.category}
+                            </Badge>
+                          )}
+                          {note.tags && note.tags.split(',').slice(0, 2).map((tag, index) => (
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              <Tag className="w-2 h-2 mr-1" />
+                              {tag.trim()}
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex items-center text-xs text-muted-foreground">
+                          <Calendar className="w-3 h-3 mr-1" />
+                          {new Date(note.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {notes.length > 0 && (
+                    <div className="pt-2 border-t border-border">
+                      <Button variant="outline" size="sm" asChild className="w-full">
+                        <Link href={`/notes?bookId=${book.id}`}>
+                          View All Notes ({notes.length})
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
