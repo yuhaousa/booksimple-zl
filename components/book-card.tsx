@@ -14,10 +14,11 @@ import Link from "next/link"
 
 interface BookCardProps {
   book: Book
+  canEdit?: boolean
   onBookDeleted?: () => void
 }
 
-export function BookCard({ book, onBookDeleted }: BookCardProps) {
+export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
 
@@ -110,14 +111,18 @@ export function BookCard({ book, onBookDeleted }: BookCardProps) {
         </div>
 
         <div className="flex gap-2 w-full">
-          <Button onClick={handleEditBook} variant="outline" size="sm" className="flex-1 bg-transparent">
-            <Edit className="w-4 h-4 mr-2" />
-            Edit
-          </Button>
-          <Button onClick={handleDeleteBook} variant="destructive" size="sm" className="flex-1" disabled={isDeleting}>
-            <Trash2 className="w-4 h-4 mr-2" />
-            {isDeleting ? "Deleting..." : "Delete"}
-          </Button>
+          {canEdit && (
+            <>
+              <Button onClick={handleEditBook} variant="outline" size="sm" className="flex-1 bg-transparent">
+                <Edit className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+              <Button onClick={handleDeleteBook} variant="destructive" size="sm" className="flex-1" disabled={isDeleting}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                {isDeleting ? "Deleting..." : "Delete"}
+              </Button>
+            </>
+          )}
           {book.file_url && (
             <Button onClick={handleReadBook} variant="outline" size="sm" className="flex-1 bg-transparent">
               <BookOpen className="w-4 h-4 mr-2" />

@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen, Eye, EyeOff } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { createClient } from "@/lib/supabase"
+import { sha256 } from "js-sha256" // install with: npm install js-sha256
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -46,22 +48,44 @@ export default function RegisterPage() {
     }
 
     try {
-      // TODO: Implement actual registration logic with Supabase
-      console.log("Registration attempt:", formData)
+      const supabase = createClient()
+      // 1. Register with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            display_name: formData.name,
+          },
+        },
+      })
 
-      // Mock registration for now
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      if (error) throw error
+
+      // 2. Insert into user_list (hash password)
+      const password_hash = sha256(formData.password)
+      const { error: dbError } = await supabase
+        .from("user_list")
+        .insert([
+          {
+            email: formData.email,
+            password_hash,
+            display_name: formData.name,
+          },
+        ])
+
+      if (dbError) throw dbError
 
       toast({
         title: "Registration successful",
-        description: "Your account has been created. Please sign in.",
+        description: "Your account has been created. Please check your email to verify your account.",
       })
 
       router.push("/login")
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Registration failed",
-        description: "Something went wrong. Please try again.",
+        description: error?.message || "Something went wrong. Please try again.",
         variant: "destructive",
       })
     } finally {

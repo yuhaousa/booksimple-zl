@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen, Eye, EyeOff } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { createClient } from "@/lib/supabase"
+import { sha256 } from "js-sha256"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -24,11 +26,35 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      // TODO: Implement actual authentication logic with Supabase
-      console.log("Login attempt:", { email, password })
+      const supabase = createClient()
+      // 1. Fetch user from user_list
+      const { data: users, error: userError } = await supabase
+        .from("user_list")
+        .select("*")
+        .eq("email", email)
+        .limit(1)
 
-      // Mock login for now
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Debugging output
+      console.log("users:", users, "userError:", userError)
+
+      if (userError) throw userError
+      if (!users || users.length === 0) {
+        throw new Error("No user found with this email.")
+      }
+
+      const user = users[0]
+      const password_hash = sha256(password)
+      if (user.password_hash !== password_hash) {
+        throw new Error("Incorrect password.")
+      }
+
+      // 2. Sign in with Supabase Auth
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (authError) throw new Error(authError.message || "Authentication failed.")
 
       toast({
         title: "Login successful",
@@ -36,12 +62,16 @@ export default function LoginPage() {
       })
 
       router.push("/")
-    } catch (error) {
+    } catch (error: any) {
+      // Debugging output
+      console.error("Login error:", error)
       toast({
         title: "Login failed",
-        description: "Please check your credentials and try again.",
+        description: error?.message || String(error) || "Please check your credentials and try again.",
         variant: "destructive",
       })
+      // As a fallback, also show an alert (for debugging)
+      alert(error?.message || String(error) || "Please check your credentials and try again.")
     } finally {
       setIsLoading(false)
     }
@@ -89,6 +119,7 @@ export default function LoginPage() {
                   size="sm"
                   className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>

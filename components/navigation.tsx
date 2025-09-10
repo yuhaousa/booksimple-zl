@@ -1,22 +1,50 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { BookOpen, Upload, Home, FileText, LogIn, LogOut } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase"
+
+function useAuthUser() {
+  const [user, setUser] = useState(null)
+  useEffect(() => {
+    const supabase = createClient()
+    // Initial check
+    supabase.auth.getUser().then(({ data }) => setUser(data?.user ?? null))
+    // Listen for auth state changes
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => {
+      listener?.subscription.unsubscribe()
+    }
+  }, [])
+  return user
+}
 
 export function Navigation() {
   const pathname = usePathname()
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const router = useRouter()
+  const user = useAuthUser()
 
   const navItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/books", label: "Books", icon: BookOpen },
-    { href: "/upload", label: "Upload", icon: Upload },
+    // Only show "Upload" if logged in
+    ...(user
+      ? [{ href: "/upload", label: "Upload", icon: Upload }]
+      : []),
     { href: "/notes", label: "Study Notes", icon: FileText },
     { href: "/reading-list", label: "Reading List", icon: BookOpen },
   ]
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.refresh() // This will update the UI after logout
+  }
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -48,12 +76,12 @@ export function Navigation() {
               )
             })}
 
-            {isLoggedIn ? (
+            {user ? (
               <Button
                 variant="ghost"
                 size="sm"
                 className="flex items-center space-x-2"
-                onClick={() => setIsLoggedIn(false)}
+                onClick={handleLogout}
               >
                 <LogOut className="h-4 w-4" />
                 <span>Logout</span>

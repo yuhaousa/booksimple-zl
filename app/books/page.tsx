@@ -8,12 +8,23 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-r
 
 const BOOKS_PER_PAGE = 9
 
+// Add this hook to get the current user
+function useAuthUser() {
+  const [user, setUser] = useState(null)
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => setUser(data?.user ?? null))
+  }, [])
+  return user
+}
+
 export default function BooksPage() {
   const [books, setBooks] = useState<Book[]>([])
   const [totalBooks, setTotalBooks] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
+  const user = useAuthUser() // Get the current user
 
   const totalPages = Math.ceil(totalBooks / BOOKS_PER_PAGE)
 
@@ -99,6 +110,7 @@ export default function BooksPage() {
 
   useEffect(() => {
     fetchBooks(currentPage)
+    // eslint-disable-next-line
   }, [])
 
   return (
@@ -140,7 +152,12 @@ export default function BooksPage() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {books.map((book) => (
-                <BookCard key={book.id} book={book} onBookDeleted={handleBookDeleted} />
+                <BookCard
+                  key={book.id}
+                  book={book}
+                  onBookDeleted={handleBookDeleted}
+                  canEdit={user && book.user_id === user.id} // Only owner can edit/delete
+                />
               ))}
             </div>
 
