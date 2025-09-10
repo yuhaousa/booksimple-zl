@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,7 +26,7 @@ export default function LoginPage() {
 
     try {
       // TODO: Implement actual authentication logic with Supabase
-      console.log("Login attempt:", { email, password })
+      console.log("Login attempt:", { email, password, rememberMe })
 
       // Mock login for now
       await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -37,6 +38,7 @@ export default function LoginPage() {
 
       router.push("/")
     } catch (error) {
+      console.error("Login error:", error)
       toast({
         title: "Login failed",
         description: "Please check your credentials and try again.",
@@ -68,6 +70,7 @@ export default function LoginPage() {
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
                 required
               />
             </div>
@@ -81,6 +84,7 @@ export default function LoginPage() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
                 />
                 <Button
@@ -94,6 +98,24 @@ export default function LoginPage() {
                 </Button>
               </div>
             </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <input
+                  id="remember-me"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="remember-me" className="text-sm">
+                  Remember me
+                </Label>
+              </div>
+              <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                Forgot password?
+              </Link>
+            </div>
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
@@ -102,7 +124,7 @@ export default function LoginPage() {
             </Button>
 
             <div className="text-center text-sm text-muted-foreground">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link href="/register" className="text-primary hover:underline font-medium">
                 Create one here
               </Link>
