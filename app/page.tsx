@@ -17,6 +17,7 @@ interface Book {
   cover_url: string | null
   year: number | null
   created_at: string
+  user_id: string // <-- must be present
 }
 
 export default function HomePage() {
@@ -31,7 +32,7 @@ export default function HomePage() {
     try {
       const { data, error } = await supabase
         .from("Booklist")
-        .select("id, title, author, description, cover_url, year, created_at")
+        .select("id, title, author, user_id, description, cover_url, year, created_at") // include user_id
         .order("created_at", { ascending: false })
         .limit(4)
 

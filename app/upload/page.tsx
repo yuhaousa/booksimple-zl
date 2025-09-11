@@ -3,12 +3,26 @@
 import { BookUploadForm } from "@/components/book-upload-form"
 import { Toaster } from "@/components/ui/toaster"
 import { useRouter } from "next/navigation"
+import { createClient } from "@supabase/supabase-js"
 
-export default function UploadPage() {
+const supabase = createClient()
+
+export default async function UploadPage() {
   const router = useRouter()
 
   const handleBookAdded = () => {
     router.push("/books")
+  }
+
+  const user = await supabase.auth.getUser()
+
+  const addBookToList = async (bookData) => {
+    const { title, author } = bookData
+    await supabase.from("Booklist").insert({
+      title,
+      author,
+      user_id: user.data.user.id, // <-- set this!
+    })
   }
 
   return (

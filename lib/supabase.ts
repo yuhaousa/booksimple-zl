@@ -33,4 +33,5 @@ export type Book = {
   year: number | null
   cover_url: string | null
   file_url: string | null
+  user_id: number
 }
