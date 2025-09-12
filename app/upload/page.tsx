@@ -51,15 +51,17 @@ export default function UploadPage() {
 
   console.log("wait to update to book list with user id :")
 
- const { error: insertError } =   await supabase.from("Booklist").insert({
-    ...bookData,        // <-- this includes cover_url, file_url, etc.
-    user_id: userRows.id // <-- integer id from user_list
+ 
+
+const { error: insertError } = await supabase.from("Booklist").insert({
+  ...bookData, // includes cover_url, file_url, etc.
+  user_id: user.id // Use UUID from Supabase Auth
 })
 
 if (insertError) {
   console.error("Insert error:", insertError)
 } else {
-  console.log("Book inserted with user_id:", userRows.id)
+  console.log("Book inserted with user_id:", user.id)
 }
 
 }
