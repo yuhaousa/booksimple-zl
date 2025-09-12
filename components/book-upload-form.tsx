@@ -14,9 +14,10 @@ import { Upload } from "lucide-react"
 
 interface BookUploadFormProps {
   onBookAdded: () => void
+  addBookToList: (bookData: any) => Promise<void>
 }
 
-export function BookUploadForm({ onBookAdded }: BookUploadFormProps) {
+export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [bookFile, setBookFile] = useState<File | null>(null)
@@ -85,9 +86,7 @@ export function BookUploadForm({ onBookAdded }: BookUploadFormProps) {
         file_url: fileUrl,
       }
 
-      const { error } = await supabase.from("Booklist").insert([bookData])
-
-      if (error) throw error
+      await addBookToList(bookData)
 
       toast({
         title: "Success",

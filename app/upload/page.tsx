@@ -1,30 +1,68 @@
 "use client"
 
+
+
 import { BookUploadForm } from "@/components/book-upload-form"
 import { Toaster } from "@/components/ui/toaster"
 import { useRouter } from "next/navigation"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase" // Use your shared client!
+import { useEffect, useState } from "react"
 
-const supabase = createClient()
-
-export default async function UploadPage() {
+export default function UploadPage() {
   const router = useRouter()
+  const [user, setUser] = useState(null)
+
+
+
+  useEffect(() => {
+  supabase.auth.getUser().then(({ data }) => {
+    console.log("getUser data:", data)
+    setUser(data?.user ?? null)
+  })
+}, [])
 
   const handleBookAdded = () => {
     router.push("/books")
   }
 
-  const user = await supabase.auth.getUser()
+      console.log("wait to add to book list:")
 
-  const addBookToList = async (bookData) => {
+ const addBookToList = async (bookData) => {
+    if (!user) {console.error("Warning User not found in user_list:") 
+                return}
+                 else {
+  console.log("Book  user_id to add :"}
+
     const { title, author } = bookData
-    await supabase.from("Booklist").insert({
-      title,
-      author,
-      user_id: user.data.user.id, // <-- set this!
-    })
-  }
 
+    // 1. Look up user_list row by email
+    const { data: userRows, error } = await supabase
+      .from("user_list")
+      .select("id")
+      .eq("email", user.email)
+      .single()
+
+    if (error || !userRows) {
+      console.error("User not found in user_list:", error)
+      return
+    }
+
+    // 2. Use user_list.id as user_id
+
+  console.log("wait to update to book list with user id :")
+
+ const { error: insertError } =   await supabase.from("Booklist").insert({
+    ...bookData,        // <-- this includes cover_url, file_url, etc.
+    user_id: userRows.id // <-- integer id from user_list
+})
+
+if (insertError) {
+  console.error("Insert error:", insertError)
+} else {
+  console.log("Book inserted with user_id:", userRows.id)
+}
+
+}
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
@@ -36,7 +74,7 @@ export default async function UploadPage() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
-          <BookUploadForm onBookAdded={handleBookAdded} />
+          <BookUploadForm onBookAdded={handleBookAdded} addBookToList={addBookToList} />
         </div>
       </main>
 
