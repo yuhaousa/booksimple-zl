@@ -90,6 +90,11 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
             </h3>
           </Link>
           <p className="text-sm text-muted-foreground">{book.author || "Unknown Author"}</p>
+          {book.description && (
+            <p className="text-xs text-muted-foreground line-clamp-2">
+              {book.description}
+            </p>
+          )}
           {book.year && <p className="text-xs text-muted-foreground">Published: {book.year}</p>}
           {book.created_at && (
             <p className="text-xs text-muted-foreground">Added: {new Date(book.created_at).toLocaleDateString()}</p>

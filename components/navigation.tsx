@@ -34,10 +34,12 @@ export function Navigation() {
     { href: "/books", label: "Books", icon: BookOpen },
     // Only show "Upload" if logged in
     ...(user
-      ? [{ href: "/upload", label: "Upload", icon: Upload }]
+      ? [
+          { href: "/upload", label: "Upload", icon: Upload },
+          { href: "/reading-list", label: "Reading List", icon: BookOpen }
+        ]
       : []),
     { href: "/notes", label: "Study Notes", icon: FileText },
-    { href: "/reading-list", label: "Reading List", icon: BookOpen },
   ]
 
   const handleLogout = async () => {

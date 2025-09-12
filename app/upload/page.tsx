@@ -28,34 +28,14 @@ export default function UploadPage() {
       console.log("wait to add to book list:")
 
  const addBookToList = async (bookData) => {
-    if (!user) {console.error("Warning User not found in user_list:") 
-                return}
-                 else {
-  console.log("Book  user_id to add :"}
-
-    const { title, author } = bookData
-
-    // 1. Look up user_list row by email
-    const { data: userRows, error } = await supabase
-      .from("user_list")
-      .select("id")
-      .eq("email", user.email)
-      .single()
-
-    if (error || !userRows) {
-      console.error("User not found in user_list:", error)
+    if (!user) {
+      console.error("Warning: User not found, cannot add book.")
       return
     }
 
-    // 2. Use user_list.id as user_id
-
-  console.log("wait to update to book list with user id :")
-
- 
-
-const { error: insertError } = await supabase.from("Booklist").insert({
-  ...bookData, // includes cover_url, file_url, etc.
-  user_id: user.id // Use UUID from Supabase Auth
+    const { error: insertError } = await supabase.from("Booklist").insert({
+      ...bookData,
+      user_id: user.id // <-- UUID from Supabase Auth
 })
 
 if (insertError) {
