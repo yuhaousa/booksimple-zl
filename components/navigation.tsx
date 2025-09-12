@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { BookOpen, Upload, Home, FileText, LogIn, LogOut } from "lucide-react"
+import { BookOpen, Upload, Home, FileText, LogIn, LogOut, Settings } from "lucide-react"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 
@@ -36,7 +36,8 @@ export function Navigation() {
     ...(user
       ? [
           { href: "/upload", label: "Upload", icon: Upload },
-          { href: "/reading-list", label: "Reading List", icon: BookOpen }
+          { href: "/reading-list", label: "Reading List", icon: BookOpen },
+          { href: "/admin", label: "Admin", icon: Settings },
         ]
       : []),
     { href: "/notes", label: "Study Notes", icon: FileText },
@@ -79,12 +80,7 @@ export function Navigation() {
             })}
 
             {user ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex items-center space-x-2"
-                onClick={handleLogout}
-              >
+              <Button variant="ghost" size="sm" className="flex items-center space-x-2" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
                 <span>Logout</span>
               </Button>
