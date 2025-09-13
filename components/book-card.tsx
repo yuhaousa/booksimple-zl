@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { BookOpen, Trash2, Edit } from "lucide-react"
 import type { Book } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
+import { recordBookClick } from "@/lib/book-tracking"
 import Image from "next/image"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -22,9 +23,24 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
 
-  const handleReadBook = () => {
+  const handleReadBook = async () => {
     if (book.file_url) {
-      window.open(book.file_url, "_blank")
+      try {
+        // Get current user for tracking
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        // Record the book click tracking
+        console.log(`Recording read click for book ID: ${book.id}, user: ${user?.id}`)
+        await recordBookClick(book.id, 'read', user?.id)
+        console.log(`Book click recorded successfully for book ID: ${book.id}`)
+        
+        // Open the book file
+        window.open(book.file_url, "_blank")
+      } catch (error) {
+        console.error("Error recording book click:", error)
+        // Still open the book even if tracking fails
+        window.open(book.file_url, "_blank")
+      }
     }
   }
 

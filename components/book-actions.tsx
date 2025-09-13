@@ -3,6 +3,8 @@
 import { Button } from "@/components/ui/button"
 import { BookOpen } from "lucide-react"
 import Link from "next/link"
+import { recordBookClick } from "@/lib/book-tracking"
+import { supabase } from "@/lib/supabase"
 
 interface BookActionsProps {
   bookId: string
@@ -10,8 +12,18 @@ interface BookActionsProps {
 }
 
 export function BookActions({ bookId, fileUrl }: BookActionsProps) {
-  const handleReadBook = () => {
+  const handleReadBook = async () => {
     if (fileUrl) {
+      // Record the click before opening the file
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        console.log('Recording book click for book ID:', bookId, 'user:', user?.id)
+        await recordBookClick(parseInt(bookId), 'read', user?.id)
+        console.log('Book click recorded successfully')
+      } catch (error) {
+        console.warn('Could not record book click:', error)
+      }
+      
       window.open(fileUrl, "_blank")
     }
   }

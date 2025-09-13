@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { BookOpen, Eye, EyeOff } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase"
+import { recordUserLogin } from "@/lib/login-tracking"
 import { sha256 } from "js-sha256"
 
 export default function LoginPage() {
@@ -49,12 +50,17 @@ export default function LoginPage() {
       }
 
       // 2. Sign in with Supabase Auth
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (authError) throw new Error(authError.message || "Authentication failed.")
+
+      // 3. Record login event for tracking
+      if (authData?.user?.id) {
+        await recordUserLogin(authData.user.id)
+      }
 
       toast({
         title: "Login successful",
