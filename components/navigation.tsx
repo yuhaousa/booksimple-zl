@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { BookOpen, Upload, Home, FileText, LogIn, LogOut, Settings } from "lucide-react"
+import { BookOpen, Upload, Home, FileText, LogIn, LogOut, Settings, Menu, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 
@@ -28,6 +28,7 @@ export function Navigation() {
   const pathname = usePathname()
   const router = useRouter()
   const user = useAuthUser()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const navItems = [
     { href: "/", label: "Home", icon: Home },
@@ -46,7 +47,12 @@ export function Navigation() {
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
+    setMobileMenuOpen(false)
     router.refresh() // This will update the UI after logout
+  }
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false)
   }
 
   return (
@@ -58,7 +64,8 @@ export function Navigation() {
             <span className="text-xl font-semibold">BookList</span>
           </div>
 
-          <div className="flex items-center space-x-1">
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-1">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href
@@ -93,7 +100,61 @@ export function Navigation() {
               </Button>
             )}
           </div>
+
+          {/* Mobile Menu Button */}
+          <div className="md:hidden">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="flex items-center space-x-2"
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t py-4">
+            <div className="flex flex-col space-y-2">
+              {navItems.map((item) => {
+                const Icon = item.icon
+                const isActive = pathname === item.href
+
+                return (
+                  <Button
+                    key={item.href}
+                    asChild
+                    variant={isActive ? "default" : "ghost"}
+                    size="sm"
+                    className="justify-start flex items-center space-x-2"
+                    onClick={closeMobileMenu}
+                  >
+                    <Link href={item.href}>
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </Button>
+                )
+              })}
+
+              {user ? (
+                <Button variant="ghost" size="sm" className="justify-start flex items-center space-x-2" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4" />
+                  <span>Logout</span>
+                </Button>
+              ) : (
+                <Button asChild variant="ghost" size="sm" className="justify-start flex items-center space-x-2" onClick={closeMobileMenu}>
+                  <Link href="/login">
+                    <LogIn className="h-4 w-4" />
+                    <span>Login</span>
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   )
