@@ -202,16 +202,101 @@ export default function AdminBooks() {
   }
 
   const handleDeleteBook = async (bookId: number) => {
-    if (!confirm("Are you sure you want to delete this book?")) return
+    const book = books.find(b => b.id === bookId)
+    const bookTitle = book?.title || 'this book'
+    
+    if (!confirm(`Are you sure you want to delete "${bookTitle}"? This action cannot be undone.`)) return
 
     try {
+      // Check for associated data first
+      const { data: notes, error: notesError } = await supabase
+        .from("study_notes")
+        .select("id")
+        .eq("book_id", bookId)
+        .limit(1)
+
+      const { data: readingList, error: readingListError } = await supabase
+        .from("reading_list")
+        .select("id")
+        .eq("book_id", bookId)
+        .limit(1)
+
+      const { data: bookClicks, error: clicksError } = await supabase
+        .from("book_clicks")
+        .select("id")
+        .eq("book_id", bookId)
+        .limit(1)
+
+      // Check if book has associated data
+      const hasNotes = notes && notes.length > 0
+      const hasReadingListEntry = readingList && readingList.length > 0
+      const hasClickData = bookClicks && bookClicks.length > 0
+
+      if (hasNotes || hasReadingListEntry || hasClickData) {
+        const associations = []
+        if (hasNotes) associations.push("study notes")
+        if (hasReadingListEntry) associations.push("reading list entries")  
+        if (hasClickData) associations.push("click tracking data")
+
+        const associationText = associations.join(", ")
+        const confirmDelete = confirm(
+          `⚠️ Warning: "${bookTitle}" has associated ${associationText}.\n\n` +
+          `Deleting this book will also remove all its associated data:\n` +
+          `${associations.map(item => `• ${item}`).join('\n')}\n\n` +
+          `Are you sure you want to continue? This action cannot be undone.`
+        )
+
+        if (!confirmDelete) return
+
+        // Delete associated data first (admin has permission to cascade delete)
+        if (hasNotes) {
+          await supabase.from("study_notes").delete().eq("book_id", bookId)
+        }
+        if (hasReadingListEntry) {
+          await supabase.from("reading_list").delete().eq("book_id", bookId)
+        }
+        if (hasClickData) {
+          await supabase.from("book_clicks").delete().eq("book_id", bookId)
+        }
+      }
+
+      // Delete the book
       const { error } = await supabase.from("Booklist").delete().eq("id", bookId)
 
       if (error) throw error
 
+      // Update local state
       setBooks(books.filter((book) => book.id !== bookId))
-    } catch (error) {
+      
+      // Show success message
+      if (hasNotes || hasReadingListEntry || hasClickData) {
+        alert(`✅ Book "${bookTitle}" and all associated data deleted successfully.`)
+      } else {
+        alert(`✅ Book "${bookTitle}" deleted successfully.`)
+      }
+      
+    } catch (error: any) {
       console.error("Error deleting book:", error)
+      
+      // Handle specific database constraint errors
+      if (error.code === '23503') {
+        alert(
+          `❌ Cannot delete "${bookTitle}": It has associated data that cannot be automatically removed.\n\n` +
+          `Please manually remove any study notes, reading list entries, or other dependent data first.`
+        )
+      } else if (error.message?.includes('foreign key')) {
+        alert(
+          `❌ Cannot delete "${bookTitle}": It is referenced by other data in the system.\n\n` +
+          `Please remove any study notes or reading list entries for this book first.`
+        )
+      } else if (error.message?.includes('violates')) {
+        alert(
+          `❌ Cannot delete "${bookTitle}": Database constraint violation.\n\n` +
+          `This book may have dependent data that needs to be removed first.`
+        )
+      } else {
+        alert(`❌ Failed to delete book: ${error.message || 'Unknown error occurred'}`)
+      }
     }
   }
 

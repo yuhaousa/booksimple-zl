@@ -134,6 +134,9 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
       if (data) {
         setIsInReadingList(true)
         setReadingListStatus(data.status)
+      } else {
+        setIsInReadingList(false)
+        setReadingListStatus(null)
       }
     } catch (error) {
       console.error("Error checking reading list status:", error)
@@ -295,7 +298,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                 )}
               </div>
 
-              <BookActions bookId={book.id.toString()} fileUrl={book.file_url} />
+              <BookActions bookId={book.id.toString()} fileUrl={book.file_url || undefined} />
             </CardContent>
           </Card>
         </div>

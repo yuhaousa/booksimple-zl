@@ -63,17 +63,33 @@ export default function ReadingListPage() {
       try {
         const { data: listData, error } = await supabase
           .from('reading_list')
-          .select(`*, book:Booklist!book_id (id, title, author, publisher, year, cover_url, file_url, description, tags, user_id)`)
+          .select(`
+            id,
+            status,
+            added_at,
+            user_id,
+            book:Booklist!book_id (
+              id,
+              title,
+              author,
+              publisher,
+              year,
+              cover_url,
+              file_url,
+              description,
+              tags,
+              user_id
+            )
+          `)
           .order('added_at', { ascending: false });
 
         if (error) throw error;
 
-        // Only show books added by the logged-in user
-        const filtered = (listData || []).filter((item: ReadingListItem) => item.book?.user_id === data.user.id);
+        if (error) throw error;
 
-        // Generate signed URLs for covers and files
+        // Generate signed URLs for covers and files (no additional filtering needed)
         const listWithSignedUrls = await Promise.all(
-          filtered.map(async (item: ReadingListItem) => {
+          (listData || []).map(async (item: ReadingListItem) => {
             let coverUrl = item.book.cover_url;
             let fileUrl = item.book.file_url;
 
