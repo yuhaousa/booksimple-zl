@@ -19,9 +19,9 @@
 ### Book Click Tracking Tables:
 Run this SQL script in your Supabase SQL editor:
 
-```sql
+\`\`\`sql
 -- Copy and paste the contents of scripts/create-book-tracking.sql
-```
+\`\`\`
 
 **This creates:**
 - `book_clicks` table for individual click events
@@ -38,13 +38,13 @@ Run this SQL script in your Supabase SQL editor:
 - **Real-time updates**: Stats refresh after each click
 
 ### Example Display:
-```
+\`\`\`
 Clicks
 ------
 15 total
 8 reads, 7 downloads
 5 unique users
-```
+\`\`\`
 
 ## 🎯 **Admin Dashboard Enhancements:**
 
@@ -55,7 +55,7 @@ Clicks
 - **Responsive**: Works on all screen sizes
 
 ### Updated Layout:
-```
+\`\`\`
 +------------------+------------------+
 |  Bar Charts      |  Bar Charts      |
 |  (Login/Books)   |  (Daily Stats)   |
@@ -63,7 +63,7 @@ Clicks
 |  Quick Actions   |  Latest Books    |
 |  & Recent Stats  |  Widget          |
 +------------------+------------------+
-```
+\`\`\`
 
 ## 🔄 **Automatic Click Recording:**
 

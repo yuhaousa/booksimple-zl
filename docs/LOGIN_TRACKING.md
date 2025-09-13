@@ -5,9 +5,9 @@ This document explains how to set up login tracking for the BookSimple applicati
 ## Database Setup
 
 1. **Run the SQL script** to create the login tracking infrastructure:
-   ```sql
+   \`\`\`sql
    -- Execute the contents of scripts/create-login-tracking.sql in your Supabase SQL editor
-   ```
+   \`\`\`
 
 2. **The script creates:**
    - `login_tracking` table to store individual login events
