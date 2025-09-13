@@ -307,10 +307,10 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
         <div className="md:col-span-2 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl text-balance">{book.title || "Untitled"}</CardTitle>
+              <CardTitle className="text-3xl md:text-4xl text-balance">{book.title || "Untitled"}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+              <div className="flex flex-wrap gap-4 text-base text-muted-foreground">
                 {book.author && (
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4" />
@@ -333,24 +333,24 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
 
               {book.description && (
                 <div>
-                  <h3 className="font-semibold mb-2">Description</h3>
-                  <p className="text-muted-foreground leading-relaxed">{book.description}</p>
+                  <h3 className="text-lg font-semibold mb-2">Description</h3>
+                  <p className="text-base text-muted-foreground leading-relaxed">{book.description}</p>
                 </div>
               )}
 
               {book.isbn && (
                 <div>
-                  <h3 className="font-semibold mb-2">ISBN</h3>
-                  <p className="text-muted-foreground font-mono">{book.isbn}</p>
+                  <h3 className="text-lg font-semibold mb-2">ISBN</h3>
+                  <p className="text-base text-muted-foreground font-mono">{book.isbn}</p>
                 </div>
               )}
 
               {book.tags && (
                 <div>
-                  <h3 className="font-semibold mb-2">Tags</h3>
+                  <h3 className="text-lg font-semibold mb-2">Tags</h3>
                   <div className="flex flex-wrap gap-2">
                     {book.tags.split(",").map((tag, index) => (
-                      <Badge key={index} variant="secondary">
+                      <Badge key={index} variant="secondary" className="text-sm">
                         {tag.trim()}
                       </Badge>
                     ))}
@@ -388,8 +388,8 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
               ) : notes.length === 0 ? (
                 <div className="text-center py-8">
                   <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                  <h4 className="text-lg font-medium mb-2">No notes yet</h4>
-                  <p className="text-muted-foreground mb-4">Start taking notes while reading this book</p>
+                  <h4 className="text-xl font-medium mb-2">No notes yet</h4>
+                  <p className="text-base text-muted-foreground mb-4">Start taking notes while reading this book</p>
                   <Button size="sm" asChild>
                     <Link href={`/notes/new?bookId=${book.id}`}>
                       <Plus className="w-4 h-4 mr-1" />
@@ -407,7 +407,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                       <div className="flex items-start justify-between mb-2">
                         <Link 
                           href={`/notes/${note.id}`}
-                          className="font-medium hover:text-primary transition-colors flex-1"
+                          className="text-lg font-medium hover:text-primary transition-colors flex-1"
                         >
                           {note.title}
                         </Link>
@@ -419,7 +419,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                       </div>
                       
                       {note.content && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                        <p className="text-base text-muted-foreground line-clamp-2 mb-2">
                           {note.content.replace(/<[^>]*>/g, '').substring(0, 150)}
                           {note.content.length > 150 && '...'}
                         </p>
@@ -428,18 +428,18 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                       <div className="flex items-center justify-between">
                         <div className="flex flex-wrap gap-2">
                           {note.category && (
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="outline" className="text-sm">
                               {note.category}
                             </Badge>
                           )}
                           {note.tags && note.tags.split(',').slice(0, 2).map((tag, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs">
+                            <Badge key={index} variant="secondary" className="text-sm">
                               <Tag className="w-2 h-2 mr-1" />
                               {tag.trim()}
                             </Badge>
                           ))}
                         </div>
-                        <div className="flex items-center text-xs text-muted-foreground">
+                        <div className="flex items-center text-sm text-muted-foreground">
                           <Calendar className="w-3 h-3 mr-1" />
                           {new Date(note.created_at).toLocaleDateString()}
                         </div>

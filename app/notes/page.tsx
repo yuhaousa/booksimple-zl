@@ -73,8 +73,8 @@ export default function NotesPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-balance">Study Notes</h1>
-          <p className="text-muted-foreground mt-2">Organize your learning with detailed study notes</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-balance">Study Notes</h1>
+          <p className="text-lg text-muted-foreground mt-2">Organize your learning with detailed study notes</p>
         </div>
         <Button asChild>
           <Link href="/notes/new">
@@ -86,9 +86,9 @@ export default function NotesPage() {
 
       {notes.length === 0 ? (
         <div className="text-center py-12">
-          <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No study notes yet</h3>
-          <p className="text-muted-foreground mb-4">Start creating notes to organize your learning</p>
+          <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-xl font-semibold mb-2">No study notes yet</h3>
+          <p className="text-base text-muted-foreground mb-4">Start creating notes to organize your learning</p>
           <Button asChild>
             <Link href="/notes/new">
               <Plus className="h-4 w-4 mr-2" />
@@ -101,18 +101,18 @@ export default function NotesPage() {
           {notes.map((note) => (
             <Card key={note.id} className="hover:shadow-md transition-shadow">
               <CardHeader>
-                <CardTitle className="text-lg line-clamp-2">
+                <CardTitle className="text-xl line-clamp-2">
                   <Link href={`/notes/${note.id}`} className="hover:text-primary">
                     {note.title}
                   </Link>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {note.content && <p className="text-sm text-muted-foreground line-clamp-3">{note.content}</p>}
+                {note.content && <p className="text-base text-muted-foreground line-clamp-3">{note.content}</p>}
 
                 {note.book && (
-                  <div className="flex items-center text-sm text-primary">
-                    <BookOpen className="h-3 w-3 mr-1" />
+                  <div className="flex items-center text-base text-primary">
+                    <BookOpen className="h-4 w-4 mr-2" />
                     <Link href={`/books`} className="hover:underline font-medium">
                       {note.book.title}
                     </Link>
@@ -120,8 +120,8 @@ export default function NotesPage() {
                 )}
 
                 <div className="space-y-2">
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Calendar className="h-3 w-3 mr-1" />
+                  <div className="flex items-center text-base text-muted-foreground">
+                    <Calendar className="h-4 w-4 mr-2" />
                     <span>{new Date(note.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
@@ -129,7 +129,7 @@ export default function NotesPage() {
                 {note.tags && (
                   <div className="flex flex-wrap gap-1">
                     {note.tags.split(",").map((tag, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
+                      <Badge key={index} variant="secondary" className="text-sm">
                         {tag.trim()}
                       </Badge>
                     ))}
@@ -137,7 +137,7 @@ export default function NotesPage() {
                 )}
 
                 {note.category && (
-                  <Badge variant="outline" className="w-fit">
+                  <Badge variant="outline" className="w-fit text-sm">
                     {note.category}
                   </Badge>
                 )}

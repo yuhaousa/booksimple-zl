@@ -173,21 +173,21 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
           </div>
         </Link>
 
-        <div className="space-y-2">
+        <div className="space-y-3">
           <Link href={`/books/${book.id}`}>
-            <h3 className="font-semibold text-foreground line-clamp-2 text-balance hover:text-primary transition-colors cursor-pointer">
+            <h3 className="text-xl font-bold text-foreground line-clamp-2 text-balance hover:text-primary transition-colors cursor-pointer">
               {book.title || "Untitled"}
             </h3>
           </Link>
-          <p className="text-sm text-muted-foreground">{book.author || "Unknown Author"}</p>
+          <p className="text-lg text-muted-foreground font-medium">{book.author || "Unknown Author"}</p>
           {book.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2">
+            <p className="text-base text-muted-foreground line-clamp-2">
               {book.description}
             </p>
           )}
-          {book.year && <p className="text-xs text-muted-foreground">Published: {book.year}</p>}
+          {book.year && <p className="text-base text-muted-foreground">Published: {book.year}</p>}
           {book.created_at && (
-            <p className="text-xs text-muted-foreground">Added: {new Date(book.created_at).toLocaleDateString()}</p>
+            <p className="text-base text-muted-foreground">Added: {new Date(book.created_at).toLocaleDateString()}</p>
           )}
         </div>
       </CardContent>
@@ -199,7 +199,7 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
               .split(",")
               .slice(0, 2)
               .map((tag, index) => (
-                <Badge key={index} variant="secondary" className="text-xs">
+                <Badge key={index} variant="secondary" className="text-sm">
                   {tag.trim()}
                 </Badge>
               ))}

@@ -6,7 +6,7 @@ import { createClient, type Book } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 
-const BOOKS_PER_PAGE = 9
+const BOOKS_PER_PAGE = 12
 
 // Add this hook to get the current user
 function useAuthUser() {
@@ -117,15 +117,15 @@ export default function BooksPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-primary text-balance">Book Collection</h1>
-          <p className="text-muted-foreground mt-2">Browse and manage your personal library</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-primary text-balance">Book Collection</h1>
+          <p className="text-lg text-muted-foreground mt-2">Browse and manage your personal library</p>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-semibold text-foreground">All Books</h2>
-          <div className="text-sm text-muted-foreground">
+          <h2 className="text-xl md:text-2xl font-semibold text-foreground">All Books</h2>
+          <div className="text-base text-muted-foreground">
             {totalBooks} {totalBooks === 1 ? "book" : "books"} total
             {totalPages > 1 && (
               <span className="ml-2">
@@ -136,7 +136,7 @@ export default function BooksPage() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: BOOKS_PER_PAGE }).map((_, i) => (
               <div key={i} className="animate-pulse">
                 <div className="bg-muted rounded-lg h-80"></div>
@@ -145,12 +145,12 @@ export default function BooksPage() {
           </div>
         ) : totalBooks === 0 ? (
           <div className="text-center py-12">
-            <div className="text-muted-foreground text-lg mb-2">No books in your collection yet</div>
-            <p className="text-sm text-muted-foreground">Add your first book using the upload page</p>
+            <div className="text-muted-foreground text-xl mb-2">No books in your collection yet</div>
+            <p className="text-base text-muted-foreground">Add your first book using the upload page</p>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {books.map((book) => (
                 <BookCard
                   key={book.id}

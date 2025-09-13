@@ -73,7 +73,7 @@ export default function HomePage() {
       <div className="container mx-auto px-4 py-8 md:py-16">
         <div className="text-center space-y-6">
           <h1 className="text-3xl md:text-4xl font-bold text-primary text-balance">Welcome to BookList</h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty px-4">
+          <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto text-pretty px-4">
             Your personal digital library management system. Organize, track, and discover your book collection with
             ease.
           </p>
@@ -91,7 +91,7 @@ export default function HomePage() {
             </div>
 
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="animate-pulse">
                     <div className="bg-muted rounded-lg h-64 mb-3"></div>
@@ -101,7 +101,7 @@ export default function HomePage() {
                 ))}
               </div>
             ) : latestBooks.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {latestBooks.map((book) => (
                   <Card key={book.id} className="group hover:shadow-lg transition-shadow duration-200 border-border">
                     <CardContent className="p-4">
@@ -120,19 +120,19 @@ export default function HomePage() {
                         </div>
                       </Link>
 
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <Link href={`/books/${book.id}`}>
-                          <h3 className="font-semibold text-foreground line-clamp-2 text-balance hover:text-primary transition-colors cursor-pointer text-left">
+                          <h3 className="text-xl font-bold text-foreground line-clamp-2 text-balance hover:text-primary transition-colors cursor-pointer text-left">
                             {book.title || "Untitled"}
                           </h3>
                         </Link>
-                        <p className="text-sm text-muted-foreground text-left">{book.author || "Unknown Author"}</p>
+                        <p className="text-lg text-muted-foreground text-left font-medium">{book.author || "Unknown Author"}</p>
                         {book.description && (
-                          <p className="text-xs text-muted-foreground text-left line-clamp-2">{book.description}</p>
+                          <p className="text-base text-muted-foreground text-left line-clamp-2">{book.description}</p>
                         )}
-                        {book.year && <p className="text-xs text-muted-foreground text-left">Published: {book.year}</p>}
+                        {book.year && <p className="text-base text-muted-foreground text-left">Published: {book.year}</p>}
                         {book.created_at && (
-                          <p className="text-xs text-muted-foreground text-left">
+                          <p className="text-base text-muted-foreground text-left">
                             Added: {new Date(book.created_at).toLocaleDateString()}
                           </p>
                         )}
@@ -143,9 +143,9 @@ export default function HomePage() {
               </div>
             ) : (
               <div className="text-center py-12 bg-muted/50 rounded-lg">
-                <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No books yet</h3>
-                <p className="text-muted-foreground mb-4">Start building your library by adding your first book</p>
+                <BookOpen className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-xl font-semibold mb-2">No books yet</h3>
+                <p className="text-base text-muted-foreground mb-4">Start building your library by adding your first book</p>
                 <Button asChild>
                   <Link href="/upload">Add Your First Book</Link>
                 </Button>
@@ -159,7 +159,7 @@ export default function HomePage() {
       <div className="bg-muted/30 py-12 md:py-16">
         <div className="container mx-auto px-4">
           <div className="text-center space-y-4 md:space-y-6 mb-8 md:mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground">Platform Features</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-foreground">Platform Features</h2>
             <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto px-4">
               Discover all the powerful features that make BookList the perfect solution for managing your digital library
             </p>
@@ -171,8 +171,8 @@ export default function HomePage() {
               <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
                 <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 className="text-lg font-semibold">Library Management</h3>
-              <p className="text-muted-foreground text-sm">
+              <h3 className="text-xl font-semibold">Library Management</h3>
+              <p className="text-muted-foreground text-base">
                 Organize your entire book collection with rich metadata, cover images, and detailed information including author, publisher, year, and descriptions.
               </p>
             </div>
@@ -182,8 +182,8 @@ export default function HomePage() {
               <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
                 <Heart className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               </div>
-              <h3 className="text-lg font-semibold">Personal Reading Lists</h3>
-              <p className="text-muted-foreground text-sm">
+              <h3 className="text-xl font-semibold">Personal Reading Lists</h3>
+              <p className="text-muted-foreground text-base">
                 Create and manage your personal reading lists. Track books you want to read, are currently reading, or have completed with status updates.
               </p>
             </div>
@@ -193,8 +193,8 @@ export default function HomePage() {
               <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
                 <FileText className="w-6 h-6 text-orange-600 dark:text-orange-400" />
               </div>
-              <h3 className="text-lg font-semibold">Study Notes</h3>
-              <p className="text-muted-foreground text-sm">
+              <h3 className="text-xl font-semibold">Study Notes</h3>
+              <p className="text-muted-foreground text-base">
                 Take comprehensive study notes for each book. Organize your thoughts, quotes, and insights with rich text formatting and categorization.
               </p>
             </div>
@@ -204,8 +204,8 @@ export default function HomePage() {
               <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
                 <BarChart3 className="w-6 h-6 text-red-600 dark:text-red-400" />
               </div>
-              <h3 className="text-lg font-semibold">Analytics & Insights</h3>
-              <p className="text-muted-foreground text-sm">
+              <h3 className="text-xl font-semibold">Analytics & Insights</h3>
+              <p className="text-muted-foreground text-base">
                 Track your reading progress with detailed analytics. View statistics on book interactions, reading patterns, and library growth over time.
               </p>
             </div>
@@ -215,8 +215,8 @@ export default function HomePage() {
               <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center">
                 <Users className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
               </div>
-              <h3 className="text-lg font-semibold">Multi-User Platform</h3>
-              <p className="text-muted-foreground text-sm">
+              <h3 className="text-xl font-semibold">Multi-User Platform</h3>
+              <p className="text-muted-foreground text-base">
                 Secure multi-user environment where each user has their own private library and reading lists with proper access control and data isolation.
               </p>
             </div>
@@ -226,8 +226,8 @@ export default function HomePage() {
               <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/20 rounded-lg flex items-center justify-center">
                 <Shield className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <h3 className="text-lg font-semibold">Secure & Private</h3>
-              <p className="text-muted-foreground text-sm">
+              <h3 className="text-xl font-semibold">Secure & Private</h3>
+              <p className="text-muted-foreground text-base">
                 Your books and data are stored securely with industry-standard encryption. Row-level security ensures your library remains completely private.
               </p>
             </div>
@@ -249,7 +249,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4 text-center">
           <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
             <div className="space-y-3 md:space-y-4">
-              <h2 className="text-2xl md:text-4xl font-bold text-foreground px-4">Ready to Transform Your Library?</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-foreground px-4">Ready to Transform Your Library?</h2>
               <p className="text-base md:text-xl text-muted-foreground max-w-3xl mx-auto px-4">
                 Join thousands of book lovers who have already revolutionized their reading experience. 
                 Start organizing, tracking, and discovering your perfect digital library today.
@@ -283,7 +283,7 @@ export default function HomePage() {
                 <BookOpen className="h-8 w-8 text-primary" />
                 <span className="text-xl font-bold text-foreground">BookList</span>
               </div>
-              <p className="text-sm text-muted-foreground text-center sm:text-left">
+              <p className="text-base text-muted-foreground text-center sm:text-left">
                 Your personal digital library management system. Organize, track, and discover your book collection with ease.
               </p>
               <div className="flex space-x-4 justify-center sm:justify-start">
@@ -307,8 +307,8 @@ export default function HomePage() {
 
             {/* Features */}
             <div className="space-y-4 text-center sm:text-left">
-              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Features</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <h3 className="text-base font-semibold text-foreground uppercase tracking-wider">Features</h3>
+              <ul className="space-y-2 text-base text-muted-foreground">
                 <li><Link href="/books" className="hover:text-primary transition-colors">Browse Books</Link></li>
                 <li><Link href="/upload" className="hover:text-primary transition-colors">Add Books</Link></li>
                 <li><Link href="/reading-list" className="hover:text-primary transition-colors">Reading Lists</Link></li>
@@ -318,8 +318,8 @@ export default function HomePage() {
 
             {/* Account */}
             <div className="space-y-4 text-center sm:text-left">
-              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Account</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <h3 className="text-base font-semibold text-foreground uppercase tracking-wider">Account</h3>
+              <ul className="space-y-2 text-base text-muted-foreground">
                 <li><Link href="/login" className="hover:text-primary transition-colors">Login</Link></li>
                 <li><Link href="/register" className="hover:text-primary transition-colors">Register</Link></li>
                 <li><Link href="/admin" className="hover:text-primary transition-colors">Admin</Link></li>
@@ -329,8 +329,8 @@ export default function HomePage() {
 
             {/* Legal */}
             <div className="space-y-4 text-center sm:text-left">
-              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Legal</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <h3 className="text-base font-semibold text-foreground uppercase tracking-wider">Legal</h3>
+              <ul className="space-y-2 text-base text-muted-foreground">
                 <li><a href="#" className="hover:text-primary transition-colors">Privacy Policy</a></li>
                 <li><a href="#" className="hover:text-primary transition-colors">Terms of Service</a></li>
                 <li><a href="#" className="hover:text-primary transition-colors">Cookie Policy</a></li>
@@ -340,10 +340,10 @@ export default function HomePage() {
           </div>
 
           <div className="border-t mt-6 md:mt-8 pt-6 md:pt-8 flex flex-col md:flex-row justify-between items-center text-center md:text-left space-y-2 md:space-y-0">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-muted-foreground">
               © {new Date().getFullYear()} BookList. All rights reserved.
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-muted-foreground">
               Made with ❤️ for book lovers everywhere
             </p>
           </div>

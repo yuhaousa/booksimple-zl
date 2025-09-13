@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { BookOpen, Trash2, Calendar, User, Building, ExternalLink } from "lucide-react"
+import { BookOpen, Trash2, Calendar, User, Building, ExternalLink, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import { toast } from "sonner"
 
 
@@ -43,10 +43,13 @@ const STATUS_LABELS = {
   completed: 'Completed',
 };
 
+const ITEMS_PER_PAGE = 12;
+
 export default function ReadingListPage() {
   const [readingList, setReadingList] = useState<ReadingListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'to_read' | 'reading' | 'completed'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
@@ -187,6 +190,23 @@ export default function ReadingListPage() {
     filter === 'all' || item.status === filter
   );
 
+  // Pagination logic
+  const totalItems = filteredList.length;
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedList = filteredList.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFilterChange = (newFilter: 'all' | 'to_read' | 'reading' | 'completed') => {
+    setFilter(newFilter);
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+
   const getStatusCounts = () => {
     const counts = {
       all: readingList.length,
@@ -216,8 +236,8 @@ export default function ReadingListPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-primary text-balance">My Reading List</h1>
-          <p className="text-muted-foreground mt-2">Track your reading progress and discover what's next</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-primary text-balance">My Reading List</h1>
+          <p className="text-lg text-muted-foreground mt-2">Track your reading progress and discover what's next</p>
         </div>
       </header>
 
@@ -234,7 +254,7 @@ export default function ReadingListPage() {
               key={key}
               variant={filter === key ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setFilter(key as typeof filter)}
+              onClick={() => handleFilterChange(key as typeof filter)}
               className="flex items-center gap-2"
             >
               {label}
@@ -245,7 +265,7 @@ export default function ReadingListPage() {
           ))}
         </div>
 
-        {filteredList.length === 0 ? (
+        {totalItems === 0 ? (
           <div className="text-center py-12">
             <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">
@@ -267,8 +287,8 @@ export default function ReadingListPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredList.map((item: ReadingListItem) => (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {paginatedList.map((item: ReadingListItem) => (
               <Card key={item.id} className="overflow-hidden hover:shadow-md transition-shadow">
                 <div className="aspect-[3/4] relative bg-muted">
                   <Image
@@ -320,7 +340,7 @@ export default function ReadingListPage() {
                   </div>
 
                   {item.book.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
+                    <p className="text-base text-muted-foreground line-clamp-2">
                       {item.book.description}
                     </p>
                   )}
@@ -328,7 +348,7 @@ export default function ReadingListPage() {
                   {item.book.tags && (
                     <div className="flex flex-wrap gap-1">
                       {item.book.tags.split(',').slice(0, 3).map((tag: string, index: number) => (
-                        <Badge key={index} variant="outline" className="text-xs">
+                        <Badge key={index} variant="outline" className="text-sm">
                           {tag.trim()}
                         </Badge>
                       ))}
@@ -342,7 +362,7 @@ export default function ReadingListPage() {
                         key={status}
                         variant={item.status === status ? 'default' : 'outline'}
                         size="sm"
-                        className="text-xs flex-1"
+                        className="text-sm flex-1"
                         onClick={() => {
                           if (item.status === status && item.book.file_url) {
                             // If current status is clicked and book has a file, open it
@@ -377,6 +397,85 @@ export default function ReadingListPage() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-8">
+            <div className="text-sm text-muted-foreground">
+              Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} books
+              {totalPages > 1 && (
+                <span className="ml-2">
+                  (Page {currentPage} of {totalPages})
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNumber
+                  if (totalPages <= 5) {
+                    pageNumber = i + 1
+                  } else if (currentPage <= 3) {
+                    pageNumber = i + 1
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNumber = totalPages - 4 + i
+                  } else {
+                    pageNumber = currentPage - 2 + i
+                  }
+
+                  return (
+                    <Button
+                      key={pageNumber}
+                      variant={currentPage === pageNumber ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNumber)}
+                      className="min-w-[2.5rem]"
+                    >
+                      {pageNumber}
+                    </Button>
+                  )
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         )}
       </main>

@@ -49,8 +49,8 @@ if (insertError) {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-primary text-balance">Add New Book</h1>
-          <p className="text-muted-foreground mt-2">Add a new book to your collection</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-primary text-balance">Add New Book</h1>
+          <p className="text-lg text-muted-foreground mt-2">Add a new book to your collection</p>
         </div>
       </header>
 
