@@ -59,14 +59,12 @@ export default function AdminBooks() {
   const fetchBooks = async () => {
     try {
       // First, let's try a simple count to see if we can access the table
-      const { count, error: countError } = await supabase
-        .from("Booklist")
-        .select("*", { count: "exact", head: true })
-      
-      if (process.env.NODE_ENV === 'development') {
+      const { count, error: countError } = await supabase.from("Booklist").select("*", { count: "exact", head: true })
+
+      if (process.env.NODE_ENV === "development") {
         console.log("Table count result:", { count, countError })
       }
-      
+
       // Now try to get the actual data
       const { data, error } = await supabase.from("Booklist").select("*").order("created_at", { ascending: false })
 
@@ -76,13 +74,13 @@ export default function AdminBooks() {
       }
 
       // Get unique user IDs from books
-      const userIds = [...new Set(data?.map(book => book.user_id).filter(Boolean))]
-      
+      const userIds = [...new Set(data?.map((book) => book.user_id).filter(Boolean))]
+
       // Try to fetch user profiles (if profiles table exists)
       const profilesMap = new Map<string, UserProfile>()
       try {
         const { data: profiles } = await supabase.from("profiles").select("*").in("id", userIds)
-        profiles?.forEach(profile => {
+        profiles?.forEach((profile) => {
           profilesMap.set(profile.id, profile)
         })
       } catch (profileError) {
@@ -93,12 +91,12 @@ export default function AdminBooks() {
               id: userId,
               username: `user${index + 1}`,
               full_name: `User ${index + 1}`,
-              email: `user${index + 1}@bookapp.com`
+              email: `user${index + 1}@bookapp.com`,
             })
           }
         })
       }
-      
+
       setUserProfiles(profilesMap)
 
       // Generate signed URLs for covers and files
@@ -116,7 +114,7 @@ export default function AdminBooks() {
                 coverUrl = signedCover.signedUrl
               }
             } catch (error) {
-              if (process.env.NODE_ENV === 'development') {
+              if (process.env.NODE_ENV === "development") {
                 console.error(`Error generating cover signed URL for "${book.title}":`, error)
               }
             }
@@ -126,16 +124,16 @@ export default function AdminBooks() {
             try {
               // Clean the file URL path
               const cleanPath = fileUrl.replace(/^book-files\//, "").replace(/^\//, "")
-              
+
               const { data: signedFile, error: fileError } = await supabase.storage
                 .from("book-files")
                 .createSignedUrl(cleanPath, 60 * 60 * 24)
-                
+
               if (!fileError && signedFile?.signedUrl) {
                 fileUrl = signedFile.signedUrl
               }
             } catch (error) {
-              if (process.env.NODE_ENV === 'development') {
+              if (process.env.NODE_ENV === "development") {
                 console.error(`Error generating file signed URL for "${book.title}":`, error)
               }
               // Keep the original URL as fallback
@@ -147,7 +145,7 @@ export default function AdminBooks() {
       )
 
       setBooks(booksWithSignedUrls)
-      
+
       // Fetch click stats after books are loaded
       await fetchBookClickStatsForBooks(booksWithSignedUrls)
     } catch (error) {
@@ -161,16 +159,16 @@ export default function AdminBooks() {
     try {
       const stats = await getBookClickStats()
       const statsMap = new Map()
-      
+
       if (stats.length === 0) {
         // Generate mock data for demonstration since tracking tables might not exist
-        booksList.forEach(book => {
+        booksList.forEach((book) => {
           const mockStats = {
             book_id: book.id,
             total_clicks: Math.floor(Math.random() * 50) + 1,
             read_clicks: Math.floor(Math.random() * 30) + 1,
             download_clicks: Math.floor(Math.random() * 20) + 1,
-            unique_users: Math.floor(Math.random() * 10) + 1
+            unique_users: Math.floor(Math.random() * 10) + 1,
           }
           mockStats.total_clicks = mockStats.read_clicks + mockStats.download_clicks
           statsMap.set(book.id, mockStats)
@@ -180,19 +178,19 @@ export default function AdminBooks() {
           statsMap.set(stat.book_id, stat)
         })
       }
-      
+
       setBookClickStats(statsMap)
     } catch (error) {
       console.error("Error fetching book click stats:", error)
       // Generate mock data as fallback
       const statsMap = new Map()
-      booksList.forEach(book => {
+      booksList.forEach((book) => {
         const mockStats = {
           book_id: book.id,
           total_clicks: Math.floor(Math.random() * 50) + 1,
           read_clicks: Math.floor(Math.random() * 30) + 1,
           download_clicks: Math.floor(Math.random() * 20) + 1,
-          unique_users: Math.floor(Math.random() * 10) + 1
+          unique_users: Math.floor(Math.random() * 10) + 1,
         }
         mockStats.total_clicks = mockStats.read_clicks + mockStats.download_clicks
         statsMap.set(book.id, mockStats)
@@ -202,9 +200,9 @@ export default function AdminBooks() {
   }
 
   const handleDeleteBook = async (bookId: number) => {
-    const book = books.find(b => b.id === bookId)
-    const bookTitle = book?.title || 'this book'
-    
+    const book = books.find((b) => b.id === bookId)
+    const bookTitle = book?.title || "this book"
+
     if (!confirm(`Are you sure you want to delete "${bookTitle}"? This action cannot be undone.`)) return
 
     try {
@@ -216,7 +214,7 @@ export default function AdminBooks() {
         .limit(1)
 
       const { data: readingList, error: readingListError } = await supabase
-        .from("reading_list")
+        .from("reading_list_full")
         .select("id")
         .eq("book_id", bookId)
         .limit(1)
@@ -235,15 +233,15 @@ export default function AdminBooks() {
       if (hasNotes || hasReadingListEntry || hasClickData) {
         const associations = []
         if (hasNotes) associations.push("study notes")
-        if (hasReadingListEntry) associations.push("reading list entries")  
+        if (hasReadingListEntry) associations.push("reading list entries")
         if (hasClickData) associations.push("click tracking data")
 
         const associationText = associations.join(", ")
         const confirmDelete = confirm(
           `⚠️ Warning: "${bookTitle}" has associated ${associationText}.\n\n` +
-          `Deleting this book will also remove all its associated data:\n` +
-          `${associations.map(item => `• ${item}`).join('\n')}\n\n` +
-          `Are you sure you want to continue? This action cannot be undone.`
+            `Deleting this book will also remove all its associated data:\n` +
+            `${associations.map((item) => `• ${item}`).join("\n")}\n\n` +
+            `Are you sure you want to continue? This action cannot be undone.`,
         )
 
         if (!confirmDelete) return
@@ -253,7 +251,7 @@ export default function AdminBooks() {
           await supabase.from("study_notes").delete().eq("book_id", bookId)
         }
         if (hasReadingListEntry) {
-          await supabase.from("reading_list").delete().eq("book_id", bookId)
+          await supabase.from("reading_list_full").delete().eq("book_id", bookId)
         }
         if (hasClickData) {
           await supabase.from("book_clicks").delete().eq("book_id", bookId)
@@ -267,35 +265,34 @@ export default function AdminBooks() {
 
       // Update local state
       setBooks(books.filter((book) => book.id !== bookId))
-      
+
       // Show success message
       if (hasNotes || hasReadingListEntry || hasClickData) {
         alert(`✅ Book "${bookTitle}" and all associated data deleted successfully.`)
       } else {
         alert(`✅ Book "${bookTitle}" deleted successfully.`)
       }
-      
     } catch (error: any) {
       console.error("Error deleting book:", error)
-      
+
       // Handle specific database constraint errors
-      if (error.code === '23503') {
+      if (error.code === "23503") {
         alert(
           `❌ Cannot delete "${bookTitle}": It has associated data that cannot be automatically removed.\n\n` +
-          `Please manually remove any study notes, reading list entries, or other dependent data first.`
+            `Please manually remove any study notes, reading list entries, or other dependent data first.`,
         )
-      } else if (error.message?.includes('foreign key')) {
+      } else if (error.message?.includes("foreign key")) {
         alert(
           `❌ Cannot delete "${bookTitle}": It is referenced by other data in the system.\n\n` +
-          `Please remove any study notes or reading list entries for this book first.`
+            `Please remove any study notes or reading list entries for this book first.`,
         )
-      } else if (error.message?.includes('violates')) {
+      } else if (error.message?.includes("violates")) {
         alert(
           `❌ Cannot delete "${bookTitle}": Database constraint violation.\n\n` +
-          `This book may have dependent data that needs to be removed first.`
+            `This book may have dependent data that needs to be removed first.`,
         )
       } else {
-        alert(`❌ Failed to delete book: ${error.message || 'Unknown error occurred'}`)
+        alert(`❌ Failed to delete book: ${error.message || "Unknown error occurred"}`)
       }
     }
   }
@@ -305,11 +302,14 @@ export default function AdminBooks() {
       book.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       book.author?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       book.publisher?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      userProfiles.get(book.user_id || '')?.username?.toLowerCase().includes(searchTerm.toLowerCase()),
+      userProfiles
+        .get(book.user_id || "")
+        ?.username?.toLowerCase()
+        .includes(searchTerm.toLowerCase()),
   )
 
   const getUserName = (userId: string | null) => {
-    if (!userId) return 'Unknown User'
+    if (!userId) return "Unknown User"
     const profile = userProfiles.get(userId)
     return profile?.username || profile?.full_name || `User ${userId.slice(0, 8)}`
   }
@@ -317,21 +317,17 @@ export default function AdminBooks() {
   const listStorageFiles = async () => {
     try {
       console.log("=== Storage Files Debug ===")
-      
+
       // Check the correct bucket that user-side uses
-      const { data: files, error } = await supabase.storage
-        .from('book-file')
-        .list()
-        
+      const { data: files, error } = await supabase.storage.from("book-file").list()
+
       if (error) {
         console.error("Error listing storage files:", error)
-        
+
         // Also try the other bucket name in case both exist
         console.log("Trying alternative bucket name...")
-        const { data: altFiles, error: altError } = await supabase.storage
-          .from('book-files')
-          .list()
-          
+        const { data: altFiles, error: altError } = await supabase.storage.from("book-files").list()
+
         if (altError) {
           console.error("Alternative bucket also failed:", altError)
           return
@@ -340,14 +336,16 @@ export default function AdminBooks() {
         }
         return
       }
-      
+
       console.log("Files in 'book-file' storage bucket:", files)
       console.log("Number of files found:", files?.length || 0)
-      
+
       if (files && files.length > 0) {
         console.log("File details:")
         files.forEach((file, index) => {
-          console.log(`${index + 1}. Name: ${file.name}, Size: ${file.metadata?.size || 'unknown'}, Last Modified: ${file.updated_at}`)
+          console.log(
+            `${index + 1}. Name: ${file.name}, Size: ${file.metadata?.size || "unknown"}, Last Modified: ${file.updated_at}`,
+          )
         })
       }
     } catch (error) {
@@ -359,7 +357,7 @@ export default function AdminBooks() {
     console.log("=== Download Debug Info ===")
     console.log("Book title:", book.title)
     console.log("Original file_url:", book.file_url)
-    
+
     if (!book.file_url) {
       alert("No PDF file available for this book")
       return
@@ -368,49 +366,50 @@ export default function AdminBooks() {
     try {
       // Record the download click before attempting download
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        await recordBookClick(book.id, 'download', user?.id)
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        await recordBookClick(book.id, "download", user?.id)
         // Refresh click stats after recording
         fetchBookClickStats()
       } catch (clickError) {
-        console.warn('Could not record download click:', clickError)
+        console.warn("Could not record download click:", clickError)
       }
 
       // Use the same approach as the user-side book detail page
       console.log("Attempting to generate signed URL using user-side approach...")
-      
+
       // Extract the actual filename and remove the "book-file/" prefix like in user-side
-      let cleanPath = book.file_url.replace(/^book-file\//, "")
-      
+      const cleanPath = book.file_url.replace(/^book-file\//, "")
+
       console.log("Cleaned path:", cleanPath)
-      
+
       // Use "book-file" (singular) bucket name like in user-side
       const { data: signedFile, error: fileError } = await supabase.storage
         .from("book-file")
         .createSignedUrl(cleanPath, 60 * 60 * 24) // 24 hours
-        
+
       if (fileError) {
         console.error("Error generating signed URL:", fileError)
         throw new Error(`Cannot generate signed URL: ${fileError.message}`)
-      } 
-      
+      }
+
       if (signedFile?.signedUrl) {
         console.log("Signed URL generated successfully:", signedFile.signedUrl)
-        window.open(signedFile.signedUrl, '_blank')
+        window.open(signedFile.signedUrl, "_blank")
         return
       }
-      
+
       throw new Error("No signed URL returned")
-      
     } catch (error) {
       console.error("Download error:", error)
-      
+
       // Show detailed error to user
       const errorMessage = `Failed to download "${book.title}". 
       
 Debug Info:
 - File URL: ${book.file_url}
-- Error: ${error instanceof Error ? error.message : 'Unknown error'}
+- Error: ${error instanceof Error ? error.message : "Unknown error"}
 
 This might be because:
 1. The file was not uploaded properly
@@ -419,7 +418,7 @@ This might be because:
 4. The file has been deleted from storage
 
 Please check the browser console for more details.`
-      
+
       alert(errorMessage)
     }
   }
@@ -432,12 +431,7 @@ Please check the browser console for more details.`
           <p className="text-muted-foreground mt-2">View and manage all books in the system</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            onClick={listStorageFiles}
-            variant="outline"
-            size="sm"
-            className="text-xs"
-          >
+          <Button onClick={listStorageFiles} variant="outline" size="sm" className="text-xs bg-transparent">
             Debug Storage
           </Button>
           <Badge variant="secondary" className="text-sm">
@@ -497,10 +491,7 @@ Please check the browser console for more details.`
                 </thead>
                 <tbody>
                   {filteredBooks.map((book) => (
-                    <tr
-                      key={book.id}
-                      className="border-b border-border/50 hover:bg-muted/50 transition-colors"
-                    >
+                    <tr key={book.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
                       <td className="p-4">
                         <div className="w-12 h-16 relative bg-muted rounded overflow-hidden">
                           <Image
@@ -513,24 +504,14 @@ Please check the browser console for more details.`
                         </div>
                       </td>
                       <td className="p-4">
-                        <div className="font-medium text-foreground max-w-xs">
-                          {book.title || "Untitled"}
-                        </div>
-                        {book.year && (
-                          <div className="text-sm text-muted-foreground">
-                            Published: {book.year}
-                          </div>
-                        )}
+                        <div className="font-medium text-foreground max-w-xs">{book.title || "Untitled"}</div>
+                        {book.year && <div className="text-sm text-muted-foreground">Published: {book.year}</div>}
                       </td>
                       <td className="p-4">
-                        <div className="text-sm text-foreground">
-                          {book.author || "Unknown Author"}
-                        </div>
+                        <div className="text-sm text-foreground">{book.author || "Unknown Author"}</div>
                       </td>
                       <td className="p-4">
-                        <div className="text-sm text-foreground">
-                          {book.publisher || "Unknown Publisher"}
-                        </div>
+                        <div className="text-sm text-foreground">{book.publisher || "Unknown Publisher"}</div>
                       </td>
                       <td className="p-4">
                         <div className="text-sm text-foreground">
@@ -541,13 +522,9 @@ Please check the browser console for more details.`
                         </div>
                       </td>
                       <td className="p-4">
-                        <div className="text-sm text-foreground">
-                          {getUserName(book.user_id)}
-                        </div>
+                        <div className="text-sm text-foreground">{getUserName(book.user_id)}</div>
                         {book.user_id && (
-                          <div className="text-xs text-muted-foreground">
-                            ID: {book.user_id.slice(0, 8)}...
-                          </div>
+                          <div className="text-xs text-muted-foreground">ID: {book.user_id.slice(0, 8)}...</div>
                         )}
                       </td>
                       <td className="p-4">
@@ -560,9 +537,7 @@ Please check the browser console for more details.`
                               <Download className="h-4 w-4" />
                               Download PDF
                             </button>
-                            <div className="text-xs text-muted-foreground">
-                              PDF Available
-                            </div>
+                            <div className="text-xs text-muted-foreground">PDF Available</div>
                           </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">No PDF</span>
@@ -576,16 +551,12 @@ Please check the browser console for more details.`
                           }
                           return (
                             <div className="space-y-1">
-                              <div className="text-sm font-medium">
-                                {stats.total_clicks} total
-                              </div>
+                              <div className="text-sm font-medium">{stats.total_clicks} total</div>
                               <div className="text-xs text-muted-foreground">
                                 {stats.read_clicks} reads, {stats.download_clicks} downloads
                               </div>
                               {stats.unique_users > 0 && (
-                                <div className="text-xs text-muted-foreground">
-                                  {stats.unique_users} unique users
-                                </div>
+                                <div className="text-xs text-muted-foreground">{stats.unique_users} unique users</div>
                               )}
                             </div>
                           )

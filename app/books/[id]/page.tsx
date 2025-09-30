@@ -79,7 +79,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   const [book, setBook] = useState<Book | null>(null)
   const [loading, setLoading] = useState(true)
   const [isInReadingList, setIsInReadingList] = useState(false)
-  const [readingListStatus, setReadingListStatus] = useState<'to_read' | 'reading' | 'completed' | null>(null)
+  const [readingListStatus, setReadingListStatus] = useState<"to_read" | "reading" | "completed" | null>(null)
   const [addingToList, setAddingToList] = useState(false)
   const [notes, setNotes] = useState<StudyNote[]>([])
   const [notesLoading, setNotesLoading] = useState(true)
@@ -90,12 +90,12 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
 
   const initializePage = async () => {
     const bookData = await getBook(params.id)
-    
+
     if (!bookData) {
       notFound()
       return
     }
-    
+
     setBook(bookData)
     await checkReadingListStatus(bookData.id)
     await fetchBookNotes(bookData.id)
@@ -121,13 +121,10 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
 
   const checkReadingListStatus = async (bookId: number) => {
     try {
-      const { data, error } = await supabase
-        .from("reading_list")
-        .select("status")
-        .eq("book_id", bookId)
-        .single()
+      const { data, error } = await supabase.from("reading_list_full").select("status").eq("book_id", bookId).single()
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 is "not found" error
         throw error
       }
 
@@ -147,19 +144,19 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     if (!book || addingToList) return
 
     setAddingToList(true)
-    
+
     try {
-      const { error } = await supabase
-        .from("reading_list")
-        .insert([{
+      const { error } = await supabase.from("reading_list_full").insert([
+        {
           book_id: book.id,
-          status: 'to_read'
-        }])
+          status: "to_read",
+        },
+      ])
 
       if (error) throw error
 
       setIsInReadingList(true)
-      setReadingListStatus('to_read')
+      setReadingListStatus("to_read")
       toast.success("Book added to reading list!")
     } catch (error) {
       console.error("Error adding to reading list:", error)
@@ -173,12 +170,9 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     if (!book || addingToList) return
 
     setAddingToList(true)
-    
+
     try {
-      const { error } = await supabase
-        .from("reading_list")
-        .delete()
-        .eq("book_id", book.id)
+      const { error } = await supabase.from("reading_list_full").delete().eq("book_id", book.id)
 
       if (error) throw error
 
@@ -212,11 +206,11 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
 
   const getStatusDisplay = () => {
     const statusLabels = {
-      to_read: 'To Read',
-      reading: 'Currently Reading',
-      completed: 'Completed'
+      to_read: "To Read",
+      reading: "Currently Reading",
+      completed: "Completed",
     }
-    
+
     return readingListStatus ? statusLabels[readingListStatus] : null
   }
 
@@ -247,7 +241,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                   onError={(e) => {
                     console.error("Image failed to load:", book.cover_url)
                     // Fallback to placeholder if image fails to load
-                    e.currentTarget.src = "/placeholder.svg?height=400&width=300&query=book+cover"
+                    e.currentTarget.src = "/abstract-book-cover.png"
                   }}
                 />
               </div>
@@ -255,11 +249,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
               {/* Reading List Actions */}
               <div className="mb-4 space-y-2">
                 {!isInReadingList ? (
-                  <Button 
-                    onClick={addToReadingList} 
-                    className="w-full"
-                    disabled={addingToList}
-                  >
+                  <Button onClick={addToReadingList} className="w-full" disabled={addingToList}>
                     {addingToList ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -279,18 +269,13 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                       <span>In Reading List ({getStatusDisplay()})</span>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1" asChild>
+                      <Button variant="outline" size="sm" className="flex-1 bg-transparent" asChild>
                         <Link href="/reading-list">
                           <BookOpen className="w-3 h-3 mr-1" />
                           View List
                         </Link>
                       </Button>
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={removeFromReadingList}
-                        disabled={addingToList}
-                      >
+                      <Button variant="destructive" size="sm" onClick={removeFromReadingList} disabled={addingToList}>
                         Remove
                       </Button>
                     </div>
@@ -405,7 +390,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                       className="border border-border rounded-lg p-4 hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex items-start justify-between mb-2">
-                        <Link 
+                        <Link
                           href={`/notes/${note.id}`}
                           className="text-lg font-medium hover:text-primary transition-colors flex-1"
                         >
@@ -417,11 +402,11 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                           </Link>
                         </Button>
                       </div>
-                      
+
                       {note.content && (
                         <p className="text-base text-muted-foreground line-clamp-2 mb-2">
-                          {note.content.replace(/<[^>]*>/g, '').substring(0, 150)}
-                          {note.content.length > 150 && '...'}
+                          {note.content.replace(/<[^>]*>/g, "").substring(0, 150)}
+                          {note.content.length > 150 && "..."}
                         </p>
                       )}
 
@@ -432,12 +417,16 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                               {note.category}
                             </Badge>
                           )}
-                          {note.tags && note.tags.split(',').slice(0, 2).map((tag, index) => (
-                            <Badge key={index} variant="secondary" className="text-sm">
-                              <Tag className="w-2 h-2 mr-1" />
-                              {tag.trim()}
-                            </Badge>
-                          ))}
+                          {note.tags &&
+                            note.tags
+                              .split(",")
+                              .slice(0, 2)
+                              .map((tag, index) => (
+                                <Badge key={index} variant="secondary" className="text-sm">
+                                  <Tag className="w-2 h-2 mr-1" />
+                                  {tag.trim()}
+                                </Badge>
+                              ))}
                         </div>
                         <div className="flex items-center text-sm text-muted-foreground">
                           <Calendar className="w-3 h-3 mr-1" />
@@ -446,13 +435,11 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                       </div>
                     </div>
                   ))}
-                  
+
                   {notes.length > 0 && (
                     <div className="pt-2 border-t border-border">
-                      <Button variant="outline" size="sm" asChild className="w-full">
-                        <Link href={`/notes?bookId=${book.id}`}>
-                          View All Notes ({notes.length})
-                        </Link>
+                      <Button variant="outline" size="sm" asChild className="w-full bg-transparent">
+                        <Link href={`/notes?bookId=${book.id}`}>View All Notes ({notes.length})</Link>
                       </Button>
                     </div>
                   )}

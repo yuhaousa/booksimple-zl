@@ -27,13 +27,15 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
     if (book.file_url) {
       try {
         // Get current user for tracking
-        const { data: { user } } = await supabase.auth.getUser()
-        
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
         // Record the book click tracking
         console.log(`Recording read click for book ID: ${book.id}, user: ${user?.id}`)
-        await recordBookClick(book.id, 'read', user?.id)
+        await recordBookClick(book.id, "read", user?.id)
         console.log(`Book click recorded successfully for book ID: ${book.id}`)
-        
+
         // Open the book file
         window.open(book.file_url, "_blank")
       } catch (error) {
@@ -63,7 +65,7 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
         .limit(1)
 
       const { data: readingList, error: readingListError } = await supabase
-        .from("reading_list")
+        .from("reading_list_full")
         .select("id")
         .eq("book_id", book.id)
         .limit(1)
@@ -88,9 +90,9 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
         const associationText = associations.join(", ")
         const confirmDelete = confirm(
           `⚠️ Warning: This book has associated ${associationText}.\n\n` +
-          `Deleting this book will also remove all its associated data:\n` +
-          `${associations.map(item => `• ${item}`).join('\n')}\n\n` +
-          `Are you sure you want to continue? This action cannot be undone.`
+            `Deleting this book will also remove all its associated data:\n` +
+            `${associations.map((item) => `• ${item}`).join("\n")}\n\n` +
+            `Are you sure you want to continue? This action cannot be undone.`,
         )
 
         if (!confirmDelete) {
@@ -103,7 +105,7 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
           await supabase.from("study_notes").delete().eq("book_id", book.id)
         }
         if (hasReadingListEntry) {
-          await supabase.from("reading_list").delete().eq("book_id", book.id)
+          await supabase.from("reading_list_full").delete().eq("book_id", book.id)
         }
         if (hasClickData) {
           await supabase.from("book_clicks").delete().eq("book_id", book.id)
@@ -134,25 +136,25 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
       onBookDeleted?.()
     } catch (error: any) {
       console.error("Error deleting book:", error)
-      
+
       // Handle specific database constraint errors
-      if (error.code === '23503') {
+      if (error.code === "23503") {
         toast.error(
           "Cannot delete book: It has associated data (notes, reading list, or tracking data). " +
-          "Please remove associated data first or contact an administrator."
+            "Please remove associated data first or contact an administrator.",
         )
-      } else if (error.message?.includes('foreign key')) {
+      } else if (error.message?.includes("foreign key")) {
         toast.error(
           "Cannot delete book: It is referenced by other data in the system. " +
-          "Please remove any study notes or reading list entries for this book first."
+            "Please remove any study notes or reading list entries for this book first.",
         )
-      } else if (error.message?.includes('violates')) {
+      } else if (error.message?.includes("violates")) {
         toast.error(
           "Cannot delete book: Database constraint violation. " +
-          "This book may have dependent data that needs to be removed first."
+            "This book may have dependent data that needs to be removed first.",
         )
       } else {
-        toast.error(`Failed to delete book: ${error.message || 'Unknown error occurred'}`)
+        toast.error(`Failed to delete book: ${error.message || "Unknown error occurred"}`)
       }
     } finally {
       setIsDeleting(false)
@@ -180,11 +182,7 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
             </h3>
           </Link>
           <p className="text-lg text-muted-foreground font-medium">{book.author || "Unknown Author"}</p>
-          {book.description && (
-            <p className="text-base text-muted-foreground line-clamp-2">
-              {book.description}
-            </p>
-          )}
+          {book.description && <p className="text-base text-muted-foreground line-clamp-2">{book.description}</p>}
           {book.year && <p className="text-base text-muted-foreground">Published: {book.year}</p>}
           {book.created_at && (
             <p className="text-base text-muted-foreground">Added: {new Date(book.created_at).toLocaleDateString()}</p>
@@ -212,7 +210,13 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
               </Button>
-              <Button onClick={handleDeleteBook} variant="destructive" size="sm" className="flex-1" disabled={isDeleting}>
+              <Button
+                onClick={handleDeleteBook}
+                variant="destructive"
+                size="sm"
+                className="flex-1"
+                disabled={isDeleting}
+              >
                 <Trash2 className="w-4 h-4 mr-2" />
                 {isDeleting ? "Deleting..." : "Delete"}
               </Button>
