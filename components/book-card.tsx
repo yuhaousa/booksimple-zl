@@ -222,10 +222,18 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
               </Button>
             </>
           )}
+          {book.file_url && book.file_url.toLowerCase().includes('pdf') && (
+            <Link href={`/books/${book.id}/reader`} className="flex-1">
+              <Button variant="default" size="sm" className="w-full">
+                <BookOpen className="w-4 h-4 mr-2" />
+                Read PDF
+              </Button>
+            </Link>
+          )}
           {book.file_url && (
             <Button onClick={handleReadBook} variant="outline" size="sm" className="flex-1 bg-transparent">
               <BookOpen className="w-4 h-4 mr-2" />
-              Read
+              {book.file_url.toLowerCase().includes('pdf') ? 'Open in Browser' : 'Read'}
             </Button>
           )}
         </div>

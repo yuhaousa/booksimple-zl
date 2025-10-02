@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, Save, ImageIcon } from "lucide-react"
+import { ArrowLeft, Save, ImageIcon, FileText, Upload } from "lucide-react"
 import { toast } from "sonner"
 
 interface Book {
@@ -34,6 +34,8 @@ export default function BookEditPage() {
   const [saving, setSaving] = useState(false)
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState<string>("")
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [pdfFileName, setPdfFileName] = useState<string>("")
 
   useEffect(() => {
     if (params.id) {
@@ -73,6 +75,12 @@ export default function BookEditPage() {
 
       setBook({ ...data, cover_url: coverUrl })
       setCoverPreview(coverUrl || "")
+      
+      // Set current PDF file name if exists
+      if (data.file_url) {
+        const fileName = data.file_url.split('/').pop() || 'Current PDF file'
+        setPdfFileName(fileName)
+      }
     } catch (error) {
       console.error("Error fetching book:", error)
       toast.error("Failed to load book details")
@@ -107,6 +115,27 @@ export default function BookEditPage() {
     reader.readAsDataURL(file)
   }
 
+  const handlePdfChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (file.type !== "application/pdf") {
+      toast.error("Please select a PDF file")
+      return
+    }
+
+    // Validate file size (100MB limit for PDFs)
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error("PDF file size must be less than 100MB")
+      return
+    }
+
+    setPdfFile(file)
+    setPdfFileName(file.name)
+    toast.success("PDF file selected successfully")
+  }
+
   const uploadCoverImage = async (file: File): Promise<string | null> => {
     try {
       const fileExt = file.name.split(".").pop()
@@ -126,6 +155,25 @@ export default function BookEditPage() {
     }
   }
 
+  const uploadPdfFile = async (file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+      const filePath = `${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from("book-file")
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      return `book-file/${filePath}`
+    } catch (error) {
+      console.error("Error uploading PDF:", error)
+      throw error
+    }
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!book) return
@@ -135,10 +183,16 @@ export default function BookEditPage() {
     try {
       const formData = new FormData(event.currentTarget)
       let coverPath = book.cover_url
+      let filePath = book.file_url
 
       // Upload new cover if selected
       if (coverFile) {
         coverPath = await uploadCoverImage(coverFile)
+      }
+
+      // Upload new PDF if selected
+      if (pdfFile) {
+        filePath = await uploadPdfFile(pdfFile)
       }
 
       // Prepare update data
@@ -151,6 +205,7 @@ export default function BookEditPage() {
         isbn: formData.get("isbn") as string || null,
         tags: formData.get("tags") as string || null,
         cover_url: coverPath,
+        file_url: filePath,
       }
 
       const { error } = await supabase
@@ -160,7 +215,15 @@ export default function BookEditPage() {
 
       if (error) throw error
 
-      toast.success("Book updated successfully!")
+      const uploadedItems = []
+      if (coverFile) uploadedItems.push("cover")
+      if (pdfFile) uploadedItems.push("PDF")
+      
+      const message = uploadedItems.length > 0 
+        ? `Book updated successfully! New ${uploadedItems.join(" and ")} uploaded.`
+        : "Book updated successfully!"
+      
+      toast.success(message)
       router.push("/books")
     } catch (error) {
       console.error("Error updating book:", error)
@@ -283,6 +346,46 @@ export default function BookEditPage() {
                   </div>
                 </div>
 
+                {/* PDF File Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="pdf">PDF File</Label>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <div className="w-32 h-20 bg-muted border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center">
+                        <div className="text-center">
+                          <FileText className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
+                          <p className="text-xs text-muted-foreground">PDF File</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        id="pdf"
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        onChange={handlePdfChange}
+                        className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
+                      />
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Upload a new PDF file to replace the current one. Accepted format: PDF (max 100MB)
+                      </p>
+                      {pdfFileName && (
+                        <div className="mt-2 flex items-center gap-2 p-2 bg-muted rounded-md">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            {pdfFile ? "New: " : "Current: "}{pdfFileName}
+                          </span>
+                          {pdfFile && (
+                            <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                              Ready to upload
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Book Title */}
                 <div className="space-y-2">
                   <Label htmlFor="title">Book Title *</Label>
@@ -377,7 +480,7 @@ export default function BookEditPage() {
                     {saving ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground mr-2"></div>
-                        Updating Book...
+                        {(coverFile || pdfFile) ? "Uploading Files..." : "Updating Book..."}
                       </>
                     ) : (
                       <>

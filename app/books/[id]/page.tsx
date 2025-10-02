@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,7 @@ import { BookActions } from "@/components/book-actions"
 import { toast } from "sonner"
 
 interface BookDetailPageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 interface StudyNote {
@@ -76,6 +76,8 @@ async function getBook(id: string) {
 }
 
 export default function BookDetailPage({ params }: BookDetailPageProps) {
+  // Unwrap the params Promise using React.use()
+  const resolvedParams = use(params)
   const [book, setBook] = useState<Book | null>(null)
   const [loading, setLoading] = useState(true)
   const [isInReadingList, setIsInReadingList] = useState(false)
@@ -86,10 +88,10 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
 
   useEffect(() => {
     initializePage()
-  }, [params.id])
+  }, [resolvedParams.id])
 
   const initializePage = async () => {
-    const bookData = await getBook(params.id)
+    const bookData = await getBook(resolvedParams.id)
 
     if (!bookData) {
       notFound()
@@ -125,6 +127,21 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
 
       if (error && error.code !== "PGRST116") {
         // PGRST116 is "not found" error
+        // Check if it's a table not found error (PGRST106 or similar)
+        if (error.code === "PGRST106" || error.message?.includes("does not exist")) {
+          console.warn("Reading list table not found. Please run database setup scripts.")
+          setIsInReadingList(false)
+          setReadingListStatus(null)
+          return
+        }
+        
+        console.error("Reading list query error:", {
+          error: error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        })
         throw error
       }
 
@@ -135,8 +152,11 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
         setIsInReadingList(false)
         setReadingListStatus(null)
       }
-    } catch (error) {
-      console.error("Error checking reading list status:", error)
+    } catch (error: any) {
+      console.warn("Reading list functionality unavailable:", error?.message || error)
+      // Set default state on error to prevent app crash
+      setIsInReadingList(false)
+      setReadingListStatus(null)
     }
   }
 
