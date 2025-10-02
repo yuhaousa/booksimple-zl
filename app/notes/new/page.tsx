@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { Suspense } from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -20,7 +20,7 @@ interface Book {
   title: string
 }
 
-function NewNotePageContent() {
+export default function NewNotePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const bookId = searchParams.get('bookId')
@@ -251,35 +251,5 @@ function NewNotePageContent() {
         </CardContent>
       </Card>
     </div>
-  )
-}
-
-export default function NewNotePage() {
-  return (
-    <Suspense fallback={
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="ghost" disabled>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Loading...
-          </Button>
-        </div>
-        <Card className="max-w-2xl mx-auto">
-          <CardHeader>
-            <CardTitle>Loading...</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="animate-pulse space-y-4">
-              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-              <div className="h-10 bg-gray-200 rounded"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-              <div className="h-32 bg-gray-200 rounded"></div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    }>
-      <NewNotePageContent />
-    </Suspense>
   )
 }
