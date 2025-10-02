@@ -6,6 +6,7 @@ import { Document, Page, pdfjs } from 'react-pdf'
 // Import react-pdf CSS styles with proper module imports
 import 'react-pdf/dist/Page/TextLayer.css'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
+import '@/styles/react-pdf.css'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -823,12 +824,15 @@ export function BookReader({ book }: BookReaderProps) {
   }
 
   const handleTextSelection = async () => {
+    console.log('handleTextSelection called, isHighlightMode:', isHighlightMode)
     if (!isHighlightMode) return
     
     const selection = window.getSelection()
+    console.log('Selection:', selection)
     if (!selection || selection.isCollapsed) return
     
     const selectedText = selection.toString().trim()
+    console.log('Selected text:', selectedText)
     if (!selectedText) return
 
     // Get precise selection rectangles for multi-line selections
@@ -1672,7 +1676,7 @@ export function BookReader({ book }: BookReaderProps) {
                     <Page
                       pageNumber={pageNumber}
                       scale={scale}
-                      renderTextLayer={false}
+                      renderTextLayer={true}
                       renderAnnotationLayer={false}
                       onLoadSuccess={() => {
                         // Trigger highlight re-positioning after page loads
