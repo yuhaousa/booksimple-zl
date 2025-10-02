@@ -24,28 +24,28 @@ The AI analysis system uses OpenAI's GPT-4 to provide:
 ### 2. Configure Environment Variables
 
 1. Copy `.env.example` to `.env.local`:
-   ```bash
+   \`\`\`bash
    cp .env.example .env.local
-   ```
+   \`\`\`
 
 2. Add your OpenAI API key to `.env.local`:
-   ```bash
+   \`\`\`bash
    OPENAI_API_KEY=sk-your_actual_openai_api_key_here
-   ```
+   \`\`\`
 
 ### 3. Install Dependencies
 
 The required dependencies should already be installed, but if needed:
-```bash
+\`\`\`bash
 npm install openai react-d3-tree @types/d3
-```
+\`\`\`
 
 ### 4. Restart Development Server
 
 After adding environment variables:
-```bash
+\`\`\`bash
 npm run dev
-```
+\`\`\`
 
 ## How It Works
 
@@ -74,12 +74,12 @@ npm run dev
 ## API Endpoints
 
 ### AI Analysis Endpoint
-```
+\`\`\`
 POST /api/books/[id]/ai-analysis
-```
+\`\`\`
 
 **Response Format:**
-```json
+\`\`\`json
 {
   "success": true,
   "analysis": {
@@ -98,15 +98,15 @@ POST /api/books/[id]/ai-analysis
     "cover_url": "..."
   }
 }
-```
+\`\`\`
 
 ## Configuration Options
 
 ### AI Model Selection
 Currently uses `gpt-4-turbo-preview`. You can modify in `lib/ai-book-analysis.ts`:
-```typescript
+\`\`\`typescript
 model: "gpt-4-turbo-preview" // or "gpt-3.5-turbo" for cost savings
-```
+\`\`\`
 
 ### Analysis Parameters
 Adjust in `lib/ai-book-analysis.ts`:
@@ -151,7 +151,7 @@ Current implementation is basic. For production, consider:
 
 ### Caching Analysis Results
 Add to database schema:
-```sql
+\`\`\`sql
 CREATE TABLE book_ai_analysis (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   book_id INTEGER REFERENCES "Booklist"(id),
@@ -160,7 +160,7 @@ CREATE TABLE book_ai_analysis (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(book_id, model_version)
 );
-```
+\`\`\`
 
 ### Custom Analysis Prompts
 Modify prompts in `lib/ai-book-analysis.ts` for:
@@ -170,14 +170,14 @@ Modify prompts in `lib/ai-book-analysis.ts` for:
 
 ### Integration with PDF Reader
 Future enhancement: Use highlights and notes to improve analysis:
-```typescript
+\`\`\`typescript
 // Include user annotations in analysis
 const userContext = {
   highlights: getUserHighlights(bookId),
   notes: getUserNotes(bookId),
   readingProgress: getReadingProgress(bookId)
 }
-```
+\`\`\`
 
 ## Troubleshooting
 
@@ -202,7 +202,7 @@ const userContext = {
 
 ### Debug Mode
 Enable detailed logging:
-```typescript
+\`\`\`typescript
 // In lib/ai-book-analysis.ts
 console.log('AI Analysis Debug:', {
   bookTitle: bookContent.title,
@@ -210,7 +210,7 @@ console.log('AI Analysis Debug:', {
   prompt: analysisPrompt,
   response: response
 })
-```
+\`\`\`
 
 ## Security Considerations
 
@@ -227,11 +227,11 @@ console.log('AI Analysis Debug:', {
 
 ### Rate Limiting
 Implement client-side rate limiting:
-```typescript
+\`\`\`typescript
 // Add rate limiting to prevent abuse
 const rateLimiter = new Map()
 const MAX_REQUESTS_PER_HOUR = 10
-```
+\`\`\`
 
 ## Future Enhancements
 
