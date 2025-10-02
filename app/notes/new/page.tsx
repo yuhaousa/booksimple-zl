@@ -20,10 +20,14 @@ interface Book {
   title: string
 }
 
-function NewNotePageContent() {
-  const router = useRouter()
+function SearchParamsWrapper({ children }: { children: (bookId: string | null) => React.ReactNode }) {
   const searchParams = useSearchParams()
   const bookId = searchParams.get('bookId')
+  return <>{children(bookId)}</>
+}
+
+function NewNotePageContent({ bookId }: { bookId: string | null }) {
+  const router = useRouter()
   
   const [books, setBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(false)
@@ -279,7 +283,9 @@ export default function NewNotePage() {
         </Card>
       </div>
     }>
-      <NewNotePageContent />
+      <SearchParamsWrapper>
+        {(bookId) => <NewNotePageContent bookId={bookId} />}
+      </SearchParamsWrapper>
     </Suspense>
   )
 }
