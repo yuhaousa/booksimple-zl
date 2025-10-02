@@ -321,7 +321,7 @@ Located in `components/ui/`:
 
 ## File Structure Summary
 
-```
+\`\`\`
 app/
 ├── layout.tsx                 # Root layout
 ├── page.tsx                   # Homepage
@@ -350,6 +350,6 @@ app/
 │   └── settings/page.tsx     # System settings
 └── api/
     └── books/[id]/ai-analysis/route.ts  # AI analysis API
-```
+\`\`\`
 
 This structure provides a comprehensive digital library platform with advanced PDF reading capabilities, user management, and administrative tools.
