@@ -46,7 +46,7 @@ The Book Reader is a comprehensive PDF viewing component with advanced features 
 ## Database Schema
 
 ### Book Highlights Table
-```sql
+\`\`\`sql
 CREATE TABLE book_highlights (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   book_id INTEGER NOT NULL,
@@ -58,10 +58,10 @@ CREATE TABLE book_highlights (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-```
+\`\`\`
 
 ### Book Notes Table
-```sql
+\`\`\`sql
 CREATE TABLE book_notes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   book_id INTEGER NOT NULL,
@@ -72,29 +72,29 @@ CREATE TABLE book_notes (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-```
+\`\`\`
 
 ## Setup Instructions
 
 ### 1. Database Setup
 1. Run the SQL script to create the required tables:
-   ```bash
+   \`\`\`bash
    psql -f scripts/create-book-reader-tables.sql
-   ```
+   \`\`\`
 
 2. Or execute the SQL manually in your Supabase SQL editor
 
 ### 2. Dependencies Installation
 The following dependencies are required:
-```bash
+\`\`\`bash
 npm install react-pdf pdfjs-dist
-```
+\`\`\`
 
 ### 3. Component Integration
 The book reader is automatically integrated into the book detail pages. For PDF files, an "Open Reader" button will appear alongside the existing "Read Book" button.
 
 ### 4. File Structure
-```
+\`\`\`
 components/
 ├── book-reader.tsx          # Main reader component
 ├── ui/
@@ -108,7 +108,7 @@ app/
 
 scripts/
 └── create-book-reader-tables.sql  # Database setup
-```
+\`\`\`
 
 ## Usage
 
@@ -191,7 +191,7 @@ scripts/
 ## API Reference
 
 ### BookReader Component Props
-```typescript
+\`\`\`typescript
 interface BookReaderProps {
   book: {
     id: number
@@ -201,7 +201,7 @@ interface BookReaderProps {
     // ... other book properties
   }
 }
-```
+\`\`\`
 
 ### Database Operations
 - **Highlights**: Create, read, update, delete with user isolation
