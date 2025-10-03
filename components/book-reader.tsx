@@ -163,6 +163,8 @@ const HIGHLIGHT_COLORS = [
 ]
 
 export function BookReader({ book }: BookReaderProps) {
+  // Add hydration state to prevent SSR/client mismatches
+  const [isHydrated, setIsHydrated] = useState(false)
   const [numPages, setNumPages] = useState<number>(0)
   const [pageNumber, setPageNumber] = useState<number>(1)
   const [scale, setScale] = useState<number>(1.2)
@@ -184,13 +186,20 @@ export function BookReader({ book }: BookReaderProps) {
   // Reading mode settings
   const [readingMode, setReadingMode] = useState<'light' | 'dark' | 'sepia'>('light')
   
-  // Load reading mode preference on mount
+  // Handle client-side hydration
   useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+  
+  // Load reading mode preference on mount (only after hydration)
+  useEffect(() => {
+    if (!isHydrated) return
+    
     const savedMode = localStorage.getItem('pdf-reader-mode') as 'light' | 'dark' | 'sepia'
     if (savedMode && ['light', 'dark', 'sepia'].includes(savedMode)) {
       setReadingMode(savedMode)
     }
-  }, [])
+  }, [isHydrated])
   
   // Save reading mode preference when changed
   useEffect(() => {
@@ -214,11 +223,14 @@ export function BookReader({ book }: BookReaderProps) {
   const documentRef = useRef<any>(null)
 
   useEffect(() => {
+    if (!isHydrated) return
     loadBookData()
-  }, [book.id])
+  }, [book.id, isHydrated])
 
-  // Force highlight re-positioning when scale or page changes
+  // Force highlight re-positioning when scale or page changes (only after hydration)
   useEffect(() => {
+    if (!isHydrated) return
+    
     console.log('Scale or page changed:', { scale, pageNumber, currentTrigger: highlightUpdateTrigger })
     const timer = setTimeout(() => {
       setHighlightUpdateTrigger(prev => {
@@ -229,10 +241,12 @@ export function BookReader({ book }: BookReaderProps) {
     }, 100) // Small delay to ensure PDF has rendered at new scale
     
     return () => clearTimeout(timer)
-  }, [scale, pageNumber])
+  }, [scale, pageNumber, isHydrated])
 
-  // Add scroll event listener to update note positions during scrolling
+  // Add scroll event listener to update note positions during scrolling (only after hydration)
   useEffect(() => {
+    if (!isHydrated) return
+    
     let rafId: number | null = null
     let isScrolling = false
 
@@ -274,7 +288,7 @@ export function BookReader({ book }: BookReaderProps) {
         element?.removeEventListener('scroll', handleScroll)
       })
     }
-  }, [pageNumber]) // Re-setup when page changes
+  }, [pageNumber, isHydrated]) // Re-setup when page changes or after hydration
 
   const loadBookData = async () => {
     try {
@@ -1080,16 +1094,29 @@ export function BookReader({ book }: BookReaderProps) {
   const currentPageHighlights = highlights.filter(h => h.page === pageNumber)
   const currentPageNotes = notes.filter(n => n.page === pageNumber)
 
+  // Don't render complex overlays until fully hydrated and PDF is loaded
+  if (!isHydrated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Initializing reader...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="flex h-screen bg-background relative">
         {/* Notes Overlay Container - positioned outside main layout */}
-        <div
-          key={`notes-overlay-${highlightUpdateTrigger}-${scrollUpdateTrigger}`}
-          className="fixed inset-0 pointer-events-none z-30"
-          style={{ zIndex: 30 }}
-        >
-          {pageNumber && currentPageNotes.map((note) => {
+        {isHydrated && (
+          <div
+            key={`notes-overlay-${highlightUpdateTrigger}-${scrollUpdateTrigger}`}
+            className="fixed inset-0 pointer-events-none z-30"
+            style={{ zIndex: 30 }}
+          >
+            {pageNumber && currentPageNotes.map((note) => {
             // Get current PDF page element for accurate positioning
             const pageElement = pageRef.current?.querySelector('.react-pdf__Page')
             const containerElement = pageRef.current
@@ -1249,7 +1276,9 @@ export function BookReader({ book }: BookReaderProps) {
               </div>
             )
           })}
-        </div>
+          </div>
+        )}
+        
         {/* Sidebar */}
         <div className={`${sidebarOpen ? 'w-96' : 'w-0'} transition-all duration-300 border-r border-border bg-card overflow-hidden`}>
         <div className="h-full flex flex-col p-2">
@@ -1708,8 +1737,9 @@ export function BookReader({ book }: BookReaderProps) {
               )}
 
               {/* Overlay Highlights */}
-              <div key={highlightUpdateTrigger}>
-                {currentPageHighlights.map((highlight) => {
+              {isHydrated && (
+                <div key={highlightUpdateTrigger}>
+                  {currentPageHighlights.map((highlight) => {
                   return (
                     <div key={highlight.id}>
                       {(highlight.rects || [highlight.position]).map((rect, index) => {
@@ -1762,8 +1792,8 @@ export function BookReader({ book }: BookReaderProps) {
                     </div>
                   )
                 })}
-              </div>
-
+                </div>
+              )}
 
               </div>
             </div>
