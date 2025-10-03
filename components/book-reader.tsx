@@ -419,6 +419,11 @@ export function BookReader({ book }: BookReaderProps) {
 
       if (error) throw error
 
+      // Clear editing state if we're deleting the item being edited
+      if (editingOutlineId === id) {
+        setEditingOutlineId(null)
+      }
+
       setCustomOutlines(prev => prev.filter(item => item.id !== id))
     } catch (error) {
       console.error('Error deleting custom outline item:', error)
@@ -586,7 +591,10 @@ export function BookReader({ book }: BookReaderProps) {
             )}
           </div>
         ) : (
-          <div className={`flex items-center group w-full gap-1 ${level > 0 ? 'ml-3' : ''}`}>
+          <div 
+            className="grid grid-cols-[1fr_24px] gap-1 w-full items-center" 
+            style={{ paddingLeft: `${level * 8}px` }}
+          >
             <button
               type="button"
               onClick={() => {
@@ -594,14 +602,19 @@ export function BookReader({ book }: BookReaderProps) {
                 console.log('Outline item clicked:', item.title, 'page:', targetPage)
                 onGo(targetPage)
               }}
-              className="flex-1 text-left p-2 rounded-md hover:bg-muted transition-colors text-sm flex items-center justify-between bg-card border border-border/50 hover:border-border min-w-0 max-w-[calc(100%-36px)]"
+              className="text-left p-2 rounded-md hover:bg-muted transition-colors text-sm flex items-center justify-between bg-card border border-border/50 hover:border-border min-w-0"
               title={`Go to page ${item.page}${item.isCustom ? ' (Custom bookmark)' : ' (PDF outline)'}`}
             >
               <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
                 <span className="text-xs opacity-60 flex-shrink-0 w-4">
                   {item.isCustom ? '★' : '📄'}
                 </span>
-                <span className="truncate text-xs leading-relaxed" title={item.title}>
+                <span 
+                  className={`truncate text-xs leading-relaxed ${
+                    level === 0 ? 'font-semibold' : level === 1 ? 'font-medium' : 'font-normal'
+                  }`} 
+                  title={item.title}
+                >
                   {item.title}
                 </span>
               </div>
@@ -610,20 +623,20 @@ export function BookReader({ book }: BookReaderProps) {
               </span>
             </button>
             
-            {/* Dropdown menu for actions */}
+            {/* Dropdown menu for actions - Fixed grid column */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 flex-shrink-0 opacity-100 transition-opacity pointer-events-auto min-w-[32px]"
+                  className="h-6 w-6 p-0"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <MoreVertical className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent side="right" align="start" className="w-48">
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation()
@@ -680,7 +693,7 @@ export function BookReader({ book }: BookReaderProps) {
         />
       )
     })
-  }, [goToPage, editingOutlineId])
+  }, [goToPage, editingOutlineId, customOutlines])
 
   const onDocumentLoadSuccess = useCallback(async (pdf: any) => {
     console.log('PDF loaded successfully:', pdf)
