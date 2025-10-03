@@ -10,9 +10,7 @@ const nextConfig = {
     unoptimized: true,
   },
   // Ensure compatibility with Edge Runtime
-  experimental: {
-    serverComponentsExternalPackages: ['pdfjs-dist'],
-  },
+  serverExternalPackages: ['pdfjs-dist'],
   webpack: (config, { isServer }) => {
     // Handle PDF.js worker and Node.js compatibility
     if (!isServer) {

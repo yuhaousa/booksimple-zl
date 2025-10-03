@@ -13,7 +13,7 @@ import { BookActions } from "@/components/book-actions"
 import { toast } from "sonner"
 
 interface BookDetailPageProps {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }> | { id: string }
 }
 
 interface StudyNote {
@@ -85,9 +85,29 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   const [notes, setNotes] = useState<StudyNote[]>([])
   const [notesLoading, setNotesLoading] = useState(true)
 
-  // Resolve params Promise
+  // Resolve params (handle both Promise and direct object cases)
   useEffect(() => {
-    params.then(setResolvedParams)
+    const resolveParams = async () => {
+      try {
+        // Check if params is a Promise
+        if (params && typeof params === 'object' && 'then' in params && typeof params.then === 'function') {
+          // params is a Promise
+          const resolved = await params
+          setResolvedParams(resolved)
+        } else {
+          // params is a direct object - cast through unknown to handle type checking
+          setResolvedParams(params as unknown as { id: string })
+        }
+      } catch (error) {
+        console.error('Error resolving params:', error)
+        // Fallback: try to extract id directly
+        if (params && typeof params === 'object' && 'id' in params) {
+          setResolvedParams({ id: (params as any).id })
+        }
+      }
+    }
+
+    resolveParams()
   }, [params])
 
   useEffect(() => {
