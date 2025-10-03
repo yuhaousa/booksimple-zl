@@ -13,9 +13,19 @@ const BookReader = dynamic(() => import('@/components/book-reader').then(mod => 
   ssr: false,
   loading: () => (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Loading PDF reader...</p>
+      <div className="text-center space-y-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+        <div className="space-y-2">
+          <p className="text-lg font-medium">Initializing PDF Reader</p>
+          <p className="text-muted-foreground">Setting up document viewer...</p>
+        </div>
+        <div className="flex justify-center">
+          <div className="flex space-x-1">
+            <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '0ms'}}></div>
+            <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '150ms'}}></div>
+            <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '300ms'}}></div>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -48,18 +58,30 @@ export default function BookReaderPage() {
 
   const fetchBook = async () => {
     try {
+      console.log('Fetching book data for reader:', bookId)
+      
       const { data, error } = await supabase
         .from('Booklist')
         .select('*')
         .eq('id', bookId)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Database error:', error)
+        throw error
+      }
       
-      if (!data.file_url) {
-        setError('This book does not have a PDF file available.')
+      if (!data) {
+        setError('Book not found.')
         return
       }
+      
+      if (!data.file_url) {
+        setError('This book does not have a PDF file available for reading.')
+        return
+      }
+
+      console.log('Book data loaded, generating signed URL for:', data.file_url)
 
       // Generate signed URL for the file
       let signedUrl = data.file_url
@@ -70,15 +92,31 @@ export default function BookReaderPage() {
 
         if (!signError && signedData?.signedUrl) {
           signedUrl = signedData.signedUrl
+          console.log('Signed URL generated successfully')
         } else {
           console.error('Error generating signed URL:', signError)
+          setError('Failed to access PDF file. Please contact support.')
+          return
         }
       }
 
+      console.log('Book reader data prepared successfully')
       setBook({ ...data, file_url: signedUrl })
     } catch (error: any) {
       console.error('Error fetching book:', error)
-      setError('Failed to load book. Please try again.')
+      let errorMessage = 'Failed to load book.'
+      
+      if (error.message) {
+        if (error.message.includes('JWT')) {
+          errorMessage = 'Authentication error. Please log in again.'
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection.'
+        } else {
+          errorMessage = `Error: ${error.message}`
+        }
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

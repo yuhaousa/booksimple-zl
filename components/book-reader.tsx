@@ -69,16 +69,40 @@ const getReadingModeStyles = (mode: 'light' | 'dark' | 'sepia') => {
   }
 }
 
-// Set up PDF.js worker
+// Set up PDF.js worker with better deployment handling
 if (typeof window !== 'undefined') {
-  // Use the local worker file
-  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js';
+  // Configure PDF.js worker with fallback for deployment environments
+  const setWorker = () => {
+    try {
+      // Primary: Use local worker file
+      pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js';
+      console.log('PDF.js worker configured successfully');
+    } catch (error) {
+      console.warn('Failed to set local PDF worker, using CDN fallback:', error);
+      // Fallback: Use CDN worker
+      pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+    }
+  };
+  
+  // Set worker immediately and on DOM ready
+  setWorker();
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setWorker);
+  }
 }
 
-// Static PDF options to prevent unnecessary reloads
+// Static PDF options to prevent unnecessary reloads with deployment compatibility
 const PDF_OPTIONS = {
   cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/`,
   cMapPacked: true,
+  isEvalSupported: false,
+  maxImageSize: 1024 * 1024, // 1MB limit for deployment environments
+  disableFontFace: false,
+  disableRange: false,
+  disableStream: false,
+  disableAutoFetch: false,
+  pdfBug: false, // Disable PDF.js debugging in production
 }
 
 interface Book {
@@ -176,6 +200,7 @@ export function BookReader({ book }: BookReaderProps) {
   const [activeTab, setActiveTab] = useState<'outline' | 'highlights' | 'notes'>('outline')
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
   
   // Outline editing
   const [isEditingOutline, setIsEditingOutline] = useState(false)
@@ -189,6 +214,18 @@ export function BookReader({ book }: BookReaderProps) {
   // Handle client-side hydration
   useEffect(() => {
     setIsHydrated(true)
+    
+    // Set loading timeout for deployment environments
+    const timeout = setTimeout(() => {
+      if (isLoading && numPages === 0) {
+        console.warn('PDF loading timeout reached')
+        setLoadingTimeout(true)
+        setIsLoading(false)
+        setPdfError('PDF loading timed out. Please refresh the page or contact support.')
+      }
+    }, 30000) // 30 second timeout
+    
+    return () => clearTimeout(timeout)
   }, [])
   
   // Load reading mode preference on mount (only after hydration)
@@ -718,10 +755,19 @@ export function BookReader({ book }: BookReaderProps) {
       return
     }
     
-    setNumPages(pdf.numPages)
-    documentRef.current = pdf
-    setIsLoading(false)
-    setPdfError(null)
+    try {
+      setNumPages(pdf.numPages)
+      documentRef.current = pdf
+      setIsLoading(false)
+      setPdfError(null)
+      
+      console.log('PDF document initialized with', pdf.numPages, 'pages')
+    } catch (error) {
+      console.error('Error during PDF initialization:', error)
+      setIsLoading(false)
+      setPdfError('Failed to initialize PDF document')
+      return
+    }
     
     // Extract outline if available
     try {
@@ -813,7 +859,25 @@ export function BookReader({ book }: BookReaderProps) {
     console.error('PDF load error:', error)
     console.error('File URL:', book.file_url)
     setIsLoading(false)
-    setPdfError(`Failed to load PDF: ${error.message || 'Unknown error'}`)
+    
+    // Provide specific error messages for common deployment issues
+    let errorMessage = 'Failed to load PDF'
+    
+    if (error.message) {
+      if (error.message.includes('fetch') || error.message.includes('network')) {
+        errorMessage = 'Network error loading PDF. Please check your connection.'
+      } else if (error.message.includes('CORS') || error.message.includes('cross-origin')) {
+        errorMessage = 'CORS error accessing PDF file. Please contact support.'
+      } else if (error.message.includes('worker') || error.message.includes('Worker')) {
+        errorMessage = 'PDF worker initialization failed. Trying to recover...'
+      } else if (error.message.includes('InvalidPDFException')) {
+        errorMessage = 'Invalid or corrupted PDF file.'
+      } else {
+        errorMessage = `PDF loading error: ${error.message}`
+      }
+    }
+    
+    setPdfError(errorMessage)
   }, [book.file_url])
 
   // Get current reading mode styles
@@ -1695,23 +1759,41 @@ export function BookReader({ book }: BookReaderProps) {
                     <p className="text-xs text-muted-foreground mb-4">
                       URL: {book.file_url}
                     </p>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        setPdfError(null)
-                        setIsLoading(true)
-                        window.location.reload()
-                      }}
-                    >
-                      Retry
-                    </Button>
+                    <div className="space-x-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setPdfError(null)
+                          setIsLoading(true)
+                          setLoadingTimeout(false)
+                          // Force a fresh load by updating component key
+                          window.location.reload()
+                        }}
+                      >
+                        Retry Loading
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        asChild
+                      >
+                        <Link href={`/books/${book.id}`}>
+                          Back to Book Details
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : (
                 <Document
-                  file={book.file_url}
+                  file={book.file_url || ''}
                   onLoadSuccess={onDocumentLoadSuccess}
                   onLoadError={onDocumentLoadError}
+                  onLoadProgress={({ loaded, total }) => {
+                    if (total > 0) {
+                      const progress = Math.round((loaded / total) * 100)
+                      console.log(`PDF loading progress: ${progress}%`)
+                    }
+                  }}
                   loading={
                     <div className={`flex items-center justify-center p-8 ${readingModeStyles.containerBg} min-h-[600px]`}>
                       <div className="text-center">
@@ -1720,6 +1802,18 @@ export function BookReader({ book }: BookReaderProps) {
                         <p className={`text-xs text-muted-foreground mt-2 ${readingModeStyles.textColor}`}>
                           File: {book.title}
                         </p>
+                        {loadingTimeout && (
+                          <div className="mt-4">
+                            <p className="text-yellow-600 text-sm mb-2">Loading is taking longer than expected...</p>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => window.location.reload()}
+                            >
+                              Refresh Page
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   }
