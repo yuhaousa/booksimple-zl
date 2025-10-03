@@ -149,10 +149,32 @@ export async function POST(
 
     console.log('Sending book to AI for analysis:', bookContent.title)
 
-    // Perform AI analysis
-    const analysis = await analyzeBookWithAI(bookContent)
-
-    console.log('AI analysis completed successfully, caching result...')
+    // Perform AI analysis with timeout protection
+    let analysis: any
+    try {
+      // Add a timeout wrapper for the AI analysis
+      const analysisPromise = analyzeBookWithAI(bookContent)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('AI analysis timeout')), 30000) // 30 second timeout
+      })
+      
+      analysis = await Promise.race([analysisPromise, timeoutPromise]) as any
+      console.log('AI analysis completed successfully, caching result...')
+    } catch (aiError) {
+      console.error('AI analysis failed:', aiError)
+      
+      // Return structured error response
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'AI analysis failed',
+          details: aiError instanceof Error ? aiError.message : 'AI processing error',
+          fallbackRecommended: true,
+          timestamp: new Date().toISOString()
+        }, 
+        { status: 500 }
+      )
+    }
 
     // Cache the analysis result in database
     try {
@@ -224,17 +246,48 @@ export async function POST(
         errorMessage = 'OpenAI API rate limit exceeded'
       } else if (error.message.includes('network') || error.message.includes('fetch')) {
         errorMessage = 'Network error connecting to AI service'
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'AI service request timed out'
+      } else if (error.message.includes('JSON')) {
+        errorMessage = 'AI service returned invalid response'
       }
     }
     
-    return NextResponse.json(
-      { 
-        error: errorMessage,
-        details: details,
-        fallbackRecommended: true
-      }, 
-      { status: 500 }
-    )
+    // Ensure we always return valid JSON
+    try {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: errorMessage,
+          details: details,
+          fallbackRecommended: true,
+          timestamp: new Date().toISOString()
+        }, 
+        { 
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      )
+    } catch (responseError) {
+      // Absolute fallback if NextResponse.json fails
+      console.error('Failed to create JSON response:', responseError)
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Internal server error',
+          details: 'Failed to process AI analysis request',
+          fallbackRecommended: true
+        }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      )
+    }
   }
 }
 

@@ -92,19 +92,10 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Static PDF options to prevent unnecessary reloads with deployment compatibility
+// Static PDF options to prevent unnecessary reloads
 const PDF_OPTIONS = {
   cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/`,
   cMapPacked: true,
-  isEvalSupported: false,
-  maxImageSize: 2048 * 2048, // Increased limit for larger PDFs
-  disableFontFace: false,
-  disableRange: false, // Enable range requests for large files
-  disableStream: false, // Enable streaming for better loading
-  disableAutoFetch: false, // Enable auto-fetching for better performance
-  pdfBug: false, // Disable PDF.js debugging in production
-  verbosity: 0, // Reduce logging in production
-  enableWebGL: true, // Enable WebGL for better rendering performance
 }
 
 interface Book {
@@ -219,15 +210,15 @@ export function BookReader({ book }: BookReaderProps) {
   useEffect(() => {
     setIsHydrated(true)
     
-    // Set loading timeout for deployment environments - increased for large files
+    // Set loading timeout - balance between local and deployment needs
     const timeout = setTimeout(() => {
       if (isLoading && numPages === 0) {
         console.warn('PDF loading timeout reached')
         setLoadingTimeout(true)
         setIsLoading(false)
-        setPdfError('PDF loading timed out. This may be due to a large file size or network issues. Please try refreshing or check your internet connection.')
+        setPdfError('PDF loading timed out. This may be due to a large file size or network issues. Please try refreshing or use the retry button.')
       }
-    }, 60000) // Increased to 60 second timeout for large files
+    }, 45000) // 45 second timeout - balance between local and deployment
     
     return () => clearTimeout(timeout)
   }, [])
@@ -860,7 +851,7 @@ export function BookReader({ book }: BookReaderProps) {
   }, [])
 
   const retryPdfLoad = useCallback(() => {
-    console.log('Retrying PDF load, attempt:', retryCount + 1)
+    console.log('Manually retrying PDF load, attempt:', retryCount + 1)
     setPdfError(null)
     setIsLoading(true)
     setLoadingTimeout(false)
@@ -877,39 +868,25 @@ export function BookReader({ book }: BookReaderProps) {
     
     // Provide specific error messages for common deployment issues
     let errorMessage = 'Failed to load PDF'
-    let canRetry = retryCount < 3 // Allow up to 3 retry attempts
     
     if (error.message) {
       if (error.message.includes('fetch') || error.message.includes('network')) {
-        errorMessage = 'Network error loading PDF. Please check your connection.'
-        canRetry = true
+        errorMessage = 'Network error loading PDF. Please check your connection and try the retry button.'
       } else if (error.message.includes('CORS') || error.message.includes('cross-origin')) {
         errorMessage = 'CORS error accessing PDF file. Please contact support.'
-        canRetry = false
       } else if (error.message.includes('worker') || error.message.includes('Worker')) {
-        errorMessage = 'PDF worker initialization failed. Trying to recover...'
-        canRetry = true
+        errorMessage = 'PDF worker initialization failed. Please try refreshing the page.'
       } else if (error.message.includes('InvalidPDFException')) {
         errorMessage = 'Invalid or corrupted PDF file.'
-        canRetry = false
       } else if (error.message.includes('404') || error.message.includes('Not Found')) {
         errorMessage = 'PDF file not found. The file may have been moved or deleted.'
-        canRetry = false
       } else {
         errorMessage = `PDF loading error: ${error.message}`
       }
     }
     
-    if (canRetry && retryCount < 3) {
-      console.log('Will auto-retry in 2 seconds...')
-      setTimeout(() => {
-        retryPdfLoad()
-      }, 2000)
-      errorMessage += ` Retrying... (${retryCount + 1}/3)`
-    }
-    
     setPdfError(errorMessage)
-  }, [book.file_url, retryCount, retryPdfLoad])
+  }, [book.file_url, retryCount])
 
   // Get current reading mode styles
   const readingModeStyles = getReadingModeStyles(readingMode)
@@ -1811,16 +1788,14 @@ export function BookReader({ book }: BookReaderProps) {
                 </div>
               ) : (
                 <Document
-                  key={`pdf-${fileKey}`}
+                  key={fileKey > 0 ? `pdf-retry-${fileKey}` : undefined}
                   file={book.file_url || ''}
                   onLoadSuccess={onDocumentLoadSuccess}
                   onLoadError={onDocumentLoadError}
                   onLoadProgress={({ loaded, total }) => {
                     if (total > 0) {
                       const progress = Math.round((loaded / total) * 100)
-                      console.log(`PDF loading progress: ${progress}% (${loaded}/${total} bytes)`)
-                    } else {
-                      console.log(`PDF loading: ${loaded} bytes loaded`)
+                      console.log(`PDF loading progress: ${progress}%`)
                     }
                   }}
                   loading={
