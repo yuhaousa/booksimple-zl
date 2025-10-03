@@ -594,15 +594,15 @@ export function BookReader({ book }: BookReaderProps) {
                 console.log('Outline item clicked:', item.title, 'page:', targetPage)
                 onGo(targetPage)
               }}
-              className="flex-1 text-left p-2 rounded-md hover:bg-muted transition-colors text-sm flex items-center justify-between bg-card border border-border/50 hover:border-border min-w-0"
+              className="flex text-left p-2 rounded-md hover:bg-muted transition-colors text-sm items-center bg-card border border-border/50 hover:border-border min-w-0 max-w-[calc(100%-40px)]"
               title={`Go to page ${item.page}${item.isCustom ? ' (Custom bookmark)' : ' (PDF outline)'}`}
             >
-              <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
                 <span className="text-xs opacity-60 flex-shrink-0 w-4">
                   {item.isCustom ? '★' : '📄'}
                 </span>
-                <span className="flex-1 truncate text-xs leading-relaxed" title={item.title}>
-                  {item.title}
+                <span className="truncate text-xs leading-relaxed max-w-[120px]" title={item.title}>
+                  {item.title.length > 20 ? `${item.title.substring(0, 20)}...` : item.title}
                 </span>
               </div>
               <span className="text-xs text-muted-foreground ml-2 flex-shrink-0 font-mono bg-muted/50 px-1.5 py-0.5 rounded">
