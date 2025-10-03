@@ -586,7 +586,7 @@ export function BookReader({ book }: BookReaderProps) {
             )}
           </div>
         ) : (
-          <div className={`flex items-center group w-full ${level > 0 ? 'ml-3' : ''}`}>
+          <div className={`flex items-center group w-full gap-1 ${level > 0 ? 'ml-3' : ''}`}>
             <button
               type="button"
               onClick={() => {
@@ -594,7 +594,7 @@ export function BookReader({ book }: BookReaderProps) {
                 console.log('Outline item clicked:', item.title, 'page:', targetPage)
                 onGo(targetPage)
               }}
-              className="flex-1 text-left p-2 rounded-md hover:bg-muted transition-colors text-sm flex items-center justify-between bg-card border border-border/50 hover:border-border min-w-0 mr-1"
+              className="flex-1 text-left p-2 rounded-md hover:bg-muted transition-colors text-sm flex items-center justify-between bg-card border border-border/50 hover:border-border min-w-0 max-w-[calc(100%-36px)]"
               title={`Go to page ${item.page}${item.isCustom ? ' (Custom bookmark)' : ' (PDF outline)'}`}
             >
               <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
@@ -617,7 +617,7 @@ export function BookReader({ book }: BookReaderProps) {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 flex-shrink-0 opacity-100 transition-opacity pointer-events-auto"
+                  className="h-8 w-8 p-0 flex-shrink-0 opacity-100 transition-opacity pointer-events-auto min-w-[32px]"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <MoreVertical className="h-4 w-4" />
