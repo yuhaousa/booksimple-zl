@@ -12,7 +12,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { BookOpen, Eye, EyeOff } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase"
-import { sha256 } from "js-sha256" // install with: npm install js-sha256
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -62,8 +61,12 @@ export default function RegisterPage() {
 
       if (error) throw error
 
-      // 2. Insert into user_list (hash password)
-      const password_hash = sha256(formData.password)
+      // 2. Insert into user_list (hash password using Web Crypto API)
+      const encoder = new TextEncoder()
+      const passwordData = encoder.encode(formData.password)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', passwordData)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const password_hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
       const { error: dbError } = await supabase
         .from("user_list")
         .insert([

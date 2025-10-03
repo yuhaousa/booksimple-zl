@@ -13,7 +13,6 @@ import { BookOpen, Eye, EyeOff } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase"
 import { recordUserLogin } from "@/lib/login-tracking"
-import { sha256 } from "js-sha256"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -44,7 +43,13 @@ export default function LoginPage() {
       }
 
       const user = users[0]
-      const password_hash = sha256(password)
+      // Hash password using Web Crypto API (compatible with Edge Runtime)
+      const encoder = new TextEncoder()
+      const data = encoder.encode(password)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const password_hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      
       if (user.password_hash !== password_hash) {
         throw new Error("Incorrect password.")
       }
