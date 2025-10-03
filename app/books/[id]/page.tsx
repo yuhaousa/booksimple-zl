@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -76,8 +76,7 @@ async function getBook(id: string) {
 }
 
 export default function BookDetailPage({ params }: BookDetailPageProps) {
-  // Unwrap the params Promise using React.use()
-  const resolvedParams = use(params)
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
   const [book, setBook] = useState<Book | null>(null)
   const [loading, setLoading] = useState(true)
   const [isInReadingList, setIsInReadingList] = useState(false)
@@ -86,11 +85,20 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   const [notes, setNotes] = useState<StudyNote[]>([])
   const [notesLoading, setNotesLoading] = useState(true)
 
+  // Resolve params Promise
   useEffect(() => {
-    initializePage()
-  }, [resolvedParams.id])
+    params.then(setResolvedParams)
+  }, [params])
+
+  useEffect(() => {
+    if (resolvedParams) {
+      initializePage()
+    }
+  }, [resolvedParams])
 
   const initializePage = async () => {
+    if (!resolvedParams) return
+    
     const bookData = await getBook(resolvedParams.id)
 
     if (!bookData) {
