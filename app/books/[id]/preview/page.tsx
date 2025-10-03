@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,7 +26,7 @@ import { toast } from "sonner"
 import BookMindMap from "@/components/book-mindmap"
 
 interface BookPreviewPageProps {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }> | { id: string }
 }
 
 interface Book {
@@ -239,7 +239,7 @@ function generateFallbackAnalysis(book: Book): BookAnalysis {
 }
 
 export default function BookPreviewPage({ params }: BookPreviewPageProps) {
-  const resolvedParams = use(params)
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null)
   const [book, setBook] = useState<Book | null>(null)
   const [analysis, setAnalysis] = useState<BookAnalysis | null>(null)
   const [loading, setLoading] = useState(true)
@@ -248,9 +248,36 @@ export default function BookPreviewPage({ params }: BookPreviewPageProps) {
   const [usingAI, setUsingAI] = useState(false)
   const [activeTab, setActiveTab] = useState<"overview" | "mindmap">("overview")
 
+  // Resolve params (handle both Promise and direct object cases)
   useEffect(() => {
-    initializePage()
-  }, [resolvedParams.id])
+    const resolveParams = async () => {
+      try {
+        // Check if params is a Promise
+        if (params && typeof params === 'object' && 'then' in params && typeof params.then === 'function') {
+          // params is a Promise
+          const resolved = await params
+          setResolvedParams(resolved)
+        } else {
+          // params is a direct object
+          setResolvedParams(params as unknown as { id: string })
+        }
+      } catch (error) {
+        console.error('Error resolving params:', error)
+        // Fallback: try to extract id directly
+        if (params && typeof params === 'object' && 'id' in params) {
+          setResolvedParams({ id: (params as any).id })
+        }
+      }
+    }
+
+    resolveParams()
+  }, [params])
+
+  useEffect(() => {
+    if (resolvedParams) {
+      initializePage()
+    }
+  }, [resolvedParams])
 
   const retryAnalysis = async () => {
     if (!book) return
@@ -278,6 +305,8 @@ export default function BookPreviewPage({ params }: BookPreviewPageProps) {
   }
 
   const initializePage = async () => {
+    if (!resolvedParams) return
+    
     const bookData = await getBook(resolvedParams.id)
 
     if (!bookData) {

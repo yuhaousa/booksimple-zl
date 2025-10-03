@@ -711,6 +711,13 @@ export function BookReader({ book }: BookReaderProps) {
 
   const onDocumentLoadSuccess = useCallback(async (pdf: any) => {
     console.log('PDF loaded successfully:', pdf)
+    
+    // Prevent double loading
+    if (documentRef.current === pdf) {
+      console.log('PDF already loaded, skipping...')
+      return
+    }
+    
     setNumPages(pdf.numPages)
     documentRef.current = pdf
     setIsLoading(false)
@@ -1095,19 +1102,24 @@ export function BookReader({ book }: BookReaderProps) {
   const currentPageNotes = notes.filter(n => n.page === pageNumber)
 
   // Don't render complex overlays until fully hydrated and PDF is loaded
-  if (!isHydrated) {
+  if (!isHydrated || (isLoading && numPages === 0)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Initializing reader...</p>
+          <p className="text-muted-foreground">
+            {!isHydrated ? "Initializing reader..." : "Loading PDF document..."}
+          </p>
+          {book.title && (
+            <p className="text-xs text-muted-foreground mt-2">{book.title}</p>
+          )}
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div key={`book-reader-${book.id}-${isHydrated}`} className="min-h-screen bg-background">
       <div className="flex h-screen bg-background relative">
         {/* Notes Overlay Container - positioned outside main layout */}
         {isHydrated && (
