@@ -102,7 +102,21 @@ async function analyzeBookWithAI(book: Book): Promise<BookAnalysis> {
     
     if (!response.ok) {
       try {
-        errorData = await response.json()
+        const contentType = response.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          errorData = await response.json()
+        } else {
+          // Handle HTML error responses (like 500 Internal Server Error pages)
+          const textResponse = await response.text()
+          console.error('Non-JSON error response:', textResponse.substring(0, 200))
+          
+          errorData = { 
+            error: `Server Error (${response.status})`,
+            details: response.status === 500 
+              ? 'Internal server error - AI service may be unavailable'
+              : `HTTP ${response.status}: ${response.statusText}`
+          }
+        }
       } catch (parseError) {
         console.error('Failed to parse error response:', parseError)
         errorData = { 
@@ -115,7 +129,20 @@ async function analyzeBookWithAI(book: Book): Promise<BookAnalysis> {
       throw new Error(errorData.error || errorData.details || `HTTP ${response.status}`)
     }
 
-    const data = await response.json()
+    let data
+    try {
+      const contentType = response.headers.get('content-type')
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json()
+      } else {
+        const textResponse = await response.text()
+        console.error('Expected JSON response, got:', textResponse.substring(0, 200))
+        throw new Error('Server returned non-JSON response')
+      }
+    } catch (jsonError) {
+      console.error('Failed to parse successful response as JSON:', jsonError)
+      throw new Error('Invalid JSON response from AI service')
+    }
     
     if (data.success && data.analysis) {
       console.log('AI analysis successful!')

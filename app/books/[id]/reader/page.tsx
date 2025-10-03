@@ -100,6 +100,16 @@ export default function BookReaderPage() {
         }
       }
 
+      // Validate the signed URL
+      try {
+        const urlTest = new URL(signedUrl)
+        console.log('PDF URL validated:', urlTest.origin)
+      } catch (urlError) {
+        console.error('Invalid PDF URL:', signedUrl, urlError)
+        setError('Invalid PDF file URL. Please contact support.')
+        return
+      }
+
       console.log('Book reader data prepared successfully')
       setBook({ ...data, file_url: signedUrl })
     } catch (error: any) {
