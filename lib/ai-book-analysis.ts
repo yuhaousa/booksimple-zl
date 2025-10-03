@@ -57,6 +57,12 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
   try {
     console.log('Starting AI analysis for book:', bookContent.title)
     
+    // Check if OpenAI API key is available
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn('No OpenAI API key configured, using fallback analysis')
+      throw new Error('OpenAI API key not configured')
+    }
+    
     // Extract available text content
     const textContent = await extractBookText(bookContent)
     

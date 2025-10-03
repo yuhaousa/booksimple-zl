@@ -87,9 +87,9 @@ async function getBook(id: string) {
 
 // AI-powered book analysis function
 async function analyzeBookWithAI(book: Book): Promise<BookAnalysis> {
+  console.log('Starting AI analysis for book:', book.title)
+  
   try {
-    console.log('Starting AI analysis for book:', book.title)
-    
     // Call the AI analysis API
     const response = await fetch(`/api/books/${book.id}/ai-analysis`, {
       method: 'POST',
@@ -98,10 +98,21 @@ async function analyzeBookWithAI(book: Book): Promise<BookAnalysis> {
       },
     })
 
+    let errorData = { error: 'Unknown error', details: 'Network or parsing error' }
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-      console.warn('AI analysis failed, using fallback:', errorData.error)
-      throw new Error(errorData.error || 'AI analysis failed')
+      try {
+        errorData = await response.json()
+      } catch (parseError) {
+        console.error('Failed to parse error response:', parseError)
+        errorData = { 
+          error: `HTTP ${response.status}: ${response.statusText}`,
+          details: 'Failed to get error details from server'
+        }
+      }
+      
+      console.warn('AI analysis API failed:', errorData)
+      throw new Error(errorData.error || errorData.details || `HTTP ${response.status}`)
     }
 
     const data = await response.json()
@@ -118,11 +129,12 @@ async function analyzeBookWithAI(book: Book): Promise<BookAnalysis> {
         mindmapData: data.analysis.mindmapData
       }
     } else {
-      throw new Error('Invalid analysis response')
+      throw new Error(data.error || 'Invalid analysis response format')
     }
   } catch (error) {
-    console.error('AI analysis failed, using fallback analysis:', error)
-    return generateFallbackAnalysis(book)
+    console.error('AI analysis failed:', error)
+    // Re-throw the error to be handled by the calling function
+    throw error
   }
 }
 
@@ -292,13 +304,22 @@ export default function BookPreviewPage({ params }: BookPreviewPageProps) {
       toast.success("Analysis completed successfully!")
     } catch (error) {
       console.error('Failed to get AI analysis:', error)
-      setAnalysisError(error instanceof Error ? error.message : 'Analysis failed')
+      const errorMessage = error instanceof Error ? error.message : 'Analysis failed'
+      setAnalysisError(errorMessage)
       
       // Use fallback analysis on error
       const fallbackAnalysis = generateFallbackAnalysis(book)
       setAnalysis(fallbackAnalysis)
       setUsingAI(false)
-      toast.error("AI analysis failed. Using basic analysis instead.")
+      
+      // Provide specific user feedback based on error type
+      if (errorMessage.includes('API key') || errorMessage.includes('not configured')) {
+        toast.info("AI service not configured. Using enhanced basic analysis.")
+      } else if (errorMessage.includes('rate limit') || errorMessage.includes('quota')) {
+        toast.warning("AI service temporarily unavailable. Using basic analysis instead.")
+      } else {
+        toast.error("AI analysis failed. Using basic analysis instead.")
+      }
     } finally {
       setAnalysisLoading(false)
     }
@@ -343,8 +364,13 @@ export default function BookPreviewPage({ params }: BookPreviewPageProps) {
       setAnalysis(fallbackAnalysis)
       setUsingAI(false)
       
+      // Provide specific user feedback based on error type
       if (errorMessage.includes('timed out')) {
         toast.error("AI analysis is taking longer than expected. Using basic analysis instead.")
+      } else if (errorMessage.includes('API key') || errorMessage.includes('not configured')) {
+        toast.info("AI service not configured. Using enhanced basic analysis.")
+      } else if (errorMessage.includes('rate limit') || errorMessage.includes('quota')) {
+        toast.warning("AI service temporarily unavailable. Using basic analysis instead.")
       } else {
         toast.error("AI analysis failed. Using basic analysis instead.")
       }

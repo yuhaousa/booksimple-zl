@@ -112,7 +112,11 @@ export async function POST(
     if (!process.env.OPENAI_API_KEY) {
       console.warn('No OpenAI API key configured, using fallback analysis')
       return NextResponse.json(
-        { error: 'AI analysis not configured. Please set OPENAI_API_KEY environment variable.' },
+        { 
+          error: 'OpenAI API key not configured',
+          details: 'AI analysis service is not available. Please configure OPENAI_API_KEY environment variable.',
+          fallbackRecommended: true
+        },
         { status: 503 }
       )
     }
@@ -208,10 +212,26 @@ export async function POST(
   } catch (error) {
     console.error('Error in AI analysis API:', error)
     
+    // Provide specific error messages based on error type
+    let errorMessage = 'Failed to analyze book with AI'
+    let details = 'Unknown error'
+    
+    if (error instanceof Error) {
+      details = error.message
+      if (error.message.includes('API key')) {
+        errorMessage = 'OpenAI API configuration error'
+      } else if (error.message.includes('rate limit') || error.message.includes('quota')) {
+        errorMessage = 'OpenAI API rate limit exceeded'
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        errorMessage = 'Network error connecting to AI service'
+      }
+    }
+    
     return NextResponse.json(
       { 
-        error: 'Failed to analyze book with AI',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage,
+        details: details,
+        fallbackRecommended: true
       }, 
       { status: 500 }
     )
