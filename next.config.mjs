@@ -9,13 +9,21 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Ensure compatibility with Edge Runtime
+  experimental: {
+    serverComponentsExternalPackages: ['pdfjs-dist'],
+  },
   webpack: (config, { isServer }) => {
-    // Handle PDF.js worker
+    // Handle PDF.js worker and Node.js compatibility
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         canvas: false,
         fs: false,
+        crypto: false,
+        stream: false,
+        os: false,
+        path: false,
       };
     }
 
@@ -24,6 +32,12 @@ const nextConfig = {
     config.externals.push({
       canvas: 'canvas',
     });
+
+    // Ignore Node.js built-ins in client bundles
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      crypto: false,
+    };
 
     return config;
   },
