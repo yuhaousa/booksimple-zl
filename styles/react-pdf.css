@@ -1,4 +1,4 @@
-/* React-PDF Text Layer Styles */
+/* React-PDF Text Layer Styles - Invisible but functional for text selection */
 .react-pdf__Page__textContent {
   position: absolute;
   top: 0;
@@ -6,19 +6,9 @@
   right: 0;
   bottom: 0;
   overflow: hidden;
-  opacity: 0.2;
+  opacity: 0;
   line-height: 1.0;
-}
-
-.react-pdf__Page__textContent textLayer {
-  position: absolute;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  overflow: hidden;
-  opacity: 0.2;
-  line-height: 1.0;
+  pointer-events: auto;
 }
 
 .react-pdf__Page__textContent .textLayer {
@@ -28,8 +18,9 @@
   right: 0;
   bottom: 0;
   overflow: hidden;
-  opacity: 0.2;
+  opacity: 0;
   line-height: 1.0;
+  pointer-events: auto;
 }
 
 .react-pdf__Page__textContent .textLayer > span {
