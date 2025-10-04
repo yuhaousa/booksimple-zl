@@ -42,62 +42,7 @@ if (typeof window !== 'undefined') {
   pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js'
 }
 
-// Fallback component for environments where PDF.js can't load
-const PDFUnavailableFallback = ({ book }: { book: any }) => (
-  <div className="min-h-screen bg-background">
-    <div className="flex h-screen bg-background relative">
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center space-y-6 max-w-md mx-auto p-8">
-          <div className="text-8xl">📄</div>
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold">PDF Viewer Unavailable</h2>
-            <p className="text-muted-foreground text-lg">
-              The PDF viewer cannot load in this environment due to security restrictions.
-            </p>
-            <div className="bg-muted/50 rounded-lg p-4 text-sm text-left">
-              <p className="font-medium mb-2">📋 What you can do:</p>
-              <ul className="space-y-2">
-                <li className="flex items-start gap-2">
-                  <span>📥</span>
-                  <span>Download the PDF to view it locally</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span>🔄</span>
-                  <span>Try refreshing the page</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span>🌐</span>
-                  <span>Open in a regular browser</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            {book.file_url && (
-              <a 
-                href={book.file_url} 
-                download={`${book.title}.pdf`}
-                className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                📥 Download PDF
-              </a>
-            )}
-            <button 
-              onClick={() => window.location.reload()}
-              className="inline-flex items-center justify-center px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
-            >
-              🔄 Refresh Page
-            </button>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            <p>This is a technical limitation of the preview environment.</p>
-            <p>The full application works normally in production.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-)
+
 
 const HIGHLIGHT_COLORS = [
   { name: 'Yellow', value: '#FBBF24', class: 'bg-yellow-300' },
@@ -215,7 +160,6 @@ export function BookReader({ book }: BookReaderProps) {
   const [scale, setScale] = useState<number>(1.0)
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [showFallback, setShowFallback] = useState(false)
   
   // Sidebar and navigation
   const [outline, setOutline] = useState<Outline[]>([])
@@ -413,19 +357,7 @@ export function BookReader({ book }: BookReaderProps) {
   const onDocumentLoadError = (error: any) => {
     console.error('PDF load error:', error)
     setIsLoading(false)
-    
-    // Check if this is the specific v0 MIME type error
-    const errorMsg = error.message || error.toString() || ''
-    const isMimeTypeError = errorMsg.includes('MIME type') && 
-                           errorMsg.includes('application/javascript') &&
-                           (errorMsg.includes('blob:') || errorMsg.includes('vusercontent'))
-    
-    if (isMimeTypeError) {
-      console.log('Detected v0 MIME type restriction, showing fallback')
-      setShowFallback(true)
-    } else {
-      setPdfError(`Failed to load PDF: ${errorMsg || 'Unknown error'}`)
-    }
+    setPdfError(`Failed to load PDF: ${error.message || 'Unknown error'}`)
   }
 
   const goToPage = (page: number) => {
@@ -797,11 +729,6 @@ export function BookReader({ book }: BookReaderProps) {
   const currentPageHighlights = highlights.filter(h => h.page === pageNumber)
   const currentPageNotes = notes.filter(n => n.page === pageNumber)
   const readingModeStyles = getReadingModeStyles(readingMode)
-
-  // Show fallback if explicitly triggered by MIME type errors
-  if (showFallback) {
-    return <PDFUnavailableFallback book={book} />
-  }
 
   return (
     <div className="min-h-screen bg-background">
