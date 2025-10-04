@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { analyzeBookWithAI, BookContent } from '@/lib/ai-book-analysis'
-import { extractTextFromBookPDF } from '@/lib/pdf-extraction'
 import { createServerClient } from '@supabase/ssr'
 import { createHash } from 'crypto'
 import { cookies } from 'next/headers'
+
+// Conditionally import AI functions to avoid build-time issues
+async function loadAIAnalysis() {
+  try {
+    const { analyzeBookWithAI } = await import('@/lib/ai-book-analysis')
+    return { analyzeBookWithAI }
+  } catch (error) {
+    console.error('Failed to load AI analysis module:', error)
+    return null
+  }
+}
+
+async function loadPDFExtraction() {
+  try {
+    const { extractTextFromBookPDF } = await import('@/lib/pdf-extraction')
+    return { extractTextFromBookPDF }
+  } catch (error) {
+    console.error('Failed to load PDF extraction module:', error)
+    return null
+  }
+}
 
 const supabaseUrl = "https://hbqurajgjhmdpgjuvdcy.supabase.co"
 const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhicXVyYWpnamhtZHBnanV2ZGN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1NDgyODIsImV4cCI6MjA3MjEyNDI4Mn0.80L5XZxrl_gg87Epm1gLRGfvU1s1AcwVk5gKyJOALdQ"
@@ -121,24 +140,44 @@ export async function POST(
       )
     }
 
+    // Load AI and PDF extraction modules
+    const aiModule = await loadAIAnalysis()
+    const pdfModule = await loadPDFExtraction()
+
+    if (!aiModule) {
+      console.error('AI analysis module not available')
+      return NextResponse.json(
+        { 
+          error: 'AI analysis module not available',
+          details: 'AI analysis dependencies could not be loaded',
+          fallbackRecommended: true
+        },
+        { status: 503 }
+      )
+    }
+
     // Try to extract PDF text for enhanced analysis
     let pdfText: string | undefined
     let pageCount: number | undefined
     
-    try {
-      console.log('Attempting PDF text extraction...')
-      const pdfExtraction = await extractTextFromBookPDF(parseInt(bookId))
-      if (pdfExtraction && pdfExtraction.text) {
-        pdfText = pdfExtraction.text.slice(0, 8000) // Limit for AI processing
-        pageCount = pdfExtraction.pageCount
-        console.log(`Extracted ${pdfText.length} characters from PDF (${pageCount} pages)`)
+    if (pdfModule) {
+      try {
+        console.log('Attempting PDF text extraction...')
+        const pdfExtraction = await pdfModule.extractTextFromBookPDF(parseInt(bookId))
+        if (pdfExtraction && pdfExtraction.text) {
+          pdfText = pdfExtraction.text.slice(0, 8000) // Limit for AI processing
+          pageCount = pdfExtraction.pageCount
+          console.log(`Extracted ${pdfText.length} characters from PDF (${pageCount} pages)`)
+        }
+      } catch (error) {
+        console.warn('PDF extraction failed, using metadata only:', error)
       }
-    } catch (error) {
-      console.warn('PDF extraction failed, using metadata only:', error)
+    } else {
+      console.warn('PDF extraction module not available, using metadata only')
     }
 
     // Prepare book content for analysis
-    const bookContent: BookContent = {
+    const bookContent = {
       title: book.title,
       author: book.author,
       description: book.description,
@@ -153,7 +192,7 @@ export async function POST(
     let analysis: any
     try {
       // Add a timeout wrapper for the AI analysis
-      const analysisPromise = analyzeBookWithAI(bookContent)
+      const analysisPromise = aiModule.analyzeBookWithAI(bookContent)
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('AI analysis timeout')), 30000) // 30 second timeout
       })

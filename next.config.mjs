@@ -9,6 +9,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Fix workspace root warning
+  outputFileTracingRoot: '.',
   // Ensure compatibility with Edge Runtime
   serverExternalPackages: ['pdfjs-dist'],
   webpack: (config, { isServer }) => {
