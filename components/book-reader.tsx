@@ -1,31 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-
-// Conditional imports to handle v0 environment MIME type restrictions
-let Document: any = null
-let Page: any = null
-let pdfjs: any = null
-let importError: string | null = null
-
-// Try to import react-pdf components, but handle MIME type failures gracefully
-try {
-  const reactPdf = require('react-pdf')
-  Document = reactPdf.Document
-  Page = reactPdf.Page
-  pdfjs = reactPdf.pdfjs
-  
-  // Also try to load CSS if possible
-  try {
-    require('react-pdf/dist/Page/TextLayer.css')
-    require('react-pdf/dist/Page/AnnotationLayer.css')
-  } catch (cssError) {
-    console.warn('PDF CSS not available:', cssError)
-  }
-} catch (error) {
-  console.error('react-pdf import failed:', error)
-  importError = 'PDF components not available in this environment'
-}
+import { Document, Page, pdfjs } from 'react-pdf'
+import 'react-pdf/dist/Page/TextLayer.css'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,8 +37,8 @@ import {
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-// Set up PDF.js worker only if pdfjs is available
-if (typeof window !== 'undefined' && pdfjs) {
+// Set up PDF.js worker
+if (typeof window !== 'undefined') {
   pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js'
 }
 
@@ -232,16 +210,12 @@ interface BookReaderProps {
 }
 
 export function BookReader({ book }: BookReaderProps) {
-  // Check if PDF components are available
-  if (importError || !Document || !Page) {
-    return <PDFUnavailableFallback book={book} />
-  }
-
   const [numPages, setNumPages] = useState<number>(0)
   const [pageNumber, setPageNumber] = useState<number>(1)
   const [scale, setScale] = useState<number>(1.0)
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [showFallback, setShowFallback] = useState(false)
   
   // Sidebar and navigation
   const [outline, setOutline] = useState<Outline[]>([])
@@ -291,6 +265,8 @@ export function BookReader({ book }: BookReaderProps) {
   useEffect(() => {
     localStorage.setItem('pdf-reader-mode', readingMode)
   }, [readingMode])
+
+
 
   const loadBookData = async () => {
     try {
@@ -437,7 +413,19 @@ export function BookReader({ book }: BookReaderProps) {
   const onDocumentLoadError = (error: any) => {
     console.error('PDF load error:', error)
     setIsLoading(false)
-    setPdfError(`Failed to load PDF: ${error.message || 'Unknown error'}`)
+    
+    // Check if this is the specific v0 MIME type error
+    const errorMsg = error.message || error.toString() || ''
+    const isMimeTypeError = errorMsg.includes('MIME type') && 
+                           errorMsg.includes('application/javascript') &&
+                           (errorMsg.includes('blob:') || errorMsg.includes('vusercontent'))
+    
+    if (isMimeTypeError) {
+      console.log('Detected v0 MIME type restriction, showing fallback')
+      setShowFallback(true)
+    } else {
+      setPdfError(`Failed to load PDF: ${errorMsg || 'Unknown error'}`)
+    }
   }
 
   const goToPage = (page: number) => {
@@ -809,6 +797,11 @@ export function BookReader({ book }: BookReaderProps) {
   const currentPageHighlights = highlights.filter(h => h.page === pageNumber)
   const currentPageNotes = notes.filter(n => n.page === pageNumber)
   const readingModeStyles = getReadingModeStyles(readingMode)
+
+  // Show fallback if explicitly triggered by MIME type errors
+  if (showFallback) {
+    return <PDFUnavailableFallback book={book} />
+  }
 
   return (
     <div className="min-h-screen bg-background">
