@@ -183,7 +183,11 @@ function generateFallbackAnalysis(book: Book): BookAnalysis {
   console.log('Using fallback analysis for:', book.title)
   
   const mockAnalysis: BookAnalysis = {
-    summary: `${book.title} by ${book.author || 'Unknown Author'} offers comprehensive insights into its subject matter. This work explores key themes and concepts that provide valuable knowledge to readers. The book combines theoretical foundations with practical applications, making it accessible to a wide audience while maintaining scholarly rigor.`,
+    summary: `${book.title} by ${book.author || 'Unknown Author'} represents a comprehensive and thoughtful exploration of its subject domain, providing readers with an extensive examination of key themes, methodologies, and practical applications. This substantial work demonstrates the author's deep understanding of the field through its careful balance of theoretical foundations and real-world implementations.
+
+The book's systematic approach to complex topics makes it accessible to diverse audiences while maintaining the scholarly rigor expected by professionals and academics. Through detailed analysis and well-researched examples, readers gain both conceptual understanding and practical tools that can be applied in various contexts and situations.
+
+What sets this work apart is its commitment to bridging the gap between theory and practice, offering actionable insights that extend beyond abstract concepts. The author skillfully presents multiple perspectives on important issues, encouraging critical thinking while providing clear guidance for implementation. Whether used as a comprehensive introduction to the field or as an advanced reference guide, this book delivers substantial value to readers seeking both foundational knowledge and practical expertise in its subject area.`,
     keyPoints: [
       "Comprehensive exploration of core concepts and principles",
       "Practical applications and real-world examples",

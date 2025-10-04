@@ -99,7 +99,7 @@ ${textContent}
 
 请按以下JSON结构提供分析（所有内容必须用中文）：
 {
-  "summary": "书籍主要内容和价值主张的全面2-3句总结",
+  "summary": "书籍主要内容、关键主题和价值主张的详细且引人入胜的总结（300-500字）",
   "keyPoints": ["从这本书中得出的6个具体、可行的关键见解或要点"],
   "keywords": ["这本书的12个重要关键词和概念"],
   "topics": ["这本书涵盖的6个主要主题领域"],
@@ -120,7 +120,8 @@ ${textContent}
 }
 
 要求：
-- 确保总结引人入胜且信息丰富
+- 确保总结详细、引人入胜且全面（300-500字）
+- 包括书籍的主要主题、核心概念和实用价值
 - 确保关键点具体且可行
 - 包含与书籍领域相关的关键词
 - 创建具有3-4个主要分支的逻辑思维导图层次结构
@@ -135,7 +136,7 @@ ${textContent}
 
 Please provide analysis in the following JSON structure:
 {
-  "summary": "A comprehensive 2-3 sentence summary of the book's main content and value proposition",
+  "summary": "A detailed and engaging summary of the book's main content, key themes, and value proposition (300-500 words)",
   "keyPoints": ["6 specific, actionable key insights or takeaways from this book"],
   "keywords": ["12 important keywords and concepts from this book"],
   "topics": ["6 main topic areas covered in this book"],
@@ -156,7 +157,8 @@ Please provide analysis in the following JSON structure:
 }
 
 Requirements:
-- Make the summary engaging and informative
+- Make the summary detailed, engaging, and comprehensive (300-500 words)
+- Include the book's main themes, key concepts, and practical value
 - Ensure key points are specific and actionable  
 - Include relevant keywords for the book's domain
 - Create a logical mindmap hierarchy with 3-4 main branches
@@ -212,7 +214,11 @@ Return only valid JSON without any markdown formatting or additional text.`
 
     // Validate and structure the response
     const aiAnalysis: AIBookAnalysis = {
-      summary: analysisResult.summary || `${bookContent.title} by ${bookContent.author || 'Unknown Author'} offers valuable insights and knowledge in its field.`,
+      summary: analysisResult.summary || `${bookContent.title} by ${bookContent.author || 'Unknown Author'} is a comprehensive work that explores its subject matter through multiple dimensions and perspectives. This book combines theoretical foundations with practical applications, offering readers a deep understanding of the core concepts and their real-world implications. 
+
+The author presents well-researched insights backed by evidence and expert analysis, making complex topics accessible to both newcomers and experienced practitioners in the field. Through careful examination of key themes and methodologies, the work provides valuable frameworks and strategies that readers can apply to their own contexts and challenges.
+
+What sets this book apart is its balanced approach to presenting different viewpoints while maintaining scholarly rigor. The content is structured to build understanding progressively, with each chapter building upon previous concepts to create a comprehensive learning experience. Whether you're seeking foundational knowledge or advanced insights, this work offers practical value and intellectual enrichment that extends beyond its immediate subject matter.`,
       keyPoints: Array.isArray(analysisResult.keyPoints) ? analysisResult.keyPoints.slice(0, 6) : [
         "Comprehensive exploration of core concepts",
         "Practical applications and real-world examples", 
@@ -276,7 +282,11 @@ function generateFallbackAnalysis(bookContent: BookContent, readingTimeMinutes: 
   
   if (isChineseBook) {
     return {
-      summary: `《${bookContent.title}》由${bookContent.author || '未知作者'}撰写，是该领域的重要作品。本书结合理论基础与实践见解，为读者提供宝贵的知识和可操作的指导。`,
+      summary: `《${bookContent.title}》由${bookContent.author || '未知作者'}撰写，是该领域内一部具有重要价值的综合性著作。本书通过多维度和多角度的深入探讨，为读者提供了对核心概念及其实际应用的全面理解。
+
+作者在书中巧妙地将理论基础与实践应用相结合，通过大量的实证研究和专家分析，使复杂的主题变得易于理解和掌握。无论是初学者还是该领域的资深从业者，都能从中获得有价值的见解和可操作的指导。
+
+这本书的独特之处在于其平衡的写作方法，既保持了学术严谨性，又兼顾了实用性和可读性。内容结构清晰，层次分明，每个章节都在前一章的基础上递进发展，为读者构建了完整的知识体系。不论您是在寻求基础知识还是高级见解，这部作品都能提供实用价值和智力启发，其影响力远超其直接涉及的主题范围。`,
       keyPoints: [
         "全面探讨基本概念和核心原理",
         "结合实际应用和现实案例研究",
@@ -372,7 +382,11 @@ function generateFallbackAnalysis(bookContent: BookContent, readingTimeMinutes: 
   }
   
   return {
-    summary: `${bookContent.title} by ${bookContent.author || 'Unknown Author'} provides comprehensive coverage of its subject matter. This work combines theoretical foundations with practical insights, offering readers valuable knowledge and actionable guidance in the field.`,
+    summary: `${bookContent.title} by ${bookContent.author || 'Unknown Author'} stands as a comprehensive and authoritative exploration of its subject domain, offering readers an in-depth journey through both foundational principles and cutting-edge developments. This scholarly work masterfully weaves together theoretical frameworks with practical applications, creating a balanced resource that serves multiple audiences and learning objectives.
+
+The author demonstrates exceptional expertise in presenting complex concepts through accessible language and well-structured arguments, supported by extensive research and real-world case studies. Each chapter builds systematically upon previous knowledge, creating a cohesive learning experience that guides readers from basic understanding to advanced proficiency in the field.
+
+What distinguishes this work is its commitment to practical relevance alongside academic rigor. The book includes actionable frameworks, proven methodologies, and strategic insights that readers can immediately apply to their professional and personal contexts. Through its comprehensive approach to the subject matter, this publication serves as both an educational resource and a practical reference guide, making it invaluable for students, practitioners, and researchers alike who seek to deepen their understanding and enhance their capabilities in this important field.`,
     keyPoints: [
       "Comprehensive exploration of fundamental concepts and principles",
       "Practical applications with real-world examples and case studies",

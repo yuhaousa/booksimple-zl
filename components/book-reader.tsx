@@ -517,16 +517,37 @@ export function BookReader({ book }: BookReaderProps) {
       // Stop any current reading
       stopReading()
 
-      // Get the current page text content
+      // Wait a bit for the page to fully render
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      // Try multiple selectors to get the current page text content
+      let pageText = ''
+      
+      // Try the standard react-pdf text layer selector
       const textLayer = document.querySelector('.react-pdf__Page__textContent')
-      if (!textLayer) {
-        console.warn('No text content found on current page')
-        return
+      if (textLayer) {
+        pageText = textLayer.textContent || ''
       }
 
-      const pageText = textLayer.textContent || ''
+      // If that doesn't work, try getting all text spans within the current page
       if (!pageText.trim()) {
-        console.warn('No text found on current page')
+        const textSpans = document.querySelectorAll('.react-pdf__Page__textContent span')
+        pageText = Array.from(textSpans).map(span => span.textContent || '').join(' ')
+      }
+
+      // If still no text, try a broader search within the page container
+      if (!pageText.trim()) {
+        const pageContainer = document.querySelector('.react-pdf__Page')
+        if (pageContainer) {
+          const allTextNodes = pageContainer.querySelectorAll('[class*="textLayer"] span, .react-pdf__Page__textContent span')
+          pageText = Array.from(allTextNodes).map(node => node.textContent || '').join(' ')
+        }
+      }
+
+      console.log('Extracted page text:', pageText.substring(0, 100) + '...')
+
+      if (!pageText.trim()) {
+        console.warn('No text found on current page after trying multiple methods')
         return
       }
 
@@ -1304,13 +1325,18 @@ export function BookReader({ book }: BookReaderProps) {
                 {/* Highlight Mode */}
                 <div className="flex items-center gap-1">
                   <Button
-                    variant={isHighlightMode && !isNoteMode ? "default" : "outline"}
+                    variant={isHighlightMode ? "default" : "outline"}
                     size="sm"
                     onClick={() => {
-                      setIsHighlightMode(!isHighlightMode)
-                      if (!isHighlightMode) setIsNoteMode(false) // Turn off note mode when enabling highlights
+                      if (isHighlightMode) {
+                        // If already in highlight mode, turn it off
+                        setIsHighlightMode(false)
+                      } else {
+                        // If not in highlight mode, turn it on and turn off note mode
+                        setIsHighlightMode(true)
+                        setIsNoteMode(false)
+                      }
                     }}
-                    disabled={isNoteMode}
                   >
                     <Highlighter className="w-4 h-4" />
                   </Button>
@@ -1343,8 +1369,14 @@ export function BookReader({ book }: BookReaderProps) {
                     variant={isNoteMode ? "default" : "outline"}
                     size="sm"
                     onClick={() => {
-                      setIsNoteMode(!isNoteMode)
-                      if (!isNoteMode) setIsHighlightMode(false) // Turn off highlight mode when enabling notes
+                      if (isNoteMode) {
+                        // If already in note mode, turn it off
+                        setIsNoteMode(false)
+                      } else {
+                        // If not in note mode, turn it on and turn off highlight mode
+                        setIsNoteMode(true)
+                        setIsHighlightMode(false)
+                      }
                     }}
                   >
                     <StickyNote className="w-4 h-4" />
