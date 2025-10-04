@@ -1,9 +1,31 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Document, Page, pdfjs } from 'react-pdf'
-import 'react-pdf/dist/Page/TextLayer.css'
-import 'react-pdf/dist/Page/AnnotationLayer.css'
+
+// Conditional imports to handle v0 environment MIME type restrictions
+let Document: any = null
+let Page: any = null
+let pdfjs: any = null
+let importError: string | null = null
+
+// Try to import react-pdf components, but handle MIME type failures gracefully
+try {
+  const reactPdf = require('react-pdf')
+  Document = reactPdf.Document
+  Page = reactPdf.Page
+  pdfjs = reactPdf.pdfjs
+  
+  // Also try to load CSS if possible
+  try {
+    require('react-pdf/dist/Page/TextLayer.css')
+    require('react-pdf/dist/Page/AnnotationLayer.css')
+  } catch (cssError) {
+    console.warn('PDF CSS not available:', cssError)
+  }
+} catch (error) {
+  console.error('react-pdf import failed:', error)
+  importError = 'PDF components not available in this environment'
+}
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,10 +59,67 @@ import {
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-// Set up PDF.js worker
-if (typeof window !== 'undefined') {
+// Set up PDF.js worker only if pdfjs is available
+if (typeof window !== 'undefined' && pdfjs) {
   pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js'
 }
+
+// Fallback component for environments where PDF.js can't load
+const PDFUnavailableFallback = ({ book }: { book: any }) => (
+  <div className="min-h-screen bg-background">
+    <div className="flex h-screen bg-background relative">
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center space-y-6 max-w-md mx-auto p-8">
+          <div className="text-8xl">📄</div>
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold">PDF Viewer Unavailable</h2>
+            <p className="text-muted-foreground text-lg">
+              The PDF viewer cannot load in this environment due to security restrictions.
+            </p>
+            <div className="bg-muted/50 rounded-lg p-4 text-sm text-left">
+              <p className="font-medium mb-2">📋 What you can do:</p>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-2">
+                  <span>📥</span>
+                  <span>Download the PDF to view it locally</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span>🔄</span>
+                  <span>Try refreshing the page</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span>🌐</span>
+                  <span>Open in a regular browser</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            {book.file_url && (
+              <a 
+                href={book.file_url} 
+                download={`${book.title}.pdf`}
+                className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                📥 Download PDF
+              </a>
+            )}
+            <button 
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center justify-center px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+            >
+              🔄 Refresh Page
+            </button>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            <p>This is a technical limitation of the preview environment.</p>
+            <p>The full application works normally in production.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)
 
 const HIGHLIGHT_COLORS = [
   { name: 'Yellow', value: '#FBBF24', class: 'bg-yellow-300' },
@@ -153,6 +232,11 @@ interface BookReaderProps {
 }
 
 export function BookReader({ book }: BookReaderProps) {
+  // Check if PDF components are available
+  if (importError || !Document || !Page) {
+    return <PDFUnavailableFallback book={book} />
+  }
+
   const [numPages, setNumPages] = useState<number>(0)
   const [pageNumber, setPageNumber] = useState<number>(1)
   const [scale, setScale] = useState<number>(1.0)
