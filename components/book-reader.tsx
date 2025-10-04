@@ -414,6 +414,69 @@ export function BookReader({ book }: BookReaderProps) {
     }
   }
 
+  const updateCustomOutlineItem = async (id: string, title: string, pageNumber: number) => {
+    try {
+      const { error } = await supabase
+        .from('custom_outline')
+        .update({ 
+          title: title.trim(),
+          page_number: pageNumber,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+
+      if (error) throw error
+
+      setCustomOutlines(prev => prev.map(item => 
+        item.id === id 
+          ? { ...item, title: title.trim(), page_number: pageNumber, updated_at: new Date().toISOString() }
+          : item
+      ))
+
+      setEditingOutlineId(null)
+      setNewOutlineTitle('')
+      setNewOutlinePage(1)
+    } catch (error) {
+      console.error('Error updating custom outline item:', error)
+    }
+  }
+
+  const convertPdfOutlineToCustom = async (title: string, pageNumber: number, originalIndex: number) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return null
+
+      const maxOrder = Math.max(...customOutlines.map(o => o.sort_order), -1)
+
+      const { data, error } = await supabase
+        .from('custom_outline')
+        .insert({
+          book_id: book.id,
+          title: title.trim(),
+          page_number: pageNumber,
+          sort_order: maxOrder + 1,
+          original_pdf_index: originalIndex,
+          user_id: user.id
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        setCustomOutlines(prev => [...prev, data])
+        // Set the editing state immediately after creating the custom outline
+        setEditingOutlineId(data.id)
+        setNewOutlineTitle(title)
+        setNewOutlinePage(pageNumber)
+        return data.id
+      }
+    } catch (error) {
+      console.error('Error converting PDF outline to custom:', error)
+    }
+    return null
+  }
+
   // Note functions
   const createNote = async () => {
     if (!newNoteContent.trim() || !selectedPosition) return
@@ -789,54 +852,117 @@ export function BookReader({ book }: BookReaderProps) {
                       {getMergedOutline().length > 0 ? (
                         <div className="space-y-1 bg-background/50 p-3 rounded-md border border-border/30 max-h-96 overflow-y-auto">
                           {getMergedOutline().map((item, index) => (
-                            <div key={`${item.isCustom ? 'custom' : 'pdf'}-${item.id || index}-${item.page}`} className="grid grid-cols-[1fr_24px] gap-1 w-full items-center">
-                              <button
-                                type="button"
-                                onClick={() => goToPage(item.page)}
-                                className="text-left p-2 rounded-md hover:bg-muted transition-colors text-sm flex items-center justify-between bg-card border border-border/50 hover:border-border min-w-0"
-                                title={`Go to page ${item.page}${item.isCustom ? ' (Custom bookmark)' : ' (PDF outline)'}`}
-                              >
-                                <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
-                                  <span className="text-xs opacity-60 flex-shrink-0 w-4">
-                                    {item.isCustom ? '★' : '📄'}
-                                  </span>
-                                  <span className="truncate text-xs leading-relaxed font-medium" title={item.title}>
-                                    {item.title}
-                                  </span>
-                                </div>
-                                <span className="text-xs text-muted-foreground ml-2 flex-shrink-0 font-mono bg-muted/50 px-1.5 py-0.5 rounded">
-                                  {item.page}
-                                </span>
-                              </button>
-                              
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0"
-                                  >
-                                    <MoreVertical className="h-3 w-3" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent side="right" align="start" className="w-48">
-                                  {item.isCustom && item.id && (
-                                    <DropdownMenuItem
-                                      onClick={() => deleteCustomOutlineItem(item.id!)}
-                                      className="text-sm text-red-600 focus:text-red-600"
+                            <div key={`${item.isCustom ? 'custom' : 'pdf'}-${item.id || index}-${item.page}`} className="w-full">
+                              {editingOutlineId === item.id ? (
+                                // Edit form for custom outline items
+                                <div className="space-y-2 p-2 bg-muted/50 rounded border border-border">
+                                  <input
+                                    type="text"
+                                    value={newOutlineTitle}
+                                    onChange={(e) => setNewOutlineTitle(e.target.value)}
+                                    placeholder="Bookmark title"
+                                    className="w-full px-2 py-1 text-sm border rounded"
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-xs">Page:</label>
+                                    <input
+                                      type="number"
+                                      value={newOutlinePage}
+                                      onChange={(e) => setNewOutlinePage(parseInt(e.target.value) || 1)}
+                                      min="1"
+                                      max={numPages}
+                                      className="w-20 px-2 py-1 text-sm border rounded"
+                                    />
+                                    <button
+                                      onClick={() => updateCustomOutlineItem(item.id!, newOutlineTitle, newOutlinePage)}
+                                      disabled={!newOutlineTitle.trim()}
+                                      className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                      <Trash2 className="mr-2 h-3 w-3" />
-                                      Delete bookmark
-                                    </DropdownMenuItem>
-                                  )}
-                                  {!item.isCustom && (
-                                    <DropdownMenuItem disabled className="text-sm text-muted-foreground">
-                                      PDF outline item
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingOutlineId(null)
+                                        setNewOutlineTitle('')
+                                        setNewOutlinePage(1)
+                                      }}
+                                      className="px-3 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                // Regular outline item display
+                                <div className="grid grid-cols-[1fr_24px] gap-1 w-full items-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => goToPage(item.page)}
+                                    className="text-left p-2 rounded-md hover:bg-muted transition-colors text-sm flex items-center justify-between bg-card border border-border/50 hover:border-border min-w-0"
+                                    title={`Go to page ${item.page}${item.isCustom ? ' (Custom bookmark)' : ' (PDF outline)'}`}
+                                  >
+                                    <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+                                      <span className="text-xs opacity-60 flex-shrink-0 w-4">
+                                        {item.isCustom ? '★' : '📄'}
+                                      </span>
+                                      <span className="truncate text-xs leading-relaxed font-medium" title={item.title}>
+                                        {item.title}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground ml-2 flex-shrink-0 font-mono bg-muted/50 px-1.5 py-0.5 rounded">
+                                      {item.page}
+                                    </span>
+                                  </button>
+                                  
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                      >
+                                        <MoreVertical className="h-3 w-3" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent side="right" align="start" className="w-48">
+                                      {item.isCustom && item.id && (
+                                        <>
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              setEditingOutlineId(item.id!)
+                                              setNewOutlineTitle(item.title)
+                                              setNewOutlinePage(item.page)
+                                            }}
+                                            className="text-sm"
+                                          >
+                                            <Edit3 className="mr-2 h-3 w-3" />
+                                            Edit bookmark
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => deleteCustomOutlineItem(item.id!)}
+                                            className="text-sm text-red-600 focus:text-red-600"
+                                          >
+                                            <Trash2 className="mr-2 h-3 w-3" />
+                                            Delete bookmark
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
+                                      {!item.isCustom && (
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            convertPdfOutlineToCustom(item.title, item.page, item.originalIndex || 0)
+                                          }}
+                                          className="text-sm"
+                                        >
+                                          <Edit3 className="mr-2 h-3 w-3" />
+                                          Edit outline item
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
