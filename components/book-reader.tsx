@@ -28,6 +28,8 @@ import {
   Plus,
   Trash2,
   Edit3,
+  Volume2,
+  VolumeX,
   Save,
   MoreVertical,
   Moon,
@@ -161,6 +163,15 @@ export function BookReader({ book }: BookReaderProps) {
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   
+  // Visual dragging feedback for highlights
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragPreview, setDragPreview] = useState<{x: number, y: number, width: number, height: number} | null>(null)
+  
+  // Audio reading functionality
+  const [isReading, setIsReading] = useState(false)
+  const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null)
+  const [currentUtterance, setCurrentUtterance] = useState<SpeechSynthesisUtterance | null>(null)
+  
   // Sidebar and navigation
   const [outline, setOutline] = useState<Outline[]>([])
   const [customOutlines, setCustomOutlines] = useState<CustomOutlineItem[]>([])
@@ -210,7 +221,21 @@ export function BookReader({ book }: BookReaderProps) {
     localStorage.setItem('pdf-reader-mode', readingMode)
   }, [readingMode])
 
+  // Stop audio reading when page changes
+  useEffect(() => {
+    if (isReading) {
+      stopReading()
+    }
+  }, [pageNumber])
 
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (speechSynthesis && isReading) {
+        speechSynthesis.cancel()
+      }
+    }
+  }, [])
 
   const loadBookData = async () => {
     try {
@@ -479,6 +504,80 @@ export function BookReader({ book }: BookReaderProps) {
       console.error('Error converting PDF outline to custom:', error)
     }
     return null
+  }
+
+  // Audio reading functions
+  const startReading = async () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      console.warn('Speech synthesis not supported in this environment')
+      return
+    }
+
+    try {
+      // Stop any current reading
+      stopReading()
+
+      // Get the current page text content
+      const textLayer = document.querySelector('.react-pdf__Page__textContent')
+      if (!textLayer) {
+        console.warn('No text content found on current page')
+        return
+      }
+
+      const pageText = textLayer.textContent || ''
+      if (!pageText.trim()) {
+        console.warn('No text found on current page')
+        return
+      }
+
+      const utterance = new SpeechSynthesisUtterance(pageText)
+      utterance.rate = 0.8
+      utterance.pitch = 1
+      utterance.volume = 1
+      
+      utterance.onstart = () => {
+        setIsReading(true)
+      }
+      
+      utterance.onend = () => {
+        setIsReading(false)
+        setCurrentUtterance(null)
+        setSpeechSynthesis(null)
+      }
+      
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event.error)
+        setIsReading(false)
+        setCurrentUtterance(null)
+        setSpeechSynthesis(null)
+      }
+
+      setCurrentUtterance(utterance)
+      const synthesis = window.speechSynthesis
+      setSpeechSynthesis(synthesis)
+      synthesis.speak(utterance)
+      
+    } catch (error) {
+      console.error('Error starting audio reading:', error)
+      setIsReading(false)
+    }
+  }
+
+  const stopReading = () => {
+    if (speechSynthesis && currentUtterance) {
+      speechSynthesis.cancel()
+      setIsReading(false)
+      setCurrentUtterance(null)
+      setSpeechSynthesis(null)
+    }
+  }
+
+  const toggleReading = () => {
+    if (isReading) {
+      stopReading()
+    } else {
+      startReading()
+    }
   }
 
   // Note functions
@@ -1257,6 +1356,20 @@ export function BookReader({ book }: BookReaderProps) {
                   )}
                 </div>
 
+                {/* Audio Reading */}
+                <Button
+                  variant={isReading ? "default" : "outline"}
+                  size="sm"
+                  onClick={toggleReading}
+                  title={isReading ? "Stop reading" : "Read current page aloud"}
+                >
+                  {isReading ? (
+                    <VolumeX className="w-4 h-4" />
+                  ) : (
+                    <Volume2 className="w-4 h-4" />
+                  )}
+                </Button>
+
                 {/* Zoom Controls */}
                 <Button variant="outline" size="sm" onClick={zoomOut}>
                   <ZoomOut className="w-4 h-4" />
@@ -1309,6 +1422,17 @@ export function BookReader({ book }: BookReaderProps) {
                   className={`pdf-viewer-container relative ${readingModeStyles.containerBg} transition-all duration-300`}
                   style={{ filter: readingModeStyles.filter }}
                   onMouseUp={handleTextSelection}
+                  onMouseDown={() => setIsDragging(false)}
+                  onMouseMove={(e) => {
+                    if (window.getSelection()?.toString()) {
+                      setIsDragging(true)
+                      setDragPreview({ x: e.clientX, y: e.clientY, width: 200, height: 30 })
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    setIsDragging(false)
+                    setDragPreview(null)
+                  }}
                 >
                   {pdfError ? (
                     <div className={`flex items-center justify-center p-8 ${readingModeStyles.containerBg} min-h-screen`}>
@@ -1469,6 +1593,19 @@ export function BookReader({ book }: BookReaderProps) {
                               </div>
                             )
                           })}
+                          
+                          {/* Visual Drag Preview */}
+                          {isDragging && dragPreview && (
+                            <div
+                              className="fixed z-50 pointer-events-none bg-black/80 text-white text-xs px-2 py-1 rounded shadow-lg"
+                              style={{
+                                left: dragPreview.x + 10,
+                                top: dragPreview.y - 30,
+                              }}
+                            >
+                              {selectedHighlightColor.name} highlight
+                            </div>
+                          )}
                         </div>
                       </div>
                     </Document>
