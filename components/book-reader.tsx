@@ -1415,10 +1415,10 @@ export function BookReader({ book }: BookReaderProps) {
                                   <circle
                                     cx={side === 'left' ? anchorX - noteX : anchorX}
                                     cy={noteY}
-                                    r="5"
+                                    r="1"
                                     fill="#FCD34D"
                                     stroke="#F59E0B"
-                                    strokeWidth="2"
+                                    strokeWidth="1"
                                   />
                                 </svg>
                                 
