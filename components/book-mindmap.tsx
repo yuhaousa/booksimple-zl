@@ -1,7 +1,24 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import Tree from "react-d3-tree"
+
+// Dynamic import with error handling
+let Tree: any = null
+let treeLoaded = false
+
+const loadTreeComponent = async () => {
+  if (treeLoaded) return Tree
+
+  try {
+    const module = await import("react-d3-tree")
+    Tree = module.default
+    treeLoaded = true
+    return Tree
+  } catch (error) {
+    console.error("Failed to load react-d3-tree:", error)
+    return null
+  }
+}
 
 interface MindMapNode {
   name: string
@@ -19,6 +36,24 @@ export default function BookMindMap({ data }: BookMindMapProps) {
   const treeContainerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 400 })
   const [translate, setTranslate] = useState({ x: 0, y: 0 })
+  const [isTreeLoaded, setIsTreeLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  // Load the Tree component on mount
+  useEffect(() => {
+    loadTreeComponent()
+      .then((TreeComponent) => {
+        if (TreeComponent) {
+          setIsTreeLoaded(true)
+        } else {
+          setLoadError("Failed to load mindmap component")
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading Tree component:", error)
+        setLoadError("Mindmap component unavailable")
+      })
+  }, [])
 
   useEffect(() => {
     if (treeContainerRef.current) {
@@ -155,10 +190,44 @@ export default function BookMindMap({ data }: BookMindMapProps) {
     )
   }
 
+  // Handle loading states and errors
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-full bg-muted/20 rounded-lg">
+        <div className="text-center space-y-2">
+          <p className="text-muted-foreground">⚠️ {loadError}</p>
+          <p className="text-xs text-muted-foreground">Interactive mindmap not available</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isTreeLoaded) {
+    return (
+      <div className="flex items-center justify-center h-full bg-muted/20 rounded-lg">
+        <div className="text-center space-y-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-sm text-muted-foreground">Loading mindmap component...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (!data) {
     return (
       <div className="flex items-center justify-center h-full bg-muted/20 rounded-lg">
         <p className="text-muted-foreground">No mindmap data available</p>
+      </div>
+    )
+  }
+
+  if (!Tree) {
+    return (
+      <div className="flex items-center justify-center h-full bg-muted/20 rounded-lg">
+        <div className="text-center space-y-2">
+          <p className="text-muted-foreground">Mindmap component failed to load</p>
+          <p className="text-xs text-muted-foreground">Please refresh the page to try again</p>
+        </div>
       </div>
     )
   }

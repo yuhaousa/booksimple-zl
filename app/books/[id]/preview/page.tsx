@@ -23,7 +23,20 @@ import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { toast } from "sonner"
-import BookMindMap from "@/components/book-mindmap"
+import dynamic from "next/dynamic"
+
+// Dynamic import to avoid SSR issues with D3.js
+const BookMindMap = dynamic(() => import("@/components/book-mindmap"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-64 bg-muted/20 rounded-lg">
+      <div className="text-center space-y-2">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+        <p className="text-sm text-muted-foreground">Loading mindmap...</p>
+      </div>
+    </div>
+  )
+})
 
 interface BookPreviewPageProps {
   params: Promise<{ id: string }> | { id: string }

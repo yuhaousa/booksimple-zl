@@ -1,9 +1,29 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Document, Page, pdfjs } from 'react-pdf'
-import 'react-pdf/dist/Page/TextLayer.css'
-import 'react-pdf/dist/Page/AnnotationLayer.css'
+
+// Dynamic imports for react-pdf to handle MIME type issues
+let Document: any = null
+let Page: any = null
+let pdfjs: any = null
+let pdfLoaded = false
+
+const loadPdfComponents = async () => {
+  if (pdfLoaded) return { Document, Page, pdfjs }
+
+  try {
+    const module = await import('react-pdf')
+    Document = module.Document
+    Page = module.Page
+    pdfjs = module.pdfjs
+    
+    pdfLoaded = true
+    return { Document, Page, pdfjs }
+  } catch (error) {
+    console.error("Failed to load react-pdf:", error)
+    return { Document: null, Page: null, pdfjs: null }
+  }
+}
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,10 +57,7 @@ import {
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-// Set up PDF.js worker
-if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js'
-}
+// PDF.js worker will be set up after components are loaded
 
 const HIGHLIGHT_COLORS = [
   { name: 'Yellow', value: '#FBBF24', class: 'bg-yellow-300' },
@@ -158,6 +175,8 @@ export function BookReader({ book }: BookReaderProps) {
   const [scale, setScale] = useState<number>(1.0)
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isPdfLoaded, setIsPdfLoaded] = useState(false)
+  const [pdfLoadError, setPdfLoadError] = useState<string | null>(null)
   
   // Sidebar and navigation
   const [outline, setOutline] = useState<Outline[]>([])
@@ -191,9 +210,35 @@ export function BookReader({ book }: BookReaderProps) {
   // Refs
   const pageRef = useRef<HTMLDivElement>(null)
 
+  // Load PDF components on mount
   useEffect(() => {
-    loadBookData()
-  }, [book.id])
+    const initPdfComponents = async () => {
+      try {
+        const { Document: LoadedDocument, Page: LoadedPage, pdfjs: LoadedPdfjs } = await loadPdfComponents()
+        
+        if (LoadedDocument && LoadedPage && LoadedPdfjs) {
+          // Set up PDF.js worker
+          if (typeof window !== 'undefined') {
+            LoadedPdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js'
+          }
+          setIsPdfLoaded(true)
+        } else {
+          setPdfLoadError('Failed to load PDF components')
+        }
+      } catch (error) {
+        console.error('Error initializing PDF components:', error)
+        setPdfLoadError('PDF reader unavailable')
+      }
+    }
+
+    initPdfComponents()
+  }, [])
+
+  useEffect(() => {
+    if (isPdfLoaded) {
+      loadBookData()
+    }
+  }, [book.id, isPdfLoaded])
 
   // Load reading mode preference on mount
   useEffect(() => {
@@ -725,6 +770,71 @@ export function BookReader({ book }: BookReaderProps) {
   const currentPageHighlights = highlights.filter(h => h.page === pageNumber)
   const currentPageNotes = notes.filter(n => n.page === pageNumber)
   const readingModeStyles = getReadingModeStyles(readingMode)
+
+  // Handle PDF component loading states
+  if (pdfLoadError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="text-red-500 text-6xl">⚠️</div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold">PDF Reader Unavailable</h2>
+            <p className="text-muted-foreground">{pdfLoadError}</p>
+            <p className="text-sm text-muted-foreground">The PDF reading components failed to load. Please refresh the page to try again.</p>
+          </div>
+          <div className="space-x-2">
+            <Button onClick={() => window.location.reload()} variant="outline">
+              Refresh Page
+            </Button>
+            <Link href={`/books/${book.id}`}>
+              <Button variant="ghost">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Book
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isPdfLoaded) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-medium">Loading PDF Reader</h2>
+            <p className="text-muted-foreground">Initializing document viewer...</p>
+          </div>
+          <div className="flex justify-center">
+            <div className="flex space-x-1">
+              <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '0ms'}}></div>
+              <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '150ms'}}></div>
+              <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '300ms'}}></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!Document || !Page) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="text-red-500 text-6xl">📄</div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold">PDF Components Not Available</h2>
+            <p className="text-muted-foreground">The PDF reader failed to initialize properly.</p>
+          </div>
+          <Button onClick={() => window.location.reload()} variant="outline">
+            Refresh and Try Again
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
