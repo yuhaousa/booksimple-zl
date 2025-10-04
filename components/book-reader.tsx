@@ -1,98 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import dynamic from 'next/dynamic'
-
-// Create a fallback component for when PDF loading fails
-const PDFReaderFallback = ({ book }: { book: any }) => (
-  <div className="min-h-screen bg-background flex items-center justify-center">
-    <div className="text-center space-y-4 max-w-md">
-      <div className="text-6xl">📄</div>
-      <div className="space-y-2">
-        <h2 className="text-xl font-semibold">PDF Reader Currently Unavailable</h2>
-        <p className="text-muted-foreground">
-          The PDF viewer is experiencing technical difficulties in this environment.
-        </p>
-        <div className="p-4 bg-muted/50 rounded-lg text-sm">
-          <p className="font-medium mb-2">Alternative Options:</p>
-          <ul className="text-left space-y-1">
-            <li>• Download the PDF to view locally</li>
-            <li>• Try refreshing the page</li>
-            <li>• Contact support if issue persists</li>
-          </ul>
-        </div>
-      </div>
-      <div className="flex gap-2 justify-center">
-        {book.file_url && (
-          <a 
-            href={book.file_url} 
-            download={`${book.title}.pdf`}
-            className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-          >
-            Download PDF
-          </a>
-        )}
-        <button 
-          onClick={() => window.location.reload()}
-          className="inline-flex items-center px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90 transition-colors"
-        >
-          Refresh Page
-        </button>
-      </div>
-    </div>
-  </div>
-)
-
-// Dynamic import with comprehensive error handling for deployment environments
-let pdfComponents: any = null
-let pdfComponentsLoaded = false
-let pdfLoadingError = false
-
-async function loadPDFComponents() {
-  if (pdfComponentsLoaded) return pdfComponents
-  if (pdfLoadingError) return null
-
-  try {
-    // Try multiple import strategies for different deployment environments
-    let pdfModule: any = null
-    
-    // Strategy 1: Direct import (works in most environments)
-    try {
-      pdfModule = await import('react-pdf')
-    } catch (directError) {
-      console.warn('Direct react-pdf import failed:', directError)
-      
-      // Strategy 2: Retry with different module resolution
-      try {
-        const dynamicImport = new Function('specifier', 'return import(specifier)')
-        pdfModule = await dynamicImport('react-pdf')
-      } catch (retryError) {
-        console.warn('Retry react-pdf import failed:', retryError)
-        throw new Error('All import strategies failed')
-      }
-    }
-
-    if (!pdfModule || !pdfModule.Document || !pdfModule.Page) {
-      throw new Error('PDF module incomplete')
-    }
-
-    // Set up PDF.js worker
-    if (pdfModule.pdfjs && typeof window !== 'undefined') {
-      pdfModule.pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js'
-    }
-
-    pdfComponents = pdfModule
-    pdfComponentsLoaded = true
-    
-    // CSS will be loaded via global styles
-    
-    return pdfModule
-  } catch (error) {
-    console.error('Failed to load PDF components:', error)
-    pdfLoadingError = true
-    return null
-  }
-}
+import { Document, Page, pdfjs } from 'react-pdf'
+import 'react-pdf/dist/Page/TextLayer.css'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -126,7 +37,10 @@ import {
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-// PDF.js worker will be set up after dynamic loading
+// Set up PDF.js worker
+if (typeof window !== 'undefined') {
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js'
+}
 
 const HIGHLIGHT_COLORS = [
   { name: 'Yellow', value: '#FBBF24', class: 'bg-yellow-300' },
@@ -244,10 +158,6 @@ export function BookReader({ book }: BookReaderProps) {
   const [scale, setScale] = useState<number>(1.0)
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [pdfComponentsReady, setPdfComponentsReady] = useState(false)
-  const [pdfLoadFailed, setPdfLoadFailed] = useState(false)
-  const [Document, setDocument] = useState<any>(null)
-  const [Page, setPage] = useState<any>(null)
   
   // Sidebar and navigation
   const [outline, setOutline] = useState<Outline[]>([])
@@ -281,27 +191,9 @@ export function BookReader({ book }: BookReaderProps) {
   // Refs
   const pageRef = useRef<HTMLDivElement>(null)
 
-  // Load PDF components on mount
   useEffect(() => {
-    const initPDFComponents = async () => {
-      const pdfModule = await loadPDFComponents()
-      if (pdfModule && pdfModule.Document && pdfModule.Page) {
-        setDocument(() => pdfModule.Document)
-        setPage(() => pdfModule.Page)
-        setPdfComponentsReady(true)
-      } else {
-        setPdfLoadFailed(true)
-      }
-    }
-
-    initPDFComponents()
-  }, [])
-
-  useEffect(() => {
-    if (pdfComponentsReady) {
-      loadBookData()
-    }
-  }, [book.id, pdfComponentsReady])
+    loadBookData()
+  }, [book.id])
 
   // Load reading mode preference on mount
   useEffect(() => {
@@ -833,25 +725,6 @@ export function BookReader({ book }: BookReaderProps) {
   const currentPageHighlights = highlights.filter(h => h.page === pageNumber)
   const currentPageNotes = notes.filter(n => n.page === pageNumber)
   const readingModeStyles = getReadingModeStyles(readingMode)
-
-  // Handle PDF component loading states
-  if (pdfLoadFailed) {
-    return <PDFReaderFallback book={book} />
-  }
-
-  if (!pdfComponentsReady || !Document || !Page) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <div className="space-y-2">
-            <p className="text-lg font-medium">Loading PDF Reader</p>
-            <p className="text-muted-foreground">Initializing document viewer...</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-background">
