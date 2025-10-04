@@ -8,6 +8,7 @@ import 'react-pdf/dist/Page/AnnotationLayer.css'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -141,8 +142,6 @@ interface Note {
   position: {
     x: number
     y: number
-    side?: 'left' | 'right'
-    pageWidth?: number
   }
   createdAt: string
   updatedAt: string
@@ -155,7 +154,7 @@ interface BookReaderProps {
 export function BookReader({ book }: BookReaderProps) {
   const [numPages, setNumPages] = useState<number>(0)
   const [pageNumber, setPageNumber] = useState<number>(1)
-  const [scale, setScale] = useState<number>(1.0)
+  const [scale, setScale] = useState<number>(1.2)
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   
@@ -182,11 +181,6 @@ export function BookReader({ book }: BookReaderProps) {
   const [editingOutlineId, setEditingOutlineId] = useState<string | null>(null)
   const [editingNote, setEditingNote] = useState<string | null>(null)
   const [newNoteContent, setNewNoteContent] = useState('')
-  
-  // Note creation state
-  const [showNoteForm, setShowNoteForm] = useState(false)
-  const [selectedText, setSelectedText] = useState('')
-  const [selectedPosition, setSelectedPosition] = useState<{ x: number; y: number } | null>(null)
   
   // Refs
   const pageRef = useRef<HTMLDivElement>(null)
@@ -270,8 +264,7 @@ export function BookReader({ book }: BookReaderProps) {
     }
   }
 
-  const onDocumentLoadSuccess = async (pdf: any) => {
-    const { numPages } = pdf
+  const onDocumentLoadSuccess = async ({ numPages }: { numPages: number }) => {
     console.log('PDF loaded successfully, pages:', numPages)
     setNumPages(numPages)
     setIsLoading(false)
@@ -279,12 +272,10 @@ export function BookReader({ book }: BookReaderProps) {
     
     // Try to extract PDF outline
     try {
-      console.log('Attempting to extract PDF outline...')
+      const pdf = arguments[0]
       const outline = await pdf.getOutline()
-      console.log('Raw PDF outline:', outline)
       
       if (outline && outline.length > 0) {
-        console.log('Found PDF outline with', outline.length, 'items')
         const processOutline = async (items: any[]): Promise<Outline[]> => {
           const processedItems: Outline[] = []
           
@@ -338,10 +329,8 @@ export function BookReader({ book }: BookReaderProps) {
         }
         
         const processedOutline = await processOutline(outline)
-        console.log('Processed PDF outline:', processedOutline)
         setOutline(processedOutline)
       } else {
-        console.log('No PDF outline found or outline is empty')
         setOutline([])
       }
     } catch (error) {
@@ -414,55 +403,6 @@ export function BookReader({ book }: BookReaderProps) {
     }
   }
 
-  // Note functions
-  const createNote = async () => {
-    if (!newNoteContent.trim() || !selectedPosition) return
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      let content = newNoteContent.trim()
-      
-      // If there's selected text, add it as a quote at the beginning
-      if (selectedText.trim()) {
-        content = `"${selectedText.trim()}"\n\n${content}`
-      }
-
-      const { data, error } = await supabase
-        .from('book_notes')
-        .insert({
-          book_id: book.id,
-          page_number: pageNumber,
-          content,
-          position: selectedPosition,
-          user_id: user.id
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-
-      const newNote: Note = {
-        id: data.id,
-        bookId: book.id,
-        page: pageNumber,
-        content,
-        position: selectedPosition,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at
-      }
-
-      setNotes(prev => [newNote, ...prev])
-      setNewNoteContent('')
-      setSelectedText('')
-      setSelectedPosition(null)
-      setShowNoteForm(false)
-    } catch (error) {
-      console.error('Error creating note:', error)
-    }
-  }
-
   const updateNote = async (noteId: string, content: string) => {
     try {
       const { error } = await supabase
@@ -519,8 +459,6 @@ export function BookReader({ book }: BookReaderProps) {
   }
 
   const getMergedOutline = () => {
-    console.log('getMergedOutline called - outline:', outline, 'customOutlines:', customOutlines)
-    
     const pdfOutlineWithIndex = outline.map((item, index) => ({
       ...item,
       isCustom: false,
@@ -556,111 +494,58 @@ export function BookReader({ book }: BookReaderProps) {
       }
     })
 
-    const result = mergedItems.sort((a, b) => a.page - b.page)
-    console.log('getMergedOutline result:', result)
-    return result
+    return mergedItems.sort((a, b) => a.page - b.page)
   }
 
   const handleTextSelection = async () => {
+    if (!isHighlightMode) return
+    
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed) return
+    
+    const selectedText = selection.toString().trim()
+    if (!selectedText) return
+
     try {
-      const selection = window.getSelection()
-      if (!selection || selection.isCollapsed) return
-      
-      const selectedText = selection.toString().trim()
-      if (!selectedText) return
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-      if (isHighlightMode && !isNoteMode) {
-        // Handle highlighting only if note mode is off
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-
-        // Calculate highlight position relative to PDF page
-        const range = selection.getRangeAt(0)
-        const rect = range.getBoundingClientRect()
-        const pageElement = pageRef.current?.querySelector('.react-pdf__Page')
-        
-        let highlightPosition = { x: 0, y: 0, width: 100, height: 20 }
-        
-        if (pageElement) {
-          const pageRect = pageElement.getBoundingClientRect()
-          highlightPosition = {
-            x: (rect.left - pageRect.left) / scale,
-            y: (rect.top - pageRect.top) / scale,
-            width: rect.width / scale,
-            height: rect.height / scale
-          }
-        }
-
-        const highlight: Omit<Highlight, 'id' | 'createdAt'> = {
-          bookId: book.id,
-          page: pageNumber,
-          text: selectedText,
-          color: selectedHighlightColor.value,
-          position: highlightPosition
-        }
-
-        const { data, error } = await supabase
-          .from('book_highlights')
-          .insert({
-            book_id: highlight.bookId,
-            page_number: highlight.page,
-            text: highlight.text,
-            color: highlight.color,
-            position: highlight.position,
-            user_id: user.id
-          })
-          .select()
-          .single()
-
-        if (error) throw error
-
-        setHighlights(prev => [{
-          ...highlight,
-          id: data.id,
-          createdAt: data.created_at
-        }, ...prev])
-      } else if (isNoteMode) {
-        // Handle note creation - calculate position relative to PDF page
-        const range = selection.getRangeAt(0)
-        const rect = range.getBoundingClientRect()
-        
-        // Get PDF page container to calculate relative position
-        const pageElement = pageRef.current?.querySelector('.react-pdf__Page')
-        if (pageElement) {
-          const pageRect = pageElement.getBoundingClientRect()
-          
-          // Calculate position relative to PDF page and normalize by scale
-          const relativeX = (rect.left + rect.width / 2 - pageRect.left) / scale
-          const relativeY = (rect.top + rect.height / 2 - pageRect.top) / scale
-          
-          // Determine which side to place the note (left or right margin)
-          const pageWidth = pageRect.width / scale
-          const isLeftSide = relativeX < pageWidth / 2
-          
-          console.log(`Text selection: relativeX=${relativeX}, pageWidth=${pageWidth}, isLeftSide=${isLeftSide}`)
-          
-          const position = {
-            x: relativeX,
-            y: relativeY,
-            side: isLeftSide ? 'left' : 'right',
-            pageWidth: pageWidth
-          }
-
-          setSelectedText(selectedText)
-          setSelectedPosition(position)
-          setShowNoteForm(true)
-          setActiveTab('notes')
-        }
+      const highlight: Omit<Highlight, 'id' | 'createdAt'> = {
+        bookId: book.id,
+        page: pageNumber,
+        text: selectedText,
+        color: selectedHighlightColor.value,
+        position: { x: 0, y: 0, width: 1, height: 0.1 }
       }
+
+      const { data, error } = await supabase
+        .from('book_highlights')
+        .insert({
+          book_id: highlight.bookId,
+          page_number: highlight.page,
+          text: highlight.text,
+          color: highlight.color,
+          position: highlight.position,
+          user_id: user.id
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setHighlights(prev => [{
+        ...highlight,
+        id: data.id,
+        createdAt: data.created_at
+      }, ...prev])
 
       selection.removeAllRanges()
     } catch (error) {
-      console.error('Error handling text selection:', error)
+      console.error('Error handling highlight:', error)
     }
   }
 
   const currentPageHighlights = highlights.filter(h => h.page === pageNumber)
-  const currentPageNotes = notes.filter(n => n.page === pageNumber)
   const readingModeStyles = getReadingModeStyles(readingMode)
 
   return (
@@ -733,7 +618,7 @@ export function BookReader({ book }: BookReaderProps) {
             </div>
 
             {/* Sidebar Content */}
-            <div className="flex-1 mx-2 overflow-y-auto">
+            <ScrollArea className="flex-1 mx-2">
               <div className="p-4 space-y-4">
                 {activeTab === 'outline' && (
                   <div className="space-y-4">
@@ -843,12 +728,7 @@ export function BookReader({ book }: BookReaderProps) {
                       ) : (
                         <div className="text-center text-muted-foreground py-8">
                           <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">No bookmarks or outline available</p>
-                          <div className="text-xs mt-2 p-2 bg-gray-100 rounded text-left">
-                            <div>PDF Outline items: {outline.length}</div>
-                            <div>Custom bookmarks: {customOutlines.length}</div>
-                            <div>Merged total: {getMergedOutline().length}</div>
-                          </div>
+                          <p className="text-sm">No bookmarks available</p>
                         </div>
                       )}
                     </div>
@@ -892,49 +772,11 @@ export function BookReader({ book }: BookReaderProps) {
 
                 {activeTab === 'notes' && (
                   <div className="bg-muted/30 p-4 rounded-lg border border-border/50 space-y-3">
-                    {showNoteForm && (
-                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
-                        <h4 className="font-medium text-sm">Add Note</h4>
-                        {selectedText && (
-                          <div className="text-xs bg-gray-100 p-2 rounded border-l-4 border-blue-400">
-                            <strong>Selected text:</strong> "{selectedText}"
-                          </div>
-                        )}
-                        <Textarea
-                          value={newNoteContent}
-                          onChange={(e) => setNewNoteContent(e.target.value)}
-                          placeholder="Enter your note..."
-                          className="min-h-[80px] text-sm"
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={createNote}
-                            disabled={!newNoteContent.trim()}
-                          >
-                            Save Note
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setShowNoteForm(false)
-                              setNewNoteContent('')
-                              setSelectedText('')
-                              setSelectedPosition(null)
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {notes.map((note, index) => (
+                    {notes.map((note) => (
                       <div key={note.id} className="p-3 border border-border rounded-lg">
                         <div className="flex items-start justify-between mb-2">
                           <span className="text-xs text-muted-foreground">
-                            Note {index + 1} (Page {note.page})
+                            Page {note.page}
                           </span>
                           <div className="flex gap-1">
                             <Button
@@ -986,24 +828,12 @@ export function BookReader({ book }: BookReaderProps) {
                             </div>
                           </div>
                         ) : (
-                          <div>
-                            {note.content.includes('"') && note.content.includes('\n\n') && (
-                              <div className="text-xs italic text-muted-foreground mb-2 border-l-2 border-gray-300 pl-2">
-                                {note.content.split('\n\n')[0].replace(/"/g, '')}
-                              </div>
-                            )}
-                            <p 
-                              className="text-sm cursor-pointer hover:bg-muted p-2 rounded"
-                              onClick={() => goToPage(note.page)}
-                            >
-                              {(() => {
-                                const content = note.content.includes('\n\n')
-                                  ? note.content.split('\n\n')[1] || note.content
-                                  : note.content
-                                return content
-                              })()}
-                            </p>
-                          </div>
+                          <p 
+                            className="text-sm cursor-pointer hover:bg-muted p-2 rounded"
+                            onClick={() => goToPage(note.page)}
+                          >
+                            {note.content}
+                          </p>
                         )}
                       </div>
                     ))}
@@ -1011,13 +841,12 @@ export function BookReader({ book }: BookReaderProps) {
                       <div className="text-center text-muted-foreground py-8">
                         <StickyNote className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">No notes yet</p>
-                        <p className="text-xs mt-2">Select text and enable note mode to add notes</p>
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            </div>
+            </ScrollArea>
           </div>
         </div>
 
@@ -1075,17 +904,13 @@ export function BookReader({ book }: BookReaderProps) {
                 {/* Highlight Mode */}
                 <div className="flex items-center gap-1">
                   <Button
-                    variant={isHighlightMode && !isNoteMode ? "default" : "outline"}
+                    variant={isHighlightMode ? "default" : "outline"}
                     size="sm"
-                    onClick={() => {
-                      setIsHighlightMode(!isHighlightMode)
-                      if (!isHighlightMode) setIsNoteMode(false) // Turn off note mode when enabling highlights
-                    }}
-                    disabled={isNoteMode}
+                    onClick={() => setIsHighlightMode(!isHighlightMode)}
                   >
                     <Highlighter className="w-4 h-4" />
                   </Button>
-                  {isHighlightMode && !isNoteMode && (
+                  {isHighlightMode && (
                     <>
                       <div className="flex gap-1">
                         {HIGHLIGHT_COLORS.map((color) => (
@@ -1109,23 +934,13 @@ export function BookReader({ book }: BookReaderProps) {
                 </div>
 
                 {/* Note Mode */}
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant={isNoteMode ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      setIsNoteMode(!isNoteMode)
-                      if (!isNoteMode) setIsHighlightMode(false) // Turn off highlight mode when enabling notes
-                    }}
-                  >
-                    <StickyNote className="w-4 h-4" />
-                  </Button>
-                  {isNoteMode && (
-                    <div className="text-xs text-blue-600 px-2 py-1 bg-blue-50 border border-blue-200 rounded-md">
-                      Select text to add note • Zoom-aware positioning
-                    </div>
-                  )}
-                </div>
+                <Button
+                  variant={isNoteMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setIsNoteMode(!isNoteMode)}
+                >
+                  <StickyNote className="w-4 h-4" />
+                </Button>
 
                 {/* Zoom Controls */}
                 <Button variant="outline" size="sm" onClick={zoomOut}>
@@ -1172,8 +987,8 @@ export function BookReader({ book }: BookReaderProps) {
 
           {/* PDF Viewer */}
           <div className={`flex-1 overflow-auto ${readingModeStyles.background}`}>
-            <div className="flex justify-center" style={{ overflow: 'visible' }}>
-              <div className="w-full relative" style={{ overflow: 'visible' }}>
+            <div className="flex justify-center">
+              <div className="w-full">
                 <div 
                   ref={pageRef}
                   className={`pdf-viewer-container relative ${readingModeStyles.containerBg} transition-all duration-300`}
@@ -1204,142 +1019,13 @@ export function BookReader({ book }: BookReaderProps) {
                         </div>
                       }
                     >
-                      <div className="flex items-center justify-center min-h-screen relative px-60">
-                        <div className="relative" style={{ overflow: 'visible' }}>
-                          <Page
-                            pageNumber={pageNumber}
-                            scale={scale}
-                            renderTextLayer={true}
-                            renderAnnotationLayer={false}
-                          />
-                          
-                          {/* Highlight Overlays on PDF text */}
-                          {currentPageHighlights.map((highlight) => (
-                            <div
-                              key={highlight.id}
-                              className="absolute z-5 cursor-pointer hover:opacity-60 transition-opacity"
-                              style={{
-                                left: `${(highlight.position.x || 0) * scale}px`,
-                                top: `${(highlight.position.y || 0) * scale}px`,
-                                width: `${(highlight.position.width || 100) * scale}px`,
-                                height: `${(highlight.position.height || 20) * scale}px`,
-                                backgroundColor: highlight.color,
-                                opacity: 0.4,
-                                borderRadius: '3px',
-                                mixBlendMode: 'multiply',
-                                border: '1px solid rgba(0,0,0,0.1)',
-                              }}
-                              title={`Highlight: "${highlight.text.substring(0, 50)}${highlight.text.length > 50 ? '...' : ''}" - Click to delete`}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                if (window.confirm('Delete this highlight?')) {
-                                  deleteHighlight(highlight.id)
-                                }
-                              }}
-                            />
-                          ))}
-                          
-                          {/* Note Overlays positioned in margins outside PDF text */}
-                          {currentPageNotes.map((note) => {
-                            const pageWidth = (note.position.pageWidth || 600) * scale
-                            const marginOffset = 30 * scale // Space from PDF edge
-                            const noteWidth = Math.min(220, 200 * scale)
-                            
-                            // Determine side based on text position or stored side info
-                            let side = note.position.side
-                            if (!side) {
-                              // Fallback: determine side based on x position
-                              side = note.position.x < pageWidth / (2 * scale) ? 'left' : 'right'
-                            }
-                            
-                            // Position in left or right margin
-                            const noteX = side === 'left' 
-                              ? -(noteWidth + marginOffset) // Left margin (negative position)
-                              : pageWidth + marginOffset    // Right margin (beyond page width)
-                            
-                            const noteY = note.position.y * scale
-                            const anchorX = note.position.x * scale // Position on PDF where text was selected
-                            
-                            console.log(`Note ${note.id}: side=${side}, pageWidth=${pageWidth}, anchorX=${anchorX}, noteX=${noteX}`)
-                            
-                            return (
-                              <div key={note.id}>
-                                {/* Connecting line from text to note */}
-                                <svg
-                                  className="absolute pointer-events-none z-5"
-                                  style={{
-                                    left: side === 'left' ? `${noteX}px` : '0px',
-                                    top: 0,
-                                    width: side === 'left' 
-                                      ? `${anchorX - noteX + 10}px` 
-                                      : `${pageWidth + marginOffset + noteWidth}px`,
-                                    height: '100%',
-                                  }}
-                                >
-                                  <line
-                                    x1={side === 'left' ? anchorX - noteX : anchorX}
-                                    y1={noteY}
-                                    x2={side === 'left' ? noteWidth + marginOffset : noteX}
-                                    y2={noteY}
-                                    stroke="#F59E0B"
-                                    strokeWidth="2"
-                                    strokeDasharray="4,4"
-                                    opacity="0.8"
-                                  />
-                                  <circle
-                                    cx={side === 'left' ? anchorX - noteX : anchorX}
-                                    cy={noteY}
-                                    r="5"
-                                    fill="#FCD34D"
-                                    stroke="#F59E0B"
-                                    strokeWidth="2"
-                                  />
-                                </svg>
-                                
-                                {/* Note box in margin */}
-                                <div
-                                  className={`absolute border-2 rounded-lg p-3 shadow-lg z-10 ${
-                                    side === 'left' 
-                                      ? 'bg-blue-50 border-blue-400' 
-                                      : 'bg-yellow-100 border-yellow-400'
-                                  }`}
-                                  style={{
-                                    left: `${noteX}px`,
-                                    top: `${noteY - 10}px`,
-                                    width: `${noteWidth}px`,
-                                    fontSize: `${Math.max(10, 11 * scale)}px`,
-                                    transform: 'translateZ(0)',
-                                    pointerEvents: 'auto',
-                                  }}
-                                  title="Click to go to note in sidebar"
-                                  onClick={() => {
-                                    setActiveTab('notes')
-                                  }}
-                                >
-                                  <div className={`text-xs mb-2 border-b pb-1 ${
-                                    side === 'left' 
-                                      ? 'text-blue-600 border-blue-300' 
-                                      : 'text-yellow-600 border-yellow-300'
-                                  }`}>
-                                    {new Date(note.createdAt).toLocaleDateString('en-US', {
-                                      year: 'numeric',
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                  </div>
-                                  <div className="text-gray-800 text-xs leading-relaxed">
-                                    {note.content.includes('\n\n') 
-                                      ? note.content.split('\n\n')[1] || note.content
-                                      : note.content
-                                    }
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
+                      <div className="flex items-center justify-center min-h-screen">
+                        <Page
+                          pageNumber={pageNumber}
+                          scale={scale}
+                          renderTextLayer={true}
+                          renderAnnotationLayer={false}
+                        />
                       </div>
                     </Document>
                   )}
