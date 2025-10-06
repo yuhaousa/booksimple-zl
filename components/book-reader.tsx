@@ -270,16 +270,23 @@ export function BookReader({ book }: BookReaderProps) {
         const voices = window.speechSynthesis.getVoices()
         setAvailableVoices(voices)
         
+        console.log('Available voices:', voices.map(v => `${v.name} (${v.lang})`))
+        
         // Load saved voice preference first
         const savedVoice = localStorage.getItem('pdf-reader-selected-voice')
         if (savedVoice && voices.some(v => v.name === savedVoice)) {
           setSelectedVoice(savedVoice)
+          console.log('Using saved voice:', savedVoice)
         } else {
           // If no saved voice, auto-select based on book language
           const bookLanguage = detectBookLanguage()
+          console.log('Detected book language:', bookLanguage)
+          
           const suitableVoices = voices.filter(voice => 
             voice.lang.startsWith(bookLanguage)
           )
+          
+          console.log('Suitable voices for language:', suitableVoices.map(v => `${v.name} (${v.lang})`))
           
           if (suitableVoices.length > 0) {
             // Prefer female voices for better listening experience
@@ -288,12 +295,21 @@ export function BookReader({ book }: BookReaderProps) {
               v.name.toLowerCase().includes('zira') || 
               v.name.toLowerCase().includes('hazel') ||
               v.name.toLowerCase().includes('susan') ||
-              v.name.toLowerCase().includes('yaoyao') // Chinese female voice
+              v.name.toLowerCase().includes('yaoyao') || // Chinese female voice
+              v.name.toLowerCase().includes('xiaoxiao') || // Chinese female voice
+              v.name.toLowerCase().includes('huihui') // Chinese female voice
             )
             
             const defaultVoice = femaleVoice || suitableVoices[0]
             setSelectedVoice(defaultVoice.name)
-            console.log(`Auto-selected voice for ${bookLanguage} book: ${defaultVoice.name}`)
+            console.log(`Auto-selected voice for ${bookLanguage} book: ${defaultVoice.name} (${defaultVoice.lang})`)
+          } else {
+            console.log('No suitable voices found for language:', bookLanguage)
+            // Fallback to any available voice
+            if (voices.length > 0) {
+              setSelectedVoice(voices[0].name)
+              console.log('Fallback to first available voice:', voices[0].name)
+            }
           }
         }
         
@@ -626,8 +642,11 @@ export function BookReader({ book }: BookReaderProps) {
       utterance.volume = 1
       
       // Apply selected voice if available
-      if (selectedVoice) {
-        utterance.voice = selectedVoice
+      if (selectedVoice && availableVoices.length > 0) {
+        const voiceObj = availableVoices.find(v => v.name === selectedVoice)
+        if (voiceObj) {
+          utterance.voice = voiceObj
+        }
       }
       
       utterance.onstart = () => {
@@ -673,6 +692,36 @@ export function BookReader({ book }: BookReaderProps) {
     } else {
       startReading()
     }
+  }
+
+  const testVoice = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      console.warn('Speech synthesis not supported in this environment')
+      return
+    }
+
+    // Stop any current speech
+    window.speechSynthesis.cancel()
+
+    const bookLanguage = detectBookLanguage()
+    const testText = bookLanguage === 'zh' 
+      ? '你好，这是语音测试。我是您选择的声音。' 
+      : 'Hello, this is a voice test. I am your selected voice.'
+
+    const utterance = new SpeechSynthesisUtterance(testText)
+    utterance.rate = voiceRate
+    utterance.pitch = 1
+    utterance.volume = 1
+
+    // Apply selected voice if available
+    if (selectedVoice && availableVoices.length > 0) {
+      const voiceObj = availableVoices.find(v => v.name === selectedVoice)
+      if (voiceObj) {
+        utterance.voice = voiceObj
+      }
+    }
+
+    window.speechSynthesis.speak(utterance)
   }
 
   // Note functions
@@ -1493,13 +1542,10 @@ export function BookReader({ book }: BookReaderProps) {
                       <div className="mb-4">
                         <label className="text-xs font-medium text-muted-foreground">Voice</label>
                         <select 
-                          value={selectedVoice?.name || ''} 
+                          value={selectedVoice || ''} 
                           onChange={(e) => {
-                            const voice = availableVoices.find(v => v.name === e.target.value)
-                            if (voice) {
-                              setSelectedVoice(voice)
-                              localStorage.setItem('selectedVoice', voice.name)
-                            }
+                            setSelectedVoice(e.target.value)
+                            localStorage.setItem('pdf-reader-selected-voice', e.target.value)
                           }}
                           className="w-full mt-1 px-2 py-1 text-sm border border-input bg-background rounded-md"
                         >
@@ -1512,6 +1558,16 @@ export function BookReader({ book }: BookReaderProps) {
                             </option>
                           ))}
                         </select>
+                        
+                        {/* Test Voice Button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={testVoice}
+                          className="mt-2 text-xs"
+                        >
+                          🎵 {detectBookLanguage() === 'zh' ? '试听语音' : 'Test Voice'}
+                        </Button>
                       </div>
 
                       {/* Speed Control */}
