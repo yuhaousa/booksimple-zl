@@ -244,6 +244,25 @@ export function BookReader({ book }: BookReaderProps) {
     }
   }, [])
 
+  // Detect book language based on title and content
+  const detectBookLanguage = () => {
+    const title = book.title || ''
+    const description = book.description || ''
+    const combinedText = `${title} ${description}`
+    
+    // Check for Chinese characters (CJK Unified Ideographs)
+    const chineseCharCount = (combinedText.match(/[\u4e00-\u9fff]/g) || []).length
+    const totalChars = combinedText.length
+    
+    // If more than 10% of characters are Chinese, or title contains Chinese, consider it a Chinese book
+    if (totalChars > 0 && (chineseCharCount / totalChars) > 0.1) {
+      return 'zh'
+    }
+    
+    // Default to English
+    return 'en'
+  }
+
   // Load available voices
   useEffect(() => {
     const loadVoices = () => {
@@ -251,10 +270,31 @@ export function BookReader({ book }: BookReaderProps) {
         const voices = window.speechSynthesis.getVoices()
         setAvailableVoices(voices)
         
-        // Load saved voice preference
+        // Load saved voice preference first
         const savedVoice = localStorage.getItem('pdf-reader-selected-voice')
         if (savedVoice && voices.some(v => v.name === savedVoice)) {
           setSelectedVoice(savedVoice)
+        } else {
+          // If no saved voice, auto-select based on book language
+          const bookLanguage = detectBookLanguage()
+          const suitableVoices = voices.filter(voice => 
+            voice.lang.startsWith(bookLanguage)
+          )
+          
+          if (suitableVoices.length > 0) {
+            // Prefer female voices for better listening experience
+            const femaleVoice = suitableVoices.find(v => 
+              v.name.toLowerCase().includes('female') || 
+              v.name.toLowerCase().includes('zira') || 
+              v.name.toLowerCase().includes('hazel') ||
+              v.name.toLowerCase().includes('susan') ||
+              v.name.toLowerCase().includes('yaoyao') // Chinese female voice
+            )
+            
+            const defaultVoice = femaleVoice || suitableVoices[0]
+            setSelectedVoice(defaultVoice.name)
+            console.log(`Auto-selected voice for ${bookLanguage} book: ${defaultVoice.name}`)
+          }
         }
         
         // Load saved voice rate preference
@@ -274,7 +314,7 @@ export function BookReader({ book }: BookReaderProps) {
         window.speechSynthesis.removeEventListener('voiceschanged', loadVoices)
       }
     }
-  }, [])
+  }, [book.id, book.title, book.description])
 
   // Save voice preferences when changed
   useEffect(() => {
@@ -1440,6 +1480,15 @@ export function BookReader({ book }: BookReaderProps) {
                     <div className="p-4">
                       <h3 className="text-sm font-medium mb-3">Voice Settings</h3>
                       
+                      {/* Language Detection Info */}
+                      <div className="mb-3 p-2 bg-gray-50 rounded-md">
+                        <div className="text-xs text-muted-foreground">
+                          Detected Language: <span className="font-medium text-foreground">
+                            {detectBookLanguage() === 'zh' ? '中文 (Chinese)' : 'English'}
+                          </span>
+                        </div>
+                      </div>
+                      
                       {/* Voice Selection */}
                       <div className="mb-4">
                         <label className="text-xs font-medium text-muted-foreground">Voice</label>
@@ -1493,40 +1542,79 @@ export function BookReader({ book }: BookReaderProps) {
                       {/* Quick Voice Presets */}
                       <div>
                         <label className="text-xs font-medium text-muted-foreground mb-2 block">Quick Select</label>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => {
+                              const bookLang = detectBookLanguage()
                               const maleVoice = availableVoices.find(v => 
-                                (v.lang.startsWith('en') || v.lang.startsWith('zh')) && 
-                                (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('david') || v.name.toLowerCase().includes('mark'))
+                                v.lang.startsWith(bookLang) && 
+                                (v.name.toLowerCase().includes('male') || 
+                                 v.name.toLowerCase().includes('david') || 
+                                 v.name.toLowerCase().includes('mark') ||
+                                 v.name.toLowerCase().includes('yunyang') || // Chinese male
+                                 v.name.toLowerCase().includes('kangkang')) // Chinese male
                               )
                               if (maleVoice) {
-                                setSelectedVoice(maleVoice)
-                                localStorage.setItem('selectedVoice', maleVoice.name)
+                                setSelectedVoice(maleVoice.name)
+                                localStorage.setItem('pdf-reader-selected-voice', maleVoice.name)
                               }
                             }}
                             className="text-xs"
                           >
-                            Male Voice
+                            {detectBookLanguage() === 'zh' ? '男声' : 'Male Voice'}
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => {
+                              const bookLang = detectBookLanguage()
                               const femaleVoice = availableVoices.find(v => 
-                                (v.lang.startsWith('en') || v.lang.startsWith('zh')) && 
-                                (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('hazel'))
+                                v.lang.startsWith(bookLang) && 
+                                (v.name.toLowerCase().includes('female') || 
+                                 v.name.toLowerCase().includes('zira') || 
+                                 v.name.toLowerCase().includes('hazel') ||
+                                 v.name.toLowerCase().includes('susan') ||
+                                 v.name.toLowerCase().includes('yaoyao') || // Chinese female
+                                 v.name.toLowerCase().includes('xiaoxiao')) // Chinese female
                               )
                               if (femaleVoice) {
-                                setSelectedVoice(femaleVoice)
-                                localStorage.setItem('selectedVoice', femaleVoice.name)
+                                setSelectedVoice(femaleVoice.name)
+                                localStorage.setItem('pdf-reader-selected-voice', femaleVoice.name)
                               }
                             }}
                             className="text-xs"
                           >
-                            Female Voice
+                            {detectBookLanguage() === 'zh' ? '女声' : 'Female Voice'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Reset to auto-detect and select default voice for this book
+                              const bookLang = detectBookLanguage()
+                              const suitableVoices = availableVoices.filter(voice => 
+                                voice.lang.startsWith(bookLang)
+                              )
+                              
+                              if (suitableVoices.length > 0) {
+                                const femaleVoice = suitableVoices.find(v => 
+                                  v.name.toLowerCase().includes('female') || 
+                                  v.name.toLowerCase().includes('zira') || 
+                                  v.name.toLowerCase().includes('hazel') ||
+                                  v.name.toLowerCase().includes('susan') ||
+                                  v.name.toLowerCase().includes('yaoyao')
+                                )
+                                
+                                const defaultVoice = femaleVoice || suitableVoices[0]
+                                setSelectedVoice(defaultVoice.name)
+                                localStorage.setItem('pdf-reader-selected-voice', defaultVoice.name)
+                              }
+                            }}
+                            className="text-xs"
+                          >
+                            {detectBookLanguage() === 'zh' ? '自动选择' : 'Auto Select'}
                           </Button>
                         </div>
                       </div>
