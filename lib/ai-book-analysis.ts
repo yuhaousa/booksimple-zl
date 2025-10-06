@@ -12,6 +12,9 @@ export interface AIBookAnalysis {
   topics: string[]
   readingTime: number
   difficulty: "Beginner" | "Intermediate" | "Advanced"
+  authorBackground?: string
+  bookBackground?: string
+  worldRelevance?: string
   mindmapData: any
   confidence: number // 0-1 score indicating analysis quality
 }
@@ -104,6 +107,9 @@ ${textContent}
   "keywords": ["这本书的12个重要关键词和概念"],
   "topics": ["这本书涵盖的6个主要主题领域"],
   "difficulty": "初级|中级|高级",
+  "authorBackground": "作者的详细背景介绍，包括教育背景、职业经历、主要成就、写作动机等（200-300字）",
+  "bookBackground": "本书的创作背景，包括写作时的历史背景、社会环境、创作过程、出版影响等（200-300字）",
+  "worldRelevance": "这本书对当今世界的意义和影响，包括在现代社会的应用价值、对当前问题的启示等（200-300字）",
   "mindmapStructure": {
     "name": "书名",
     "children": [
@@ -141,6 +147,9 @@ Please provide analysis in the following JSON structure:
   "keywords": ["12 important keywords and concepts from this book"],
   "topics": ["6 main topic areas covered in this book"],
   "difficulty": "Beginner|Intermediate|Advanced",
+  "authorBackground": "Detailed background about the author including education, career, achievements, and motivation for writing (200-300 words)",
+  "bookBackground": "Background about the book's creation including historical context, social environment, writing process, and publishing impact (200-300 words)",
+  "worldRelevance": "The book's significance and impact on today's world, including practical applications in modern society and insights for current issues (200-300 words)",
   "mindmapStructure": {
     "name": "Book Title",
     "children": [
@@ -239,6 +248,9 @@ What sets this book apart is its balanced approach to presenting different viewp
            analysisResult.difficulty === "中级" ? "Intermediate" :
            analysisResult.difficulty === "高级" ? "Advanced" : analysisResult.difficulty)
         : "Intermediate",
+      authorBackground: analysisResult.authorBackground || undefined,
+      bookBackground: analysisResult.bookBackground || undefined,
+      worldRelevance: analysisResult.worldRelevance || undefined,
       mindmapData: analysisResult.mindmapStructure || {
         name: bookContent.title,
         children: [
@@ -287,6 +299,9 @@ function generateFallbackAnalysis(bookContent: BookContent, readingTimeMinutes: 
 作者在书中巧妙地将理论基础与实践应用相结合，通过大量的实证研究和专家分析，使复杂的主题变得易于理解和掌握。无论是初学者还是该领域的资深从业者，都能从中获得有价值的见解和可操作的指导。
 
 这本书的独特之处在于其平衡的写作方法，既保持了学术严谨性，又兼顾了实用性和可读性。内容结构清晰，层次分明，每个章节都在前一章的基础上递进发展，为读者构建了完整的知识体系。不论您是在寻求基础知识还是高级见解，这部作品都能提供实用价值和智力启发，其影响力远超其直接涉及的主题范围。`,
+      authorBackground: `${bookContent.author || '本书作者'}在相关领域具有深厚的学术背景和丰富的实践经验。凭借多年的研究和探索，作者积累了丰富的专业知识和独到的见解。作者的教育背景和职业经历为其创作这部作品提供了坚实的理论基础和实践支撑，使得本书能够结合理论深度与实用价值。`,
+      bookBackground: `本书的创作背景反映了当代社会对相关主题日益增长的关注和需求。在快速变化的时代背景下，作者敏锐地捕捉到了读者对系统性知识和实用指导的渴望，因此决定将其多年的研究成果和实践经验整理成书，为读者提供一个全面而深入的学习资源。`,
+      worldRelevance: `在当今快速发展的世界中，本书所探讨的主题具有重要的现实意义和应用价值。随着科技进步和社会变革，书中提出的理念和方法论在解决当前面临的挑战方面展现出巨大的潜力。本书不仅为读者提供了理解复杂问题的框架，更为应对未来挑战提供了有价值的思路和工具。`,
       keyPoints: [
         "全面探讨基本概念和核心原理",
         "结合实际应用和现实案例研究",
@@ -387,6 +402,9 @@ function generateFallbackAnalysis(bookContent: BookContent, readingTimeMinutes: 
 The author demonstrates exceptional expertise in presenting complex concepts through accessible language and well-structured arguments, supported by extensive research and real-world case studies. Each chapter builds systematically upon previous knowledge, creating a cohesive learning experience that guides readers from basic understanding to advanced proficiency in the field.
 
 What distinguishes this work is its commitment to practical relevance alongside academic rigor. The book includes actionable frameworks, proven methodologies, and strategic insights that readers can immediately apply to their professional and personal contexts. Through its comprehensive approach to the subject matter, this publication serves as both an educational resource and a practical reference guide, making it invaluable for students, practitioners, and researchers alike who seek to deepen their understanding and enhance their capabilities in this important field.`,
+    authorBackground: `${bookContent.author || 'The author'} brings extensive academic credentials and practical experience to this work, having spent years researching and working in the relevant field. Their educational background and professional journey have equipped them with both theoretical depth and real-world insights that inform every aspect of this publication. The author's commitment to bridging theory and practice is evident throughout the work.`,
+    bookBackground: `This book was conceived and written in response to growing recognition of the need for comprehensive, accessible resources in this field. The author identified a gap between academic research and practical application, leading to the development of this work that serves as both scholarly reference and practical guide. The writing process involved extensive research, consultation with experts, and careful consideration of reader needs.`,
+    worldRelevance: `In today's rapidly evolving world, the topics addressed in this book have become increasingly relevant and important. The frameworks and insights presented offer valuable tools for understanding and navigating contemporary challenges. As technology advances and social structures continue to evolve, the principles and methodologies explored in this work provide timeless value while remaining adaptable to emerging circumstances and future developments.`,
     keyPoints: [
       "Comprehensive exploration of fundamental concepts and principles",
       "Practical applications with real-world examples and case studies",

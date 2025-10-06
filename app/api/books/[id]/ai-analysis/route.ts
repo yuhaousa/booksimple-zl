@@ -117,7 +117,10 @@ export async function POST(
           difficulty: existingAnalysis.reading_level,
           readingTime: existingAnalysis.reading_time_minutes,
           mindmapData: existingAnalysis.mind_map_data,
-          confidence: existingAnalysis.content_analysis?.confidence || 0.8
+          confidence: existingAnalysis.content_analysis?.confidence || 0.8,
+          authorBackground: existingAnalysis.content_analysis?.authorBackground,
+          bookBackground: existingAnalysis.content_analysis?.bookBackground,
+          worldRelevance: existingAnalysis.content_analysis?.worldRelevance
         },
         bookInfo: {
           title: book.title,
@@ -232,7 +235,10 @@ export async function POST(
           keyPoints: analysis.keyPoints,
           keywords: analysis.keywords,
           topics: analysis.topics,
-          confidence: analysis.confidence
+          confidence: analysis.confidence,
+          authorBackground: analysis.authorBackground,
+          bookBackground: analysis.bookBackground,
+          worldRelevance: analysis.worldRelevance
         },
         mind_map_data: analysis.mindmapData || {},
         content_hash: contentHash,
@@ -262,7 +268,12 @@ export async function POST(
     return NextResponse.json({
       success: true,
       fromCache: false,
-      analysis,
+      analysis: {
+        ...analysis,
+        authorBackground: analysis.authorBackground,
+        bookBackground: analysis.bookBackground,
+        worldRelevance: analysis.worldRelevance
+      },
       bookInfo: {
         title: book.title,
         author: book.author,
@@ -404,7 +415,10 @@ export async function GET(
           difficulty: cachedAnalysis.reading_level,
           readingTime: cachedAnalysis.reading_time_minutes,
           mindmapData: cachedAnalysis.mind_map_data,
-          confidence: cachedAnalysis.content_analysis?.confidence || 0.8
+          confidence: cachedAnalysis.content_analysis?.confidence || 0.8,
+          authorBackground: cachedAnalysis.content_analysis?.authorBackground,
+          bookBackground: cachedAnalysis.content_analysis?.bookBackground,
+          worldRelevance: cachedAnalysis.content_analysis?.worldRelevance
         },
         bookInfo: {
           title: book.title,
