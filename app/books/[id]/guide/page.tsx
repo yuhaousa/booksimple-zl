@@ -41,6 +41,13 @@ interface Book {
   tags: string | null
 }
 
+interface QuizQuestion {
+  question: string
+  options: string[]
+  correct: number
+  explanation: string
+}
+
 interface AIAnalysis {
   summary: string
   key_points?: string[]
@@ -55,6 +62,7 @@ interface AIAnalysis {
   author_background?: string
   bookBackground?: string
   book_background?: string
+  quizQuestions?: QuizQuestion[]
 }
 
 async function getBook(id: string) {
@@ -80,6 +88,8 @@ async function getBook(id: string) {
 
 async function getAIAnalysis(bookId: string): Promise<AIAnalysis | null> {
   try {
+    console.log('🔍 Fetching AI analysis for book:', bookId)
+    
     // First try to get cached analysis
     const response = await fetch(`/api/books/${bookId}/ai-analysis`, {
       method: 'GET',
@@ -88,9 +98,19 @@ async function getAIAnalysis(bookId: string): Promise<AIAnalysis | null> {
       },
     })
 
+    console.log('📡 GET Response status:', response.status)
+    
     if (response.ok) {
       const data = await response.json()
+      console.log('📊 GET Response data:', data)
+      
       if (data.success && data.analysis) {
+        console.log('✅ Found cached analysis with background fields:', {
+          hasAuthorBackground: !!data.analysis.authorBackground,
+          hasBookBackground: !!data.analysis.bookBackground,
+          hasWorldRelevance: !!data.analysis.worldRelevance
+        })
+        
         // Transform the API response to match our interface
         return {
           summary: data.analysis.summary,
@@ -105,12 +125,15 @@ async function getAIAnalysis(bookId: string): Promise<AIAnalysis | null> {
           author_background: data.analysis.authorBackground,
           authorBackground: data.analysis.authorBackground,
           book_background: data.analysis.bookBackground,
-          bookBackground: data.analysis.bookBackground
+          bookBackground: data.analysis.bookBackground,
+          quizQuestions: data.analysis.quizQuestions
         }
       }
     }
 
     // If no cached analysis, try to generate new one
+    console.log('🔄 No cached analysis found, generating new analysis...')
+    
     const generateResponse = await fetch(`/api/books/${bookId}/ai-analysis`, {
       method: 'POST',
       headers: {
@@ -118,9 +141,19 @@ async function getAIAnalysis(bookId: string): Promise<AIAnalysis | null> {
       },
     })
 
+    console.log('📡 POST Response status:', generateResponse.status)
+    
     if (generateResponse.ok) {
       const generateData = await generateResponse.json()
+      console.log('📊 POST Response data:', generateData)
+      
       if (generateData.success && generateData.analysis) {
+        console.log('✅ Generated new analysis with background fields:', {
+          hasAuthorBackground: !!generateData.analysis.authorBackground,
+          hasBookBackground: !!generateData.analysis.bookBackground,
+          hasWorldRelevance: !!generateData.analysis.worldRelevance
+        })
+        
         // Transform the API response to match our interface
         return {
           summary: generateData.analysis.summary,
@@ -135,9 +168,12 @@ async function getAIAnalysis(bookId: string): Promise<AIAnalysis | null> {
           author_background: generateData.analysis.authorBackground,
           authorBackground: generateData.analysis.authorBackground,
           book_background: generateData.analysis.bookBackground,
-          bookBackground: generateData.analysis.bookBackground
+          bookBackground: generateData.analysis.bookBackground,
+          quizQuestions: generateData.analysis.quizQuestions
         }
       }
+    } else {
+      console.error('❌ POST request failed:', await generateResponse.text())
     }
 
     return null
@@ -154,86 +190,47 @@ export default function BookGuidePage({ params }: BookGuidePageProps) {
   const [loading, setLoading] = useState(true)
   const [aiLoading, setAiLoading] = useState(false)
   const [usingFallback, setUsingFallback] = useState(false)
+  const [contentReady, setContentReady] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'analysis' | 'quiz'>('overview')
 
-  // Dynamic quiz questions based on book content
+  // Dynamic quiz questions based on AI analysis
   const getQuizQuestions = () => {
+    // Use AI-generated quiz questions if available
+    if (aiAnalysis?.quizQuestions && aiAnalysis.quizQuestions.length > 0) {
+      return aiAnalysis.quizQuestions
+    }
+    
+    // Fallback questions based on book language
     const isChineseBook = book?.title && /[\u4e00-\u9fff]/.test(book.title)
     
     if (isChineseBook) {
       return [
         {
-          question: "根据书中内容，PARA系统的四个核心组成部分是什么？",
-          options: ["项目、领域、资源、存档", "计划、行动、反思、总结", "收集、整理、分析、应用", "输入、处理、输出、反馈"],
-          correct: 0,
-          explanation: "PARA系统是第二大脑方法论的核心，包含Projects（项目）、Areas（领域）、Resources（资源）、Archives（存档）四个部分。"
-        },
-        {
-          question: "CODE法则中的'D'代表什么含义？",
-          options: ["删除(Delete)", "提炼(Distill)", "设计(Design)", "决策(Decide)"],
+          question: "请等待AI生成基于本书内容的测试问题...",
+          options: ["问题将根据书本内容生成", "请等待AI分析完成", "测试内容正在准备中", "请稍后刷新页面"],
           correct: 1,
-          explanation: "CODE法则中的D代表Distill（提炼），是将信息精炼成有用知识的关键步骤。"
-        },
-        {
-          question: "建立第二大脑的主要目的是什么？",
-          options: ["替代人脑思考", "减轻大脑负担，提高创造力", "存储更多信息", "提高记忆能力"],
-          correct: 1,
-          explanation: "第二大脑的核心目的是减轻生物大脑的负担，让我们专注于创造性思考和决策。"
-        },
-        {
-          question: "在数字化知识管理中，最重要的原则是什么？",
-          options: ["收集所有信息", "完美的分类系统", "可操作性和实用性", "复杂的标签体系"],
-          correct: 2,
-          explanation: "数字化知识管理的关键是确保信息具有可操作性，能够在需要时快速找到和使用。"
-        },
-        {
-          question: "根据书中观点，信息捕获的最佳时机是？",
-          options: ["每天固定时间", "有灵感的瞬间", "工作结束后", "周末整理时"],
-          correct: 1,
-          explanation: "书中强调要在灵感出现的瞬间立即捕获信息，因为创意和想法稍纵即逝。"
+          explanation: "AI正在分析书籍内容并生成相关的测试问题，请等待分析完成。"
         }
       ]
     } else {
       return [
         {
-          question: "According to the book, what are the four core components of the PARA system?",
-          options: ["Projects, Areas, Resources, Archives", "Plan, Act, Review, Adjust", "Collect, Organize, Analyze, Apply", "Input, Process, Output, Feedback"],
-          correct: 0,
-          explanation: "The PARA system consists of Projects, Areas, Resources, and Archives - the four fundamental categories for organizing digital information."
-        },
-        {
-          question: "What does the 'D' in the CODE method represent?",
-          options: ["Delete", "Distill", "Design", "Decide"],
+          question: "Please wait for AI to generate quiz questions based on this book...",
+          options: ["Questions will be generated based on book content", "Please wait for AI analysis to complete", "Quiz content is being prepared", "Please refresh the page later"],
           correct: 1,
-          explanation: "The 'D' in CODE stands for Distill - the process of extracting the most valuable insights from captured information."
-        },
-        {
-          question: "What is the primary purpose of building a Second Brain?",
-          options: ["Replace human thinking", "Reduce cognitive load and enhance creativity", "Store more information", "Improve memory capacity"],
-          correct: 1,
-          explanation: "The Second Brain aims to offload information storage from our biological brain, freeing it for higher-level creative and strategic thinking."
-        },
-        {
-          question: "What is the most important principle in digital knowledge management?",
-          options: ["Collect all information", "Perfect categorization", "Actionability and practicality", "Complex tagging systems"],
-          correct: 2,
-          explanation: "The key principle is ensuring information is actionable and can be quickly retrieved and used when needed."
-        },
-        {
-          question: "According to the book, when is the best time to capture information?",
-          options: ["At fixed daily times", "In moments of inspiration", "After work hours", "During weekend reviews"],
-          correct: 1,
-          explanation: "The book emphasizes capturing information in moments of inspiration, as ideas and insights are fleeting and easily lost."
+          explanation: "AI is analyzing the book content and generating relevant quiz questions. Please wait for the analysis to complete."
         }
       ]
     }
   }
 
-  const [quizQuestions] = useState(getQuizQuestions())
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [showResult, setShowResult] = useState(false)
   const [score, setScore] = useState(0)
+  
+  // Get current quiz questions (will update when aiAnalysis changes)
+  const quizQuestions = getQuizQuestions()
 
   // Resolve params
   useEffect(() => {
@@ -273,17 +270,26 @@ export default function BookGuidePage({ params }: BookGuidePageProps) {
     setBook(bookData)
     setLoading(false)
     
-    // Try to get AI analysis
+    // Try to get AI analysis - keep loading until AI completes
     setAiLoading(true)
+    setContentReady(false)
+    
     try {
       const analysis = await getAIAnalysis(resolvedParams.id)
+      console.log('🔍 AI Analysis received in component:', analysis)
       if (analysis) {
         setAIAnalysis(analysis)
         setUsingFallback(false)
         toast.success("AI-generated reading guide loaded successfully!")
+        console.log('✅ Using AI analysis:', {
+          hasAuthorBackground: !!analysis.authorBackground || !!analysis.author_background,
+          hasBookBackground: !!analysis.bookBackground || !!analysis.book_background,
+          hasWorldRelevance: !!analysis.worldRelevance || !!analysis.world_relevance
+        })
       } else {
         setUsingFallback(true)
         toast.info("Using comprehensive fallback content for reading guide")
+        console.log('⚠️ No AI analysis found, using fallback')
       }
     } catch (error) {
       console.error('Error loading AI analysis:', error)
@@ -291,6 +297,7 @@ export default function BookGuidePage({ params }: BookGuidePageProps) {
       toast.error("Failed to load AI analysis, using fallback content")
     } finally {
       setAiLoading(false)
+      setContentReady(true)
     }
   }
 
@@ -492,9 +499,28 @@ Forte's personal mission is to help people learn, think, and create better in th
       // Only use AI analysis if it has meaningful content, otherwise fall back
       const fallback = getFallbackContent()
       
+      // Debug: Log the aiAnalysis to see what we have
+      console.log('🔍 getContent() - aiAnalysis state:', {
+        summary: aiAnalysis.summary?.substring(0, 100) + '...',
+        summaryLength: aiAnalysis.summary?.length,
+        authorBackground: aiAnalysis.authorBackground?.substring(0, 100) + '...',
+        authorBackgroundLength: aiAnalysis.authorBackground?.length,
+        bookBackground: aiAnalysis.bookBackground?.substring(0, 100) + '...',
+        bookBackgroundLength: aiAnalysis.bookBackground?.length,
+        keyPoints: aiAnalysis.keyPoints?.length || 0,
+        fullObject: Object.keys(aiAnalysis)
+      })
+      
       // Safe content checking with proper fallbacks
-      const hasValidContent = (content: string | undefined | null) => 
-        content && typeof content === 'string' && content.trim().length > 50
+      const hasValidContent = (content: string | undefined | null) => {
+        const isValid = content && typeof content === 'string' && content.trim().length > 50
+        console.log('🧪 hasValidContent check:', { 
+          content: content?.substring(0, 50) + '...', 
+          length: content?.length, 
+          isValid 
+        })
+        return isValid
+      }
       
       const hasValidArray = (arr: any[] | undefined | null) => 
         Array.isArray(arr) && arr.length > 0
@@ -520,13 +546,20 @@ Forte's personal mission is to help people learn, think, and create better in th
     return getFallbackContent()
   }
 
-  if (loading) {
+  if (loading || !contentReady) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading reading guide...</p>
+            <p className="text-muted-foreground">
+              {loading ? "Loading book information..." : aiLoading ? "Analyzing book with AI..." : "Preparing reading guide..."}
+            </p>
+            {aiLoading && (
+              <p className="text-xs text-muted-foreground mt-2 opacity-75">
+                This may take 10-30 seconds for comprehensive analysis
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -637,9 +670,11 @@ Forte's personal mission is to help people learn, think, and create better in th
               onClick={async () => {
                 if (!resolvedParams) return
                 setAiLoading(true)
+                setContentReady(false) // Hide content while regenerating
+                
                 try {
-                  // Force regeneration by calling POST directly
-                  const response = await fetch(`/api/books/${resolvedParams.id}/ai-analysis`, {
+                  // Force regeneration by calling POST with force parameter
+                  const response = await fetch(`/api/books/${resolvedParams.id}/ai-analysis?force=true`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                   })
@@ -660,7 +695,8 @@ Forte's personal mission is to help people learn, think, and create better in th
                         author_background: data.analysis.authorBackground,
                         authorBackground: data.analysis.authorBackground,
                         book_background: data.analysis.bookBackground,
-                        bookBackground: data.analysis.bookBackground
+                        bookBackground: data.analysis.bookBackground,
+                        quizQuestions: data.analysis.quizQuestions
                       })
                       setUsingFallback(false)
                       toast.success("AI content regenerated successfully!")
@@ -670,8 +706,10 @@ Forte's personal mission is to help people learn, think, and create better in th
                   }
                 } catch (error) {
                   toast.error("Failed to regenerate AI content")
+                  setUsingFallback(true)
                 } finally {
                   setAiLoading(false)
+                  setContentReady(true) // Show content after regeneration
                 }
               }}
               disabled={aiLoading}

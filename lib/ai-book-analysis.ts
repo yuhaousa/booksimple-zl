@@ -5,6 +5,13 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
+export interface QuizQuestion {
+  question: string
+  options: string[]
+  correct: number
+  explanation: string
+}
+
 export interface AIBookAnalysis {
   summary: string
   keyPoints: string[]
@@ -15,6 +22,7 @@ export interface AIBookAnalysis {
   authorBackground?: string
   bookBackground?: string
   worldRelevance?: string
+  quizQuestions?: QuizQuestion[]
   mindmapData: any
   confidence: number // 0-1 score indicating analysis quality
 }
@@ -58,11 +66,8 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
   const readingTimeMinutes = Math.floor(estimatedWords / 200)
 
   try {
-    console.log('Starting AI analysis for book:', bookContent.title)
-    
     // Check if OpenAI API key is available
     if (!process.env.OPENAI_API_KEY) {
-      console.warn('No OpenAI API key configured, using fallback analysis')
       throw new Error('OpenAI API key not configured')
     }
     
@@ -75,24 +80,18 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
       const chineseCharCount = (content.match(/[\u4e00-\u9fff]/g) || []).length
       const totalChars = content.length
       
-      console.log(`Language detection: Chinese chars: ${chineseCharCount}, Total chars: ${totalChars}`)
-      console.log(`Book content sample: ${content.substring(0, 200)}`)
-      
       // If more than 5% of characters are Chinese, or title contains Chinese, consider it a Chinese book
       if ((totalChars > 0 && (chineseCharCount / totalChars) > 0.05) || 
           bookContent.title.match(/[\u4e00-\u9fff]/)) {
-        console.log('Detected as Chinese book')
         return 'Chinese'
       }
       
-      console.log('Detected as English book')
       // Default to English
       return 'English'
     }
 
     const bookLanguage = detectLanguage(textContent)
     const isChineseBook = bookLanguage === 'Chinese'
-    console.log(`Book language detected: ${bookLanguage}, Using Chinese analysis: ${isChineseBook}`)
 
     // Create language-appropriate prompt for book analysis
     const analysisPrompt = isChineseBook ? `
@@ -110,6 +109,14 @@ ${textContent}
   "authorBackground": "作者的详细背景介绍，包括教育背景、职业经历、主要成就、写作动机等（200-300字）",
   "bookBackground": "本书的创作背景，包括写作时的历史背景、社会环境、创作过程、出版影响等（200-300字）",
   "worldRelevance": "这本书对当今世界的意义和影响，包括在现代社会的应用价值、对当前问题的启示等（200-300字）",
+  "quizQuestions": [
+    {
+      "question": "根据书中内容的问题？",
+      "options": ["选项1", "选项2", "选项3", "选项4"],
+      "correct": 1,
+      "explanation": "正确答案的解释"
+    }
+  ],
   "mindmapStructure": {
     "name": "书名",
     "children": [
@@ -130,12 +137,13 @@ ${textContent}
 - 包括书籍的主要主题、核心概念和实用价值
 - 确保关键点具体且可行
 - 包含与书籍领域相关的关键词
+- 生成3个基于书籍内容的测试问题，每个问题有4个选项和简短解释（避免换行符）
 - 创建具有3-4个主要分支的逻辑思维导图层次结构
 - 根据内容复杂性分配适当的难度级别
 - 基于可用信息质量提供置信度分数（0-1）
 - 所有内容都必须用中文回答
 
-只返回有效的JSON，不要任何markdown格式或额外文本。` : `
+只返回有效的JSON，不要任何markdown格式或额外文本。请确保所有字符串都正确转义，避免在文本中使用引号或换行符导致JSON格式错误。` : `
 Analyze the following book and provide a comprehensive analysis in JSON format:
 
 ${textContent}
@@ -150,6 +158,14 @@ Please provide analysis in the following JSON structure:
   "authorBackground": "Detailed background about the author including education, career, achievements, and motivation for writing (200-300 words)",
   "bookBackground": "Background about the book's creation including historical context, social environment, writing process, and publishing impact (200-300 words)",
   "worldRelevance": "The book's significance and impact on today's world, including practical applications in modern society and insights for current issues (200-300 words)",
+  "quizQuestions": [
+    {
+      "question": "Question based on the book content?",
+      "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+      "correct": 1,
+      "explanation": "Explanation for the correct answer"
+    }
+  ],
   "mindmapStructure": {
     "name": "Book Title",
     "children": [
@@ -170,6 +186,7 @@ Requirements:
 - Include the book's main themes, key concepts, and practical value
 - Ensure key points are specific and actionable  
 - Include relevant keywords for the book's domain
+- Generate 5 quiz questions based on the book content, each with 4 options and detailed explanations
 - Create a logical mindmap hierarchy with 3-4 main branches
 - Assign appropriate difficulty level based on content complexity
 - Provide confidence score (0-1) based on available information quality
@@ -203,8 +220,6 @@ Return only valid JSON without any markdown formatting or additional text.`
       throw new Error('No response from OpenAI API')
     }
 
-    console.log('Raw OpenAI response:', response)
-
     // Parse the JSON response
     let analysisResult
     try {
@@ -218,7 +233,63 @@ Return only valid JSON without any markdown formatting or additional text.`
     } catch (parseError) {
       console.error('Failed to parse OpenAI response as JSON:', parseError)
       console.error('Response was:', response)
-      throw new Error('Invalid JSON response from OpenAI')
+      
+      // Try to extract valid JSON from truncated response
+      try {
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          // Attempt to fix common JSON issues
+          let fixedJson = jsonMatch[0];
+          
+          // Find last valid JSON structure
+          let lastValidPos = -1;
+          let braceCount = 0;
+          let inString = false;
+          let escaped = false;
+          
+          for (let i = 0; i < fixedJson.length; i++) {
+            const char = fixedJson[i];
+            
+            if (escaped) {
+              escaped = false;
+              continue;
+            }
+            
+            if (char === '\\') {
+              escaped = true;
+              continue;
+            }
+            
+            if (char === '"' && !escaped) {
+              inString = !inString;
+              continue;
+            }
+            
+            if (!inString) {
+              if (char === '{') {
+                braceCount++;
+              } else if (char === '}') {
+                braceCount--;
+                if (braceCount === 0) {
+                  lastValidPos = i;
+                }
+              }
+            }
+          }
+          
+          if (lastValidPos > -1) {
+            fixedJson = fixedJson.substring(0, lastValidPos + 1);
+            analysisResult = JSON.parse(fixedJson);
+          } else {
+            throw new Error('No valid JSON structure found');
+          }
+        } else {
+          throw new Error('No valid JSON found in response');
+        }
+      } catch (secondParseError) {
+        console.error('Failed to recover JSON:', secondParseError);
+        throw new Error('Invalid JSON response from OpenAI')
+      }
     }
 
     // Validate and structure the response
@@ -265,10 +336,29 @@ What sets this book apart is its balanced approach to presenting different viewp
       },
       confidence: typeof analysisResult.confidence === 'number' 
         ? Math.max(0, Math.min(1, analysisResult.confidence))
-        : 0.7
+        : 0.7,
+      quizQuestions: Array.isArray(analysisResult.quizQuestions) ? analysisResult.quizQuestions : [
+        {
+          question: isChineseBook ? "这本书的主要主题是什么？" : "What is the main topic of this book?",
+          options: isChineseBook ? ["科学", "技术", "文学", "哲学"] : ["Science", "Technology", "Literature", "Philosophy"],
+          correct: 0,
+          explanation: isChineseBook ? "基于书籍的内容和主题。" : "Based on the book's content and themes."
+        },
+        {
+          question: isChineseBook ? "作者的主要观点是什么？" : "What is the author's main perspective?",
+          options: isChineseBook ? ["理论观点", "实践观点", "批判观点", "综合观点"] : ["Theoretical", "Practical", "Critical", "Comprehensive"],
+          correct: 3,
+          explanation: isChineseBook ? "作者通常采用综合性的观点来分析问题。" : "Authors typically take a comprehensive approach to analyze topics."
+        },
+        {
+          question: isChineseBook ? "这本书适合哪类读者？" : "Who is the target audience for this book?",
+          options: isChineseBook ? ["初学者", "专业人士", "研究人员", "所有读者"] : ["Beginners", "Professionals", "Researchers", "General readers"],
+          correct: 3,
+          explanation: isChineseBook ? "这本书通常适合不同层次的读者。" : "This book is typically suitable for readers of different levels."
+        }
+      ]
     }
 
-    console.log('Successfully analyzed book with AI:', bookContent.title)
     return aiAnalysis
 
   } catch (error) {
@@ -283,8 +373,6 @@ What sets this book apart is its balanced approach to presenting different viewp
  * Generate a fallback analysis if AI service fails
  */
 function generateFallbackAnalysis(bookContent: BookContent, readingTimeMinutes: number): AIBookAnalysis {
-  console.log('Using fallback analysis for:', bookContent.title)
-  
   const tags = bookContent.tags ? bookContent.tags.split(',').map(tag => tag.trim()) : []
   
   // Detect if this is a Chinese book
@@ -392,7 +480,27 @@ function generateFallbackAnalysis(bookContent: BookContent, readingTimeMinutes: 
           }
         ]
       },
-      confidence: 0.6
+      confidence: 0.6,
+      quizQuestions: [
+        {
+          question: "这本书的主要主题是什么？",
+          options: ["科学", "技术", "文学", "哲学"],
+          correct: 0,
+          explanation: "基于书籍的内容和主题。"
+        },
+        {
+          question: "作者的主要观点是什么？",
+          options: ["理论观点", "实践观点", "批判观点", "综合观点"],
+          correct: 3,
+          explanation: "作者通常采用综合性的观点来分析问题。"
+        },
+        {
+          question: "这本书适合哪类读者？",
+          options: ["初学者", "专业人士", "研究人员", "所有读者"],
+          correct: 3,
+          explanation: "这本书通常适合不同层次的读者。"
+        }
+      ]
     }
   }
   
@@ -495,7 +603,27 @@ What distinguishes this work is its commitment to practical relevance alongside 
         }
       ]
     },
-    confidence: 0.6 // Lower confidence for fallback
+    confidence: 0.6, // Lower confidence for fallback
+    quizQuestions: [
+      {
+        question: "What is the main topic of this book?",
+        options: ["Science", "Technology", "Literature", "Philosophy"],
+        correct: 0,
+        explanation: "Based on the book's content and themes."
+      },
+      {
+        question: "What is the author's main perspective?",
+        options: ["Theoretical", "Practical", "Critical", "Comprehensive"],
+        correct: 3,
+        explanation: "Authors typically take a comprehensive approach to analyze topics."
+      },
+      {
+        question: "Who is the target audience for this book?",
+        options: ["Beginners", "Professionals", "Researchers", "General readers"],
+        correct: 3,
+        explanation: "This book is typically suitable for readers of different levels."
+      }
+    ]
   }
 }
 
