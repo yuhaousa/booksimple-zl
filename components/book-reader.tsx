@@ -34,7 +34,8 @@ import {
   MoreVertical,
   Moon,
   Sun,
-  Eye
+  Eye,
+  Settings
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -172,6 +173,12 @@ export function BookReader({ book }: BookReaderProps) {
   const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null)
   const [currentUtterance, setCurrentUtterance] = useState<SpeechSynthesisUtterance | null>(null)
   
+  // Voice settings
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [selectedVoice, setSelectedVoice] = useState<string>('')
+  const [voiceRate, setVoiceRate] = useState<number>(1.0)
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false)
+  
   // Sidebar and navigation
   const [outline, setOutline] = useState<Outline[]>([])
   const [customOutlines, setCustomOutlines] = useState<CustomOutlineItem[]>([])
@@ -236,6 +243,49 @@ export function BookReader({ book }: BookReaderProps) {
       }
     }
   }, [])
+
+  // Load available voices
+  useEffect(() => {
+    const loadVoices = () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        const voices = window.speechSynthesis.getVoices()
+        setAvailableVoices(voices)
+        
+        // Load saved voice preference
+        const savedVoice = localStorage.getItem('pdf-reader-selected-voice')
+        if (savedVoice && voices.some(v => v.name === savedVoice)) {
+          setSelectedVoice(savedVoice)
+        }
+        
+        // Load saved voice rate preference
+        const savedRate = localStorage.getItem('pdf-reader-voice-rate')
+        if (savedRate) {
+          setVoiceRate(parseFloat(savedRate))
+        }
+      }
+    }
+
+    loadVoices()
+    
+    // Some browsers load voices asynchronously
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.addEventListener('voiceschanged', loadVoices)
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', loadVoices)
+      }
+    }
+  }, [])
+
+  // Save voice preferences when changed
+  useEffect(() => {
+    if (selectedVoice) {
+      localStorage.setItem('pdf-reader-selected-voice', selectedVoice)
+    }
+  }, [selectedVoice])
+
+  useEffect(() => {
+    localStorage.setItem('pdf-reader-voice-rate', voiceRate.toString())
+  }, [voiceRate])
 
   const loadBookData = async () => {
     try {
@@ -531,9 +581,14 @@ export function BookReader({ book }: BookReaderProps) {
       }
 
       const utterance = new SpeechSynthesisUtterance(pageText)
-      utterance.rate = 0.8
+      utterance.rate = voiceRate
       utterance.pitch = 1
       utterance.volume = 1
+      
+      // Apply selected voice if available
+      if (selectedVoice) {
+        utterance.voice = selectedVoice
+      }
       
       utterance.onstart = () => {
         setIsReading(true)
@@ -1369,6 +1424,115 @@ export function BookReader({ book }: BookReaderProps) {
                     <Volume2 className="w-4 h-4" />
                   )}
                 </Button>
+
+                {/* Voice Settings */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      title="Voice settings"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-80">
+                    <div className="p-4">
+                      <h3 className="text-sm font-medium mb-3">Voice Settings</h3>
+                      
+                      {/* Voice Selection */}
+                      <div className="mb-4">
+                        <label className="text-xs font-medium text-muted-foreground">Voice</label>
+                        <select 
+                          value={selectedVoice?.name || ''} 
+                          onChange={(e) => {
+                            const voice = availableVoices.find(v => v.name === e.target.value)
+                            if (voice) {
+                              setSelectedVoice(voice)
+                              localStorage.setItem('selectedVoice', voice.name)
+                            }
+                          }}
+                          className="w-full mt-1 px-2 py-1 text-sm border border-input bg-background rounded-md"
+                        >
+                          <option value="">Default</option>
+                          {availableVoices
+                            .filter(voice => voice.lang.startsWith('en') || voice.lang.startsWith('zh'))
+                            .map((voice) => (
+                            <option key={voice.name} value={voice.name}>
+                              {voice.name} ({voice.lang}) {voice.gender === 'female' ? '♀' : voice.gender === 'male' ? '♂' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Speed Control */}
+                      <div className="mb-4">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          Speed: {voiceRate.toFixed(1)}x
+                        </label>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="2"
+                          step="0.1"
+                          value={voiceRate}
+                          onChange={(e) => {
+                            const rate = parseFloat(e.target.value)
+                            setVoiceRate(rate)
+                            localStorage.setItem('voiceRate', rate.toString())
+                          }}
+                          className="w-full mt-1"
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                          <span>Slow</span>
+                          <span>Normal</span>
+                          <span>Fast</span>
+                        </div>
+                      </div>
+
+                      {/* Quick Voice Presets */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-2 block">Quick Select</label>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const maleVoice = availableVoices.find(v => 
+                                (v.lang.startsWith('en') || v.lang.startsWith('zh')) && 
+                                (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('david') || v.name.toLowerCase().includes('mark'))
+                              )
+                              if (maleVoice) {
+                                setSelectedVoice(maleVoice)
+                                localStorage.setItem('selectedVoice', maleVoice.name)
+                              }
+                            }}
+                            className="text-xs"
+                          >
+                            Male Voice
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const femaleVoice = availableVoices.find(v => 
+                                (v.lang.startsWith('en') || v.lang.startsWith('zh')) && 
+                                (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('hazel'))
+                              )
+                              if (femaleVoice) {
+                                setSelectedVoice(femaleVoice)
+                                localStorage.setItem('selectedVoice', femaleVoice.name)
+                              }
+                            }}
+                            className="text-xs"
+                          >
+                            Female Voice
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 {/* Zoom Controls */}
                 <Button variant="outline" size="sm" onClick={zoomOut}>
