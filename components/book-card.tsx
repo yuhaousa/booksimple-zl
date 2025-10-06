@@ -203,25 +203,8 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
               ))}
         </div>
 
-        <div className="flex gap-2 w-full">
-          {canEdit && (
-            <>
-              <Button onClick={handleEditBook} variant="outline" size="sm" className="flex-1 bg-transparent">
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
-              <Button
-                onClick={handleDeleteBook}
-                variant="destructive"
-                size="sm"
-                className="flex-1"
-                disabled={isDeleting}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                {isDeleting ? "Deleting..." : "Delete"}
-              </Button>
-            </>
-          )}
+        {/* Main Action Buttons */}
+        <div className="flex gap-2 w-full mb-2">
           {book.file_url && book.file_url.toLowerCase().includes('pdf') && (
             <Link href={`/books/${book.id}/reader`} className="flex-1">
               <Button variant="default" size="sm" className="w-full">
@@ -237,6 +220,26 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
             </Button>
           )}
         </div>
+        
+        {/* Edit/Delete Buttons (only if can edit) */}
+        {canEdit && (
+          <div className="flex gap-2 w-full">
+            <Button onClick={handleEditBook} variant="outline" size="sm" className="flex-1 bg-transparent">
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+            <Button
+              onClick={handleDeleteBook}
+              variant="destructive"
+              size="sm"
+              className="flex-1"
+              disabled={isDeleting}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        )}
       </CardFooter>
     </Card>
   )

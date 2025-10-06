@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { BookOpen, Eye, Edit, Brain } from "lucide-react"
+import { BookOpen, Eye, Edit, Brain, GraduationCap } from "lucide-react"
 import Link from "next/link"
 import { recordBookClick } from "@/lib/book-tracking"
 import { supabase } from "@/lib/supabase"
@@ -52,6 +52,13 @@ export function BookActions({ bookId, fileUrl }: BookActionsProps) {
         <Button variant="outline" className="w-full bg-transparent">
           <Brain className="w-4 h-4 mr-2" />
           Book Preview
+        </Button>
+      </Link>
+
+      <Link href={`/books/${bookId}/guide`} className="block">
+        <Button variant="outline" className="w-full bg-transparent">
+          <GraduationCap className="w-4 h-4 mr-2" />
+          Read Guide
         </Button>
       </Link>
 
