@@ -21,6 +21,8 @@ interface StudyNote {
   id: number
   title: string
   content: string
+  book_id: number | null
+  user_id: string
   tags: string | null
   category: string | null
   created_at: string
