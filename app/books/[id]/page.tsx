@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Calendar, User, Building, BookPlus, Check, BookOpen, FileText, Plus, Tag, Edit } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -42,6 +42,7 @@ interface Book {
 }
 
 async function getBook(id: string) {
+  const supabase = createClient()
   // Fetch book details
   const { data: book, error: bookError } = await supabase.from("Booklist").select("*").eq("id", id).single()
 
@@ -145,6 +146,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     if (!user) return
     
     try {
+      const supabase = createClient()
       const { data, error } = await supabase
         .from("study_notes")
         .select("*")
@@ -163,6 +165,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
 
   const checkReadingListStatus = async (bookId: number) => {
     try {
+      const supabase = createClient()
       const { data, error } = await supabase.from("reading_list_full").select("status").eq("book_id", bookId).single()
 
       if (error && error.code !== "PGRST116") {
@@ -206,6 +209,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     setAddingToList(true)
 
     try {
+      const supabase = createClient()
       const { error } = await supabase.from("reading_list_full").insert([
         {
           book_id: book.id,
@@ -232,6 +236,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     setAddingToList(true)
 
     try {
+      const supabase = createClient()
       const { error } = await supabase.from("reading_list_full").delete().eq("book_id", book.id)
 
       if (error) throw error
