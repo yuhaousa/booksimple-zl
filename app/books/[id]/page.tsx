@@ -143,9 +143,14 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   }
 
   const fetchBookNotes = async (bookId: number) => {
-    if (!user) return
+    if (!user) {
+      console.log("No user logged in, skipping notes fetch")
+      setNotesLoading(false)
+      return
+    }
     
     try {
+      console.log("Fetching notes for book:", bookId, "user:", user.id)
       const supabase = createClient()
       const { data, error } = await supabase
         .from("study_notes")
@@ -154,10 +159,25 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
 
-      if (error) throw error
-      setNotes(data || [])
+      if (error) {
+        console.error("Supabase error fetching notes:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        // Don't throw, just log and continue
+        setNotes([])
+      } else {
+        console.log("Notes fetched successfully:", data?.length || 0, "notes")
+        setNotes(data || [])
+      }
     } catch (error) {
-      console.error("Error fetching book notes:", error)
+      console.error("Error fetching book notes:", {
+        message: error instanceof Error ? error.message : String(error),
+        error: error
+      })
+      setNotes([])
     } finally {
       setNotesLoading(false)
     }

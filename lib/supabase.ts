@@ -4,6 +4,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
 
 export function createClient() {
+  if (typeof window !== 'undefined') {
+    // Browser environment - log if using placeholders
+    if (supabaseUrl === 'https://placeholder.supabase.co' || supabaseAnonKey === 'placeholder-key') {
+      console.warn('Supabase environment variables not found, using placeholders')
+    }
+  }
   return createBrowserClient(supabaseUrl, supabaseAnonKey)
 }
 
