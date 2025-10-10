@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Edit, Trash2, Calendar, FileText, Tag } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/hooks/use-auth"
+import AuthLoadingScreen from "@/components/auth-loading"
 
 interface StudyNote {
   id: number
@@ -25,21 +27,22 @@ interface StudyNote {
 }
 
 export default function NoteDetailsPage() {
+  const { user, loading: authLoading } = useAuth(true) // Require authentication
   const params = useParams()
   const router = useRouter()
   const [note, setNote] = useState<StudyNote | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    console.log("[v0] Note detail page loaded, params:", params)
-    if (params.id) {
+    if (user && params.id) {
       fetchNote()
     }
-  }, [params]) // Updated to use the entire params object
+  }, [user, params.id])
 
   const fetchNote = async () => {
+    if (!user) return
+    
     try {
-      console.log("[v0] Fetching note with id:", params.id)
       const { data, error } = await supabase
         .from("study_notes")
         .select(`
@@ -49,10 +52,19 @@ export default function NoteDetailsPage() {
           )
         `)
         .eq("id", params.id)
+        .eq("user_id", user.id) // Only fetch note if it belongs to authenticated user
         .single()
 
-      if (error) throw error
-      console.log("[v0] Note fetched successfully:", data)
+      if (error) {
+        if (error.code === 'PGRST116') {
+          toast.error("Note not found or you don't have permission to view it")
+        } else {
+          throw error
+        }
+        router.push("/notes")
+        return
+      }
+      
       setNote(data)
     } catch (error) {
       console.error("Error fetching note:", error)
@@ -64,10 +76,14 @@ export default function NoteDetailsPage() {
   }
 
   const handleDelete = async () => {
-    if (!note || !confirm("Are you sure you want to delete this note?")) return
+    if (!note || !user || !confirm("Are you sure you want to delete this note?")) return
 
     try {
-      const { error } = await supabase.from("study_notes").delete().eq("id", note.id)
+      const { error } = await supabase
+        .from("study_notes")
+        .delete()
+        .eq("id", note.id)
+        .eq("user_id", user.id) // Only allow deletion if user owns the note
 
       if (error) throw error
 
@@ -77,6 +93,11 @@ export default function NoteDetailsPage() {
       console.error("Error deleting note:", error)
       toast.error("Failed to delete note")
     }
+  }
+
+  // Show auth loading screen while checking authentication
+  if (authLoading) {
+    return <AuthLoadingScreen />
   }
 
   if (loading) {

@@ -48,7 +48,11 @@ export default function RegisterPage() {
 
     try {
       const supabase = createClient()
-      // 1. Register with Supabase Auth
+      
+      // Get the current URL origin for redirect
+      const redirectTo = `${window.location.origin}/auth/callback`
+      
+      // 1. Register with Supabase Auth (this handles secure password hashing)
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -56,28 +60,29 @@ export default function RegisterPage() {
           data: {
             display_name: formData.name,
           },
+          emailRedirectTo: redirectTo,
         },
       })
 
       if (error) throw error
 
-      // 2. Insert into user_list (hash password using Web Crypto API)
-      const encoder = new TextEncoder()
-      const passwordData = encoder.encode(formData.password)
-      const hashBuffer = await crypto.subtle.digest('SHA-256', passwordData)
-      const hashArray = Array.from(new Uint8Array(hashBuffer))
-      const password_hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-      const { error: dbError } = await supabase
-        .from("user_list")
-        .insert([
-          {
-            email: formData.email,
-            password_hash,
-            display_name: formData.name,
-          },
-        ])
+      // 2. Insert into user_list (only store display name, let Supabase handle passwords)
+      if (data.user) {
+        const { error: dbError } = await supabase
+          .from("user_list")
+          .insert([
+            {
+              email: formData.email,
+              display_name: formData.name,
+              auth_user_id: data.user.id, // Link to Supabase auth user
+            },
+          ])
 
-      if (dbError) throw dbError
+        if (dbError) {
+          console.warn('User list insertion error:', dbError)
+          // Don't throw error here as the main auth registration succeeded
+        }
+      }
 
       toast({
         title: "Registration successful",

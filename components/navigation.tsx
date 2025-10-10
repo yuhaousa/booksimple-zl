@@ -33,15 +33,15 @@ export function Navigation() {
   const navItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/books", label: "Books", icon: BookOpen },
-    // Only show "Upload" if logged in
+    // Only show authenticated user features if logged in
     ...(user
       ? [
           { href: "/upload", label: "Upload", icon: Upload },
           { href: "/reading-list", label: "Reading List", icon: BookOpen },
+          { href: "/notes", label: "Study Notes", icon: FileText },
           { href: "/admin", label: "Admin", icon: Settings },
         ]
       : []),
-    { href: "/notes", label: "Study Notes", icon: FileText },
   ]
 
   const handleLogout = async () => {

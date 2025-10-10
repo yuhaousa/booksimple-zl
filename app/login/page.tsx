@@ -2,14 +2,14 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { BookOpen, Eye, EyeOff } from "lucide-react"
+import { BookOpen, Eye, EyeOff, AlertCircle } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase"
 import { recordUserLogin } from "@/lib/login-tracking"
@@ -19,50 +19,60 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const confirmed = searchParams.get('confirmed')
+    const error = searchParams.get('error')
+    
+    if (confirmed === 'true') {
+      toast({
+        title: "Email confirmed",
+        description: "Your account has been successfully verified. You can now log in.",
+      })
+    } else if (error === 'confirmation_failed') {
+      toast({
+        title: "Confirmation failed",
+        description: "There was an issue confirming your email. Please try again or contact support.",
+        variant: "destructive",
+      })
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError("") // Clear any previous errors
 
     try {
       const supabase = createClient()
-      // 1. Fetch user from user_list
-      const { data: users, error: userError } = await supabase
-        .from("user_list")
-        .select("*")
-        .eq("email", email)
-        .limit(1)
-
-      // Debugging output
-      console.log("users:", users, "userError:", userError)
-
-      if (userError) throw userError
-      if (!users || users.length === 0) {
-        throw new Error("No user found with this email.")
-      }
-
-      const user = users[0]
-      // Hash password using Web Crypto API (compatible with Edge Runtime)
-      const encoder = new TextEncoder()
-      const data = encoder.encode(password)
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-      const hashArray = Array.from(new Uint8Array(hashBuffer))
-      const password_hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
       
-      if (user.password_hash !== password_hash) {
-        throw new Error("Incorrect password.")
-      }
-
-      // 2. Sign in with Supabase Auth
+      // Use Supabase's secure authentication (it handles password hashing securely)
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (authError) throw new Error(authError.message || "Authentication failed.")
+      if (authError) {
+        // Handle specific auth error types
+        let errorMessage = "Please check your credentials and try again."
+        
+        if (authError.message.includes("Invalid login credentials")) {
+          errorMessage = "Invalid email or password. Please check your credentials."
+        } else if (authError.message.includes("Email not confirmed")) {
+          errorMessage = "Please check your email and click the confirmation link before signing in."
+        } else if (authError.message.includes("Too many requests")) {
+          errorMessage = "Too many login attempts. Please wait a moment before trying again."
+        } else if (authError.message.includes("User not found")) {
+          errorMessage = "No account found with this email address."
+        }
+        
+        throw new Error(errorMessage)
+      }
 
-      // 3. Record login event for tracking
+      // Record login event for tracking
       if (authData?.user?.id) {
         await recordUserLogin(authData.user.id)
       }
@@ -74,15 +84,14 @@ export default function LoginPage() {
 
       router.push("/")
     } catch (error: any) {
-      // Debugging output
       console.error("Login error:", error)
+      const errorMessage = error?.message || "Please check your credentials and try again."
+      setError(errorMessage)
       toast({
         title: "Login failed",
-        description: error?.message || String(error) || "Please check your credentials and try again.",
+        description: errorMessage,
         variant: "destructive",
       })
-      // As a fallback, also show an alert (for debugging)
-      alert(error?.message || String(error) || "Please check your credentials and try again.")
     } finally {
       setIsLoading(false)
     }
@@ -101,6 +110,12 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -108,7 +123,10 @@ export default function LoginPage() {
                 type="email"
                 placeholder="Enter your email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (error) setError("") // Clear error when user starts typing
+                }}
                 required
               />
             </div>
@@ -121,7 +139,10 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    if (error) setError("") // Clear error when user starts typing
+                  }}
                   required
                 />
                 <Button

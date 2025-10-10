@@ -14,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Save } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/hooks/use-auth"
+import AuthLoadingScreen from "@/components/auth-loading"
 
 interface Book {
   id: number
@@ -27,6 +29,7 @@ function SearchParamsWrapper({ children }: { children: (bookId: string | null) =
 }
 
 function NewNotePageContent({ bookId }: { bookId: string | null }) {
+  const { user, loading: authLoading } = useAuth(true) // Require authentication
   const router = useRouter()
   
   const [books, setBooks] = useState<Book[]>([])
@@ -73,6 +76,11 @@ function NewNotePageContent({ bookId }: { bookId: string | null }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (!user) {
+      toast.error("You must be logged in to create notes")
+      return
+    }
+
     if (!formData.title.trim()) {
       toast.error("Please enter a title")
       return
@@ -87,6 +95,7 @@ function NewNotePageContent({ bookId }: { bookId: string | null }) {
         book_id: formData.book_id ? Number.parseInt(formData.book_id) : null,
         tags: formData.tags.trim() || null,
         category: formData.category.trim() || null,
+        user_id: user.id, // Associate note with authenticated user
       }
 
       const { data, error } = await supabase.from("study_notes").insert([noteData]).select().single()
@@ -123,9 +132,10 @@ function NewNotePageContent({ bookId }: { bookId: string | null }) {
     return "Back to Notes"
   }
 
-  // Debug the current state
-  console.log("Current formData.book_id:", formData.book_id, "type:", typeof formData.book_id)
-  console.log("Books array:", books.map(b => ({ id: b.id, title: b.title })))
+  // Show auth loading screen while checking authentication
+  if (authLoading) {
+    return <AuthLoadingScreen />
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">

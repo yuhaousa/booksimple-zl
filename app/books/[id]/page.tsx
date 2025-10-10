@@ -11,6 +11,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { BookActions } from "@/components/book-actions"
 import { toast } from "sonner"
+import { useAuth } from "@/hooks/use-auth"
 
 interface BookDetailPageProps {
   params: Promise<{ id: string }> | { id: string }
@@ -84,6 +85,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   const [addingToList, setAddingToList] = useState(false)
   const [notes, setNotes] = useState<StudyNote[]>([])
   const [notesLoading, setNotesLoading] = useState(true)
+  const { user, loading: authLoading } = useAuth()
 
   // Resolve params (handle both Promise and direct object cases)
   useEffect(() => {
@@ -111,10 +113,10 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   }, [params])
 
   useEffect(() => {
-    if (resolvedParams) {
+    if (resolvedParams && !authLoading) {
       initializePage()
     }
-  }, [resolvedParams])
+  }, [resolvedParams, user, authLoading])
 
   const initializePage = async () => {
     if (!resolvedParams) return
@@ -127,17 +129,27 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     }
 
     setBook(bookData)
-    await checkReadingListStatus(bookData.id)
-    await fetchBookNotes(bookData.id)
+    
+    // Only fetch user-specific data if authenticated
+    if (user) {
+      await checkReadingListStatus(bookData.id)
+      await fetchBookNotes(bookData.id)
+    } else {
+      setNotesLoading(false)
+    }
+    
     setLoading(false)
   }
 
   const fetchBookNotes = async (bookId: number) => {
+    if (!user) return
+    
     try {
       const { data, error } = await supabase
         .from("study_notes")
         .select("*")
         .eq("book_id", bookId)
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false })
 
       if (error) throw error
@@ -294,42 +306,44 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                 />
               </div>
 
-              {/* Reading List Actions */}
-              <div className="mb-4 space-y-2">
-                {!isInReadingList ? (
-                  <Button onClick={addToReadingList} className="w-full" disabled={addingToList}>
-                    {addingToList ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        Adding...
-                      </>
-                    ) : (
-                      <>
-                        <BookPlus className="w-4 h-4 mr-2" />
-                        Add to Reading List
-                      </>
-                    )}
-                  </Button>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-center gap-2 p-2 bg-primary/10 rounded-md text-primary text-sm">
-                      <Check className="w-4 h-4" />
-                      <span>In Reading List ({getStatusDisplay()})</span>
+              {/* Reading List Actions - Only for authenticated users */}
+              {user && (
+                <div className="mb-4 space-y-2">
+                  {!isInReadingList ? (
+                    <Button onClick={addToReadingList} className="w-full" disabled={addingToList}>
+                      {addingToList ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                          Adding...
+                        </>
+                      ) : (
+                        <>
+                          <BookPlus className="w-4 h-4 mr-2" />
+                          Add to Reading List
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-center gap-2 p-2 bg-primary/10 rounded-md text-primary text-sm">
+                        <Check className="w-4 h-4" />
+                        <span>In Reading List ({getStatusDisplay()})</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="flex-1 bg-transparent" asChild>
+                          <Link href="/reading-list">
+                            <BookOpen className="w-3 h-3 mr-1" />
+                            View List
+                          </Link>
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={removeFromReadingList} disabled={addingToList}>
+                          Remove
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1 bg-transparent" asChild>
-                        <Link href="/reading-list">
-                          <BookOpen className="w-3 h-3 mr-1" />
-                          View List
-                        </Link>
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={removeFromReadingList} disabled={addingToList}>
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               <BookActions bookId={book.id.toString()} fileUrl={book.file_url || undefined} />
             </CardContent>
@@ -393,23 +407,24 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
             </CardContent>
           </Card>
 
-          {/* Study Notes Section */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Study Notes
-                  <Badge variant="secondary">{notes.length}</Badge>
-                </CardTitle>
-                <Button size="sm" asChild>
-                  <Link href={`/notes/new?bookId=${book.id}`}>
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Note
-                  </Link>
-                </Button>
-              </div>
-            </CardHeader>
+          {/* Study Notes Section - Only for authenticated users */}
+          {user && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Study Notes
+                    <Badge variant="secondary">{notes.length}</Badge>
+                  </CardTitle>
+                  <Button size="sm" asChild>
+                    <Link href={`/notes/new?bookId=${book.id}`}>
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Note
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
             <CardContent>
               {notesLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -494,7 +509,8 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                 </div>
               )}
             </CardContent>
-          </Card>
+            </Card>
+          )}
         </div>
       </div>
     </div>

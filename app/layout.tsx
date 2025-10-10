@@ -4,6 +4,7 @@ import { Inter, JetBrains_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { Navigation } from "@/components/navigation"
+import { Toaster } from "@/components/ui/toaster"
 import { Suspense } from "react"
 
 const inter = Inter({
@@ -33,6 +34,7 @@ export default function RootLayout({
         <Suspense fallback={<div>Loading...</div>}>
           <Navigation />
           <main className="min-h-screen">{children}</main>
+          <Toaster />
           <Analytics />
         </Suspense>
       </body>

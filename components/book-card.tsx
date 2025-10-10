@@ -16,10 +16,11 @@ import Link from "next/link"
 interface BookCardProps {
   book: Book
   canEdit?: boolean
+  isAuthenticated?: boolean
   onBookDeleted?: () => void
 }
 
-export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
+export function BookCard({ book, canEdit, isAuthenticated = false, onBookDeleted }: BookCardProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
 
@@ -203,23 +204,25 @@ export function BookCard({ book, canEdit, onBookDeleted }: BookCardProps) {
               ))}
         </div>
 
-        {/* Main Action Buttons */}
-        <div className="flex gap-2 w-full mb-2">
-          {book.file_url && book.file_url.toLowerCase().includes('pdf') && (
-            <Link href={`/books/${book.id}/reader`} className="flex-1">
-              <Button variant="default" size="sm" className="w-full">
+        {/* Main Action Buttons - Only show to authenticated users */}
+        {isAuthenticated && (
+          <div className="flex gap-2 w-full mb-2">
+            {book.file_url && book.file_url.toLowerCase().includes('pdf') && (
+              <Link href={`/books/${book.id}/reader`} className="flex-1">
+                <Button variant="default" size="sm" className="w-full">
+                  <BookOpen className="w-4 h-4 mr-2" />
+                  Read PDF
+                </Button>
+              </Link>
+            )}
+            {book.file_url && (
+              <Button onClick={handleReadBook} variant="outline" size="sm" className="flex-1 bg-transparent">
                 <BookOpen className="w-4 h-4 mr-2" />
-                Read PDF
+                {book.file_url.toLowerCase().includes('pdf') ? 'Open in Browser' : 'Read'}
               </Button>
-            </Link>
-          )}
-          {book.file_url && (
-            <Button onClick={handleReadBook} variant="outline" size="sm" className="flex-1 bg-transparent">
-              <BookOpen className="w-4 h-4 mr-2" />
-              {book.file_url.toLowerCase().includes('pdf') ? 'Open in Browser' : 'Read'}
-            </Button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
         
         {/* Edit/Delete Buttons (only if can edit) */}
         {canEdit && (

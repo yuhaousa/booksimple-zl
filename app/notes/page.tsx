@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Plus, FileText, Calendar, BookOpen } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/hooks/use-auth"
+import AuthLoadingScreen from "@/components/auth-loading"
 
 interface StudyNote {
   id: number
@@ -25,14 +27,19 @@ interface StudyNote {
 }
 
 export default function NotesPage() {
+  const { user, loading: authLoading } = useAuth(true) // Require authentication
   const [notes, setNotes] = useState<StudyNote[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchNotes()
-  }, [])
+    if (user) {
+      fetchNotes()
+    }
+  }, [user])
 
   const fetchNotes = async () => {
+    if (!user) return
+    
     try {
       const { data, error } = await supabase
         .from("study_notes")
@@ -43,10 +50,10 @@ export default function NotesPage() {
             title
           )
         `)
+        .eq('user_id', user.id) // Only fetch notes for the authenticated user
         .order("created_at", { ascending: false })
 
       if (error) throw error
-      console.log("[v0] Fetched notes with books:", data)
       setNotes(data || [])
     } catch (error) {
       console.error("Error fetching notes:", error)
@@ -56,13 +63,19 @@ export default function NotesPage() {
     }
   }
 
+  // Show auth loading screen while checking authentication
+  if (authLoading) {
+    return <AuthLoadingScreen />
+  }
+
+  // Show notes loading after auth is confirmed
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading study notes...</p>
+            <p className="text-muted-foreground">Loading your study notes...</p>
           </div>
         </div>
       </div>

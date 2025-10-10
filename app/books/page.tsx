@@ -157,6 +157,7 @@ export default function BooksPage() {
                   book={book}
                   onBookDeleted={handleBookDeleted}
                   canEdit={user && book.user_id === user.id} // Only owner can edit/delete
+                  isAuthenticated={!!user} // Pass authentication status
                 />
               ))}
             </div>
