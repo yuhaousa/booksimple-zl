@@ -71,9 +71,9 @@ To use the AI features, you need an OpenAI API key:
 1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
 2. Create an account and generate an API key
 3. Add your key to the `.env.local` file:
-   ```
+   \`\`\`
    OPENAI_API_KEY=sk-your_actual_openai_api_key_here
-   ```
+   \`\`\`
 
 ### Cost Considerations
 - AI analysis uses GPT-4 Turbo for high-quality results
