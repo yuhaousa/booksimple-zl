@@ -28,6 +28,7 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<UserData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [showingPlaceholderData, setShowingPlaceholderData] = useState(false)
 
   useEffect(() => {
     fetchUsers()
@@ -36,6 +37,21 @@ export default function AdminUsers() {
   const fetchUsers = async () => {
     try {
       const supabase = createClient()
+      
+      // Fetch real user data from our admin API
+      let authUsers = null
+      let needsServiceKey = false
+      try {
+        const response = await fetch('/api/admin/users')
+        const result = await response.json()
+        authUsers = result.users
+        needsServiceKey = result.needsServiceKey
+        if (result.error) {
+          console.warn('Auth users fetch error:', result.error)
+        }
+      } catch (error) {
+        console.warn('Failed to fetch auth users:', error)
+      }
       
       // Get user activity from books and notes
       const { data: bookData, error: bookError } = await supabase
@@ -76,7 +92,7 @@ export default function AdminUsers() {
         }
       })
 
-      // Process notes
+      // Process notes  
       noteData?.forEach((note: any) => {
         if (note.user_id) {
           const existing = userActivityMap.get(note.user_id) || {
@@ -92,33 +108,63 @@ export default function AdminUsers() {
         }
       })
 
-      // For each unique user, try to get their auth metadata
+      // Combine auth users with activity data
       const userList: UserData[] = []
       
-      for (const [userId, activity] of userActivityMap.entries()) {
-        const loginStat = loginStats?.find(stat => stat.user_id === userId)
-        
-        // Create user data with available information
-        const userData: UserData = {
-          id: userId,
-          email: `user-${userId.slice(0, 8)}@domain.com`, // Placeholder since we can't access auth data
-          username: `User ${userId.slice(0, 8)}`,
-          full_name: `User ${userId.slice(0, 8)}`,
-          created_at: activity.last_activity, // Use first activity as proxy for created date
-          last_sign_in_at: loginStat?.last_login_at,
-          total_logins: loginStat?.total_logins || 0,
-          first_login_at: loginStat?.first_login_at,
-          book_count: activity.book_count,
-          note_count: activity.note_count,
-          last_activity: activity.last_activity,
+      if (authUsers) {
+        // If we have auth users, use real data
+        authUsers.forEach((authUser: any) => {
+          const activity = userActivityMap.get(authUser.id) || {
+            book_count: 0,
+            note_count: 0,
+            last_activity: authUser.created_at,
+          }
+          const loginStat = loginStats?.find((stat: any) => stat.user_id === authUser.id)
+          
+          const userData: UserData = {
+            id: authUser.id,
+            email: authUser.email || 'No email',
+            username: authUser.user_metadata?.username || authUser.user_metadata?.full_name || 'No username',
+            full_name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || 'No name',
+            created_at: authUser.created_at,
+            last_sign_in_at: authUser.last_sign_in_at,
+            total_logins: loginStat?.total_logins || 0,
+            first_login_at: loginStat?.first_login_at || authUser.created_at,
+            book_count: activity.book_count,
+            note_count: activity.note_count,
+            last_activity: activity.last_activity,
+          }
+          
+          userList.push(userData)
+        })
+        setShowingPlaceholderData(false)
+      } else {
+        // Fallback: create user data based on activity only
+        setShowingPlaceholderData(true)
+        for (const [userId, activity] of userActivityMap.entries()) {
+          const loginStat = loginStats?.find((stat: any) => stat.user_id === userId)
+          
+          const userData: UserData = {
+            id: userId,
+            email: `user-${userId.slice(0, 8)}@domain.com`,
+            username: `User ${userId.slice(0, 8)}`,
+            full_name: `User ${userId.slice(0, 8)}`,
+            created_at: activity.last_activity,
+            last_sign_in_at: loginStat?.last_login_at,
+            total_logins: loginStat?.total_logins || 0,
+            first_login_at: loginStat?.first_login_at,
+            book_count: activity.book_count,
+            note_count: activity.note_count,
+            last_activity: activity.last_activity,
+          }
+          
+          userList.push(userData)
         }
-        
-        userList.push(userData)
       }
 
-      // Sort by last activity (most recent first)
+      // Sort by created date (most recent first)
       userList.sort(
-        (a, b) => new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime()
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
 
       setUsers(userList)
@@ -144,6 +190,11 @@ export default function AdminUsers() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">User Management</h1>
           <p className="text-muted-foreground mt-2">Monitor user activity and manage accounts</p>
+          {showingPlaceholderData && (
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+              <strong>Note:</strong> Showing placeholder data. Add SUPABASE_SERVICE_ROLE_KEY to .env.local for real user information.
+            </div>
+          )}
         </div>
         <Badge variant="secondary" className="text-sm">
           <Users className="h-3 w-3 mr-1" />
@@ -159,7 +210,7 @@ export default function AdminUsers() {
               <Input
                 placeholder="Search by email, username, or name..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e: any) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
