@@ -40,9 +40,9 @@ import {
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-// Set up PDF.js worker
+// Set up PDF.js worker - use CDN to ensure version match
 if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js'
+  pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 }
 
 

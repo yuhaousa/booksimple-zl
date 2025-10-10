@@ -12,7 +12,7 @@ import Link from 'next/link'
 
 // Set up PDF.js worker
 if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js'
+  pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 }
 
 interface Book {
