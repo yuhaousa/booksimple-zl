@@ -5,8 +5,16 @@ export async function POST(request: Request) {
   try {
     const { email, password } = await request.json()
     
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    
+    if (!supabaseUrl || !supabaseAnonKey || 
+        supabaseUrl.includes('placeholder') || supabaseAnonKey === 'placeholder-key') {
+      return NextResponse.json({
+        success: false,
+        error: 'Supabase configuration not available'
+      })
+    }
     
     const supabase = createClient(supabaseUrl, supabaseAnonKey)
     
