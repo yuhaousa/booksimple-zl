@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase"
 import { getAllUsersWithLoginStats } from "@/lib/login-tracking"
 import { Search, Users, MoreHorizontal, Calendar, Mail, User, Clock, LogIn } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -35,14 +35,21 @@ export default function AdminUsers() {
 
   const fetchUsers = async () => {
     try {
-      // Get user activity from books and notes (original working approach)
-      const { data: bookData } = await supabase.from("Booklist").select("user_id, created_at")
-      const { data: noteData } = await supabase.from("study_notes").select("user_id, created_at")
+      const supabase = createClient()
       
-      // Try to get user profiles
-      const { data: profiles } = await supabase.from("profiles").select("*").limit(50)
+      // Get user activity from books and notes
+      const { data: bookData, error: bookError } = await supabase
+        .from("Booklist")
+        .select("user_id, created_at")
       
-      // Try to get login statistics (optional enhancement)
+      const { data: noteData, error: noteError } = await supabase
+        .from("study_notes")
+        .select("user_id, created_at")
+      
+      if (bookError) console.warn('Books data error:', bookError)
+      if (noteError) console.warn('Notes data error:', noteError)
+      
+      // Get login statistics
       let loginStats = []
       try {
         loginStats = await getAllUsersWithLoginStats()
@@ -50,10 +57,11 @@ export default function AdminUsers() {
         console.warn('Login stats not available:', error)
       }
       
+      // Create user activity map
       const userActivityMap = new Map()
       
       // Process books
-      bookData?.forEach((book) => {
+      bookData?.forEach((book: any) => {
         if (book.user_id) {
           const existing = userActivityMap.get(book.user_id) || {
             book_count: 0,
@@ -69,7 +77,7 @@ export default function AdminUsers() {
       })
 
       // Process notes
-      noteData?.forEach((note) => {
+      noteData?.forEach((note: any) => {
         if (note.user_id) {
           const existing = userActivityMap.get(note.user_id) || {
             book_count: 0,
@@ -84,74 +92,45 @@ export default function AdminUsers() {
         }
       })
 
-      // Combine user profiles with activity data (original approach)
-      const usersWithActivity = Array.from(userActivityMap.entries()).map(([userId, activity]) => {
-        const profile = profiles?.find(p => p.id === userId)
+      // For each unique user, try to get their auth metadata
+      const userList: UserData[] = []
+      
+      for (const [userId, activity] of userActivityMap.entries()) {
         const loginStat = loginStats?.find(stat => stat.user_id === userId)
         
-        return {
+        // Create user data with available information
+        const userData: UserData = {
           id: userId,
-          email: profile?.email || `user${userId.slice(0, 8)}@example.com`,
-          username: profile?.username || profile?.full_name || `User ${userId.slice(0, 8)}`,
-          full_name: profile?.full_name || `User ${userId.slice(0, 8)}`,
-          created_at: profile?.created_at || new Date().toISOString(),
-          last_sign_in_at: loginStat?.last_login_at || profile?.last_sign_in_at,
-          total_logins: loginStat?.total_logins || Math.floor(Math.random() * 25) + 1, // Mock data if no real tracking
-          first_login_at: loginStat?.first_login_at || profile?.created_at,
+          email: `user-${userId.slice(0, 8)}@domain.com`, // Placeholder since we can't access auth data
+          username: `User ${userId.slice(0, 8)}`,
+          full_name: `User ${userId.slice(0, 8)}`,
+          created_at: activity.last_activity, // Use first activity as proxy for created date
+          last_sign_in_at: loginStat?.last_login_at,
+          total_logins: loginStat?.total_logins || 0,
+          first_login_at: loginStat?.first_login_at,
           book_count: activity.book_count,
           note_count: activity.note_count,
           last_activity: activity.last_activity,
         }
-      })
+        
+        userList.push(userData)
+      }
 
-      setUsers(
-        usersWithActivity.sort(
-          (a, b) => new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime(),
-        ),
+      // Sort by last activity (most recent first)
+      userList.sort(
+        (a, b) => new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime()
       )
+
+      setUsers(userList)
     } catch (error) {
       console.error("Error fetching users:", error)
-      // Fallback: create some sample data based on user IDs from activity
-      const fallbackUsers = await createFallbackUserData()
-      setUsers(fallbackUsers)
+      setUsers([])
     } finally {
       setLoading(false)
     }
   }
 
-  const createFallbackUserData = async () => {
-    try {
-      const { data: bookData } = await supabase.from("Booklist").select("user_id, created_at")
-      const { data: noteData } = await supabase.from("study_notes").select("user_id, created_at")
-      
-      const userIds = new Set()
-      bookData?.forEach(book => userIds.add(book.user_id))
-      noteData?.forEach(note => userIds.add(note.user_id))
-      
-      return Array.from(userIds).map((userId: any, index) => {
-        const randomLoginCount = Math.floor(Math.random() * 50) + 1
-        const accountAge = Math.random() * 365 * 24 * 60 * 60 * 1000
-        const createdDate = new Date(Date.now() - accountAge)
-        const lastLoginDate = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)
-        
-        return {
-          id: userId,
-          email: `user${index + 1}@bookapp.com`,
-          username: `BookUser${index + 1}`,
-          full_name: `Book Reader ${index + 1}`,
-          created_at: createdDate.toISOString(),
-          last_sign_in_at: lastLoginDate.toISOString(),
-          total_logins: randomLoginCount,
-          first_login_at: createdDate.toISOString(),
-          book_count: bookData?.filter(b => b.user_id === userId).length || 0,
-          note_count: noteData?.filter(n => n.user_id === userId).length || 0,
-          last_activity: bookData?.filter(b => b.user_id === userId)[0]?.created_at || new Date().toISOString(),
-        }
-      })
-    } catch (error) {
-      return []
-    }
-  }
+
 
   const filteredUsers = users.filter((user) => 
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
