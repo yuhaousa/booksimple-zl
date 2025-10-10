@@ -56,17 +56,24 @@ export default function LoginPage() {
       })
 
       if (authError) {
-        // Handle specific auth error types
+        console.error("Authentication error:", authError)
+        
+        // Handle specific auth error types with more detailed messages
         let errorMessage = "Please check your credentials and try again."
         
         if (authError.message.includes("Invalid login credentials")) {
-          errorMessage = "Invalid email or password. Please check your credentials."
+          errorMessage = `Invalid email or password. Please check your credentials. If you haven't registered yet, please create an account first.`
         } else if (authError.message.includes("Email not confirmed")) {
           errorMessage = "Please check your email and click the confirmation link before signing in."
         } else if (authError.message.includes("Too many requests")) {
           errorMessage = "Too many login attempts. Please wait a moment before trying again."
         } else if (authError.message.includes("User not found")) {
-          errorMessage = "No account found with this email address."
+          errorMessage = "No account found with this email address. Please register first."
+        } else if (authError.message.includes("signup_disabled")) {
+          errorMessage = "Account registration is currently disabled."
+        } else {
+          // Show the actual error message for debugging
+          errorMessage = `Login failed: ${authError.message}`
         }
         
         throw new Error(errorMessage)
