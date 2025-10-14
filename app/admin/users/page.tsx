@@ -7,14 +7,18 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase"
 import { getAllUsersWithLoginStats } from "@/lib/login-tracking"
+import { useAuth } from "@/hooks/use-auth"
+import { useRouter } from "next/navigation"
 import { Search, Users, MoreHorizontal, Calendar, Mail, User, Clock, LogIn } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { toast } from "sonner"
 
 interface UserData {
   id: string
   email: string
   username?: string
   full_name?: string
+  display_name?: string
   created_at: string
   last_sign_in_at?: string
   total_logins: number
@@ -25,19 +29,77 @@ interface UserData {
 }
 
 export default function AdminUsers() {
+  const { user, loading: authLoading, isAuthenticated } = useAuth(true)
+  const router = useRouter()
   const [users, setUsers] = useState<UserData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [showingPlaceholderData, setShowingPlaceholderData] = useState(false)
+  const [adminList, setAdminList] = useState<{ user_id: string }[]>([])
 
+  // Only allow admin users (by email or custom claim)
   useEffect(() => {
-    fetchUsers()
-  }, [])
+    if (!authLoading && user) {
+      const checkAdmin = async () => {
+        const supabase = createClient()
+        // Get all admins for dedicated admin table
+        const { data: allAdmins, error: adminError } = await supabase
+          .from("admin_users")
+          .select("user_id")
+        setAdminList(allAdmins || [])
+        if (adminError) {
+          toast.error("Failed to check admin status: " + adminError.message)
+          router.push("/")
+          return
+        }
+        if (!allAdmins || allAdmins.length === 0) {
+          // No admin exists, auto-promote current user
+          const { error: promoteError } = await supabase
+            .from("admin_users")
+            .upsert({ user_id: user.id })
+          if (promoteError) {
+            toast.error("Failed to auto-promote: " + promoteError.message)
+            router.push("/")
+            return
+          }
+          toast.success("You are now the first admin!")
+          fetchUsers()
+          return
+        }
+        // Check if current user is admin
+        const { data, error } = await supabase
+          .from("admin_users")
+          .select("user_id")
+          .eq("user_id", user.id)
+          .single()
+        if (error || !data) {
+          router.push("/")
+          return
+        }
+        fetchUsers()
+      }
+      checkAdmin()
+    }
+  }, [authLoading, user])
+  // Add user to admin_users table
+  const addAdminUser = async (userId: string) => {
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from("admin_users").upsert({ user_id: userId })
+      if (error) {
+        toast.error("Failed to add admin user: " + error.message)
+      } else {
+        toast.success("User added as admin!")
+        fetchUsers()
+      }
+    } catch (error: any) {
+      toast.error("Error: " + error.message)
+    }
+  }
 
   const fetchUsers = async () => {
     try {
       const supabase = createClient()
-      
       // Fetch real user data from our admin API
       let authUsers = null
       let needsServiceKey = false
@@ -120,12 +182,14 @@ export default function AdminUsers() {
             last_activity: authUser.created_at,
           }
           const loginStat = loginStats?.find((stat: any) => stat.user_id === authUser.id)
-          
+          // Try to get display_name from user_metadata, fallback to full_name or username
+          const displayName = authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.user_metadata?.username || authUser.user_metadata?.name || "No display name"
           const userData: UserData = {
             id: authUser.id,
             email: authUser.email || 'No email',
             username: authUser.user_metadata?.username || authUser.user_metadata?.full_name || 'No username',
             full_name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || 'No name',
+            display_name: displayName,
             created_at: authUser.created_at,
             last_sign_in_at: authUser.last_sign_in_at,
             total_logins: loginStat?.total_logins || 0,
@@ -134,7 +198,6 @@ export default function AdminUsers() {
             note_count: activity.note_count,
             last_activity: activity.last_activity,
           }
-          
           userList.push(userData)
         })
         setShowingPlaceholderData(false)
@@ -143,12 +206,13 @@ export default function AdminUsers() {
         setShowingPlaceholderData(true)
         for (const [userId, activity] of userActivityMap.entries()) {
           const loginStat = loginStats?.find((stat: any) => stat.user_id === userId)
-          
+          const displayName = `User ${userId.slice(0, 8)}`
           const userData: UserData = {
             id: userId,
             email: `user-${userId.slice(0, 8)}@domain.com`,
             username: `User ${userId.slice(0, 8)}`,
             full_name: `User ${userId.slice(0, 8)}`,
+            display_name: displayName,
             created_at: activity.last_activity,
             last_sign_in_at: loginStat?.last_login_at,
             total_logins: loginStat?.total_logins || 0,
@@ -157,7 +221,6 @@ export default function AdminUsers() {
             note_count: activity.note_count,
             last_activity: activity.last_activity,
           }
-          
           userList.push(userData)
         }
       }
@@ -186,6 +249,39 @@ export default function AdminUsers() {
 
   return (
     <div className="space-y-6">
+      {/* Dedicated Admin User Table */}
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold mb-2">Admin Users</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left p-2 font-medium text-foreground">Admin User ID</th>
+                <th className="text-left p-2 font-medium text-foreground">Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adminList.length > 0 ? (
+                adminList.map((admin) => {
+                  const userInfo = users.find(u => u.id === admin.user_id)
+                  return (
+                    <tr key={admin.user_id} className="border-b border-border/50">
+                      <td className="p-2 text-sm text-foreground">{admin.user_id}</td>
+                      <td className="p-2 text-sm text-foreground">{userInfo ? userInfo.email : <span className="text-muted-foreground">Not found</span>}</td>
+                    </tr>
+                  )
+                })
+              ) : (
+                <tr>
+                  <td className="p-2 text-muted-foreground">No admin users found</td>
+                  <td className="p-2 text-muted-foreground"></td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {/* Existing User Management UI */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">User Management</h1>
@@ -289,7 +385,8 @@ export default function AdminUsers() {
                         </div>
                       </td>
                       <td className="p-4">
-                        <div className="text-sm text-foreground">{user.full_name || 'N/A'}</div>
+                        <div className="text-sm text-foreground">{user.display_name || user.full_name || 'N/A'}</div>
+                        <div className="text-xs text-muted-foreground mt-1">{user.username || ''}</div>
                       </td>
                       <td className="p-4">
                         <div className="text-sm text-foreground">{user.email}</div>
@@ -350,6 +447,9 @@ export default function AdminUsers() {
                             <DropdownMenuItem>View Profile</DropdownMenuItem>
                             <DropdownMenuItem>View Books</DropdownMenuItem>
                             <DropdownMenuItem>View Notes</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => addAdminUser(user.id)}>
+                              Add as Admin
+                            </DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive">
                               Suspend User
                             </DropdownMenuItem>

@@ -191,6 +191,16 @@ export function BookReader({ book }: BookReaderProps) {
   const [selectedHighlightColor, setSelectedHighlightColor] = useState(HIGHLIGHT_COLORS[0])
   const [isHighlightMode, setIsHighlightMode] = useState(false)
   const [isNoteMode, setIsNoteMode] = useState(false)
+
+  // Unified mode switcher
+  const switchToHighlightMode = () => {
+    setIsNoteMode(false)
+    setIsHighlightMode(true)
+  }
+  const switchToNoteMode = () => {
+    setIsHighlightMode(false)
+    setIsNoteMode(true)
+  }
   
   // Reading mode settings
   const [readingMode, setReadingMode] = useState<'light' | 'dark' | 'sepia'>('light')
@@ -884,29 +894,28 @@ export function BookReader({ book }: BookReaderProps) {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        // Calculate highlight position relative to PDF page
+        // Calculate highlight rects for multi-line selection
         const range = selection.getRangeAt(0)
-        const rect = range.getBoundingClientRect()
+        const clientRects = Array.from(range.getClientRects())
         const pageElement = pageRef.current?.querySelector('.react-pdf__Page')
-        
-        let highlightPosition = { x: 0, y: 0, width: 100, height: 20 }
-        
+        let rects = []
         if (pageElement) {
           const pageRect = pageElement.getBoundingClientRect()
-          highlightPosition = {
+          rects = clientRects.map(rect => ({
             x: (rect.left - pageRect.left) / scale,
             y: (rect.top - pageRect.top) / scale,
             width: rect.width / scale,
             height: rect.height / scale
-          }
+          }))
         }
 
+        // Store all rects in highlight.position.rects
         const highlight: Omit<Highlight, 'id' | 'createdAt'> = {
           bookId: book.id,
           page: pageNumber,
           text: selectedText,
           color: selectedHighlightColor.value,
-          position: highlightPosition
+          position: rects.length > 0 ? { rects } : { x: 0, y: 0, width: 100, height: 20 }
         }
 
         const { data, error } = await supabase
@@ -1018,7 +1027,10 @@ export function BookReader({ book }: BookReaderProps) {
                   Outline
                 </button>
                 <button
-                  onClick={() => setActiveTab('highlights')}
+                  onClick={() => {
+                    setActiveTab('highlights');
+                    switchToHighlightMode();
+                  }}
                   className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
                     activeTab === 'highlights' 
                       ? 'bg-background text-foreground shadow-sm' 
@@ -1029,7 +1041,10 @@ export function BookReader({ book }: BookReaderProps) {
                   Highlights
                 </button>
                 <button
-                  onClick={() => setActiveTab('notes')}
+                  onClick={() => {
+                    setActiveTab('notes');
+                    switchToNoteMode();
+                  }}
                   className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
                     activeTab === 'notes' 
                       ? 'bg-background text-foreground shadow-sm' 
@@ -1245,13 +1260,41 @@ export function BookReader({ book }: BookReaderProps) {
                             <Trash2 className="w-3 h-3" />
                           </Button>
                         </div>
-                        <div 
-                          className="p-2 rounded text-sm cursor-pointer"
-                          style={{ backgroundColor: highlight.color + '40' }}
-                          onClick={() => goToPage(highlight.page)}
-                        >
-                          {highlight.text}
-                        </div>
+                        {/* Render highlight rects visually */}
+                        {highlight.position?.rects ? (
+                          <div style={{ position: 'relative', width: '100%', height: 'auto' }}>
+                            {highlight.position.rects.map((rect, i) => (
+                              <div
+                                key={i}
+                                style={{
+                                  position: 'absolute',
+                                  left: rect.x + 'px',
+                                  top: rect.y + 'px',
+                                  width: rect.width + 'px',
+                                  height: rect.height + 'px',
+                                  backgroundColor: highlight.color + '40',
+                                  pointerEvents: 'none',
+                                  borderRadius: '4px',
+                                }}
+                              />
+                            ))}
+                            <div
+                              className="p-2 rounded text-sm cursor-pointer relative"
+                              style={{ zIndex: 1 }}
+                              onClick={() => goToPage(highlight.page)}
+                            >
+                              {highlight.text}
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            className="p-2 rounded text-sm cursor-pointer"
+                            style={{ backgroundColor: highlight.color + '40' }}
+                            onClick={() => goToPage(highlight.page)}
+                          >
+                            {highlight.text}
+                          </div>
+                        )}
                       </div>
                     ))}
                     {highlights.length === 0 && (
@@ -1451,10 +1494,13 @@ export function BookReader({ book }: BookReaderProps) {
                     variant={isHighlightMode && !isNoteMode ? "default" : "outline"}
                     size="sm"
                     onClick={() => {
-                      setIsHighlightMode(!isHighlightMode)
-                      if (!isHighlightMode) setIsNoteMode(false) // Turn off note mode when enabling highlights
+                      if (!isHighlightMode) {
+                        setIsNoteMode(false); // Always turn off note mode when enabling highlights
+                        setIsHighlightMode(true);
+                      } else {
+                        setIsHighlightMode(false);
+                      }
                     }}
-                    disabled={isNoteMode}
                   >
                     <Highlighter className="w-4 h-4" />
                   </Button>
@@ -1777,28 +1823,32 @@ export function BookReader({ book }: BookReaderProps) {
                           
                           {/* Highlight Overlays on PDF text */}
                           {currentPageHighlights.map((highlight) => (
-                            <div
-                              key={highlight.id}
-                              className="absolute z-5 cursor-pointer hover:opacity-60 transition-opacity"
-                              style={{
-                                left: `${(highlight.position.x || 0) * scale}px`,
-                                top: `${(highlight.position.y || 0) * scale}px`,
-                                width: `${(highlight.position.width || 100) * scale}px`,
-                                height: `${(highlight.position.height || 20) * scale}px`,
-                                backgroundColor: highlight.color,
-                                opacity: 0.4,
-                                borderRadius: '3px',
-                                mixBlendMode: 'multiply',
-                                border: '1px solid rgba(0,0,0,0.1)',
-                              }}
-                              title={`Highlight: "${highlight.text.substring(0, 50)}${highlight.text.length > 50 ? '...' : ''}" - Click to delete`}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                if (window.confirm('Delete this highlight?')) {
-                                  deleteHighlight(highlight.id)
-                                }
-                              }}
-                            />
+                            highlight.position?.rects
+                              ?.filter(rect => rect.height > 2 && rect.width > 2)
+                              .map((rect, i) => (
+                                <div
+                                  key={highlight.id + '-' + i}
+                                  className="absolute z-5 cursor-pointer hover:opacity-60 transition-opacity"
+                                  style={{
+                                    left: `${(rect.x || 0) * scale}px`,
+                                    top: `${(rect.y || 0) * scale}px`,
+                                    width: `${(rect.width || 100) * scale}px`,
+                                    height: `${(rect.height || 20) * scale}px`,
+                                    backgroundColor: highlight.color,
+                                    opacity: 0.4,
+                                    borderRadius: '3px',
+                                    mixBlendMode: 'multiply',
+                                    border: '1px solid rgba(0,0,0,0.1)',
+                                  }}
+                                  title={`Highlight: "${highlight.text.substring(0, 50)}${highlight.text.length > 50 ? '...' : ''}" - Click to delete`}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (window.confirm('Delete this highlight?')) {
+                                      deleteHighlight(highlight.id)
+                                    }
+                                  }}
+                                />
+                              ))
                           ))}
                           
                           {/* Note Overlays positioned in margins outside PDF text */}
