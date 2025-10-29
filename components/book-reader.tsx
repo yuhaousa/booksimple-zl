@@ -2,8 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
-import 'react-pdf/dist/Page/TextLayer.css'
-import 'react-pdf/dist/Page/AnnotationLayer.css'
+import 'react-pdf/dist/esm/Page/TextLayer.css'
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
+
+// Configure PDF.js worker - using version 3.11.174 bundled with react-pdf 7.7.3
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,11 +42,6 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-
-// Set up PDF.js worker - use CDN to ensure version match
-if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
-}
 
 
 
@@ -220,6 +218,31 @@ export function BookReader({ book }: BookReaderProps) {
   
   // Refs
   const pageRef = useRef<HTMLDivElement>(null)
+
+  // Ensure TextLayer CSS is loaded to prevent warning
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Create a style element with minimal TextLayer styles if not already present
+      const styleId = 'react-pdf-text-layer-fix'
+      if (!document.getElementById(styleId)) {
+        const style = document.createElement('style')
+        style.id = styleId
+        style.textContent = `
+          .react-pdf__Page__textContent { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            right: 0; 
+            bottom: 0; 
+            overflow: hidden; 
+            opacity: 0.2;
+            line-height: 1.0;
+          }
+        `
+        document.head.appendChild(style)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     loadBookData()
@@ -1260,41 +1283,17 @@ export function BookReader({ book }: BookReaderProps) {
                             <Trash2 className="w-3 h-3" />
                           </Button>
                         </div>
-                        {/* Render highlight rects visually */}
-                        {highlight.position?.rects ? (
-                          <div style={{ position: 'relative', width: '100%', height: 'auto' }}>
-                            {highlight.position.rects.map((rect, i) => (
-                              <div
-                                key={i}
-                                style={{
-                                  position: 'absolute',
-                                  left: rect.x + 'px',
-                                  top: rect.y + 'px',
-                                  width: rect.width + 'px',
-                                  height: rect.height + 'px',
-                                  backgroundColor: highlight.color + '40',
-                                  pointerEvents: 'none',
-                                  borderRadius: '4px',
-                                }}
-                              />
-                            ))}
-                            <div
-                              className="p-2 rounded text-sm cursor-pointer relative"
-                              style={{ zIndex: 1 }}
-                              onClick={() => goToPage(highlight.page)}
-                            >
-                              {highlight.text}
-                            </div>
-                          </div>
-                        ) : (
-                          <div
-                            className="p-2 rounded text-sm cursor-pointer"
-                            style={{ backgroundColor: highlight.color + '40' }}
-                            onClick={() => goToPage(highlight.page)}
-                          >
-                            {highlight.text}
-                          </div>
-                        )}
+                        {/* Simple colored background for sidebar preview */}
+                        <div
+                          className="p-2 rounded text-sm cursor-pointer border-l-4"
+                          style={{ 
+                            backgroundColor: highlight.color + '20',
+                            borderLeftColor: highlight.color
+                          }}
+                          onClick={() => goToPage(highlight.page)}
+                        >
+                          {highlight.text}
+                        </div>
                       </div>
                     ))}
                     {highlights.length === 0 && (

@@ -39,6 +39,13 @@ const nextConfig = {
       crypto: false,
     };
 
+    // Add rule to handle .mjs files from pdfjs-dist
+    config.module.rules.push({
+      test: /\.mjs$/,
+      include: /node_modules/,
+      type: 'javascript/auto',
+    });
+
     return config;
   },
 }
