@@ -13,7 +13,8 @@ export interface QuizQuestion {
 }
 
 export interface AIBookAnalysis {
-  summary: string
+  summary: string // Short summary for overview (200-300 words)
+  detailedSummary?: string // Extended 2-page summary for deep dive (800-1000 words)
   keyPoints: string[]
   keywords: string[]
   topics: string[]
@@ -101,7 +102,21 @@ ${textContent}
 
 请按以下JSON结构提供分析（所有内容必须用中文）：
 {
-  "summary": "书籍主要内容、关键主题和价值主张的详细且引人入胜的总结（300-500字）",
+  "summary": "【重要：必须写800-1000字的长文总结，相当于2页A4纸的内容长度】书籍的全面深度总结。请用至少5-6个段落，每段150-200字，详细阐述：
+
+第一段：介绍书籍的主题、作者背景、创作目的和核心价值主张（150-200字）
+
+第二段：详细解释书籍的核心理念和理论框架，包括主要概念的定义和相互关系（150-200字）
+
+第三段：逐章分析书籍的内容结构，说明各章节的重点内容和逻辑递进关系（150-200字）
+
+第四段：列举书中的实际应用案例、实践方法和具体策略，说明如何在现实生活中应用（150-200字）
+
+第五段：分析书籍对读者的价值、启示和影响，包括个人成长、职业发展等方面（150-200字）
+
+第六段：总结书籍的独特见解、创新之处和对相关领域的贡献（100-150字）
+
+总字数必须达到800-1000字。这应该是一篇完整的深度书评文章，而不是简短摘要。",
   "keyPoints": ["从这本书中得出的6个具体、可行的关键见解或要点"],
   "keywords": ["这本书的12个重要关键词和概念"],
   "topics": ["这本书涵盖的6个主要主题领域"],
@@ -133,8 +148,12 @@ ${textContent}
 }
 
 要求：
-- 确保总结详细、引人入胜且全面（300-500字）
-- 包括书籍的主要主题、核心概念和实用价值
+- **关键要求：summary字段必须至少800-1000字，使用5-6个详细段落**
+- 每个段落必须有150-200字，不能简短
+- summary应该像一篇完整的深度书评长文，不是简短摘要
+- 必须包括：作者背景、创作背景、核心理念详解、章节分析、实践应用、读者价值
+- 这是一篇2页的长文，读者应该通过这个总结就能深入理解整本书，无需阅读原书
+- **绝对不能少于800字，这是硬性要求**
 - 确保关键点具体且可行
 - 包含与书籍领域相关的关键词
 - 生成3个基于书籍内容的测试问题，每个问题有4个选项和简短解释（避免换行符）
@@ -150,7 +169,21 @@ ${textContent}
 
 Please provide analysis in the following JSON structure:
 {
-  "summary": "A detailed and engaging summary of the book's main content, key themes, and value proposition (300-500 words)",
+  "summary": "【CRITICAL: MUST be 800-1000 words long, equivalent to 2 full A4 pages】A comprehensive, in-depth summary. Use 5-6 detailed paragraphs, each 150-200 words:
+
+Paragraph 1: Introduce the book's theme, author background, purpose, and core value proposition (150-200 words)
+
+Paragraph 2: Detailed explanation of the book's core ideas and theoretical framework, including definitions and relationships of main concepts (150-200 words)
+
+Paragraph 3: Chapter-by-chapter analysis of the book's structure, explaining key points and logical progression (150-200 words)
+
+Paragraph 4: List practical application examples, methods, and specific strategies from the book, explaining how to apply them in real life (150-200 words)
+
+Paragraph 5: Analyze the book's value, insights, and impact on readers, including personal growth and professional development (150-200 words)
+
+Paragraph 6: Summarize the book's unique insights, innovations, and contributions to the field (100-150 words)
+
+TOTAL WORD COUNT MUST BE 800-1000 WORDS. This should be a complete in-depth book review article, NOT a brief summary.",
   "keyPoints": ["6 specific, actionable key insights or takeaways from this book"],
   "keywords": ["12 important keywords and concepts from this book"],
   "topics": ["6 main topic areas covered in this book"],
@@ -182,8 +215,12 @@ Please provide analysis in the following JSON structure:
 }
 
 Requirements:
-- Make the summary detailed, engaging, and comprehensive (300-500 words)
-- Include the book's main themes, key concepts, and practical value
+- **CRITICAL REQUIREMENT: summary field MUST be at least 800-1000 words, using 5-6 detailed paragraphs**
+- Each paragraph must be 150-200 words, NOT brief
+- summary should be a complete in-depth book review long-form article, NOT a brief summary
+- MUST include: author background, book background, detailed core concepts, chapter analysis, practical applications, reader value
+- This is a 2-page long article - readers should be able to deeply understand the entire book through this summary without reading the original
+- **ABSOLUTELY CANNOT be less than 800 words - this is a hard requirement**
 - Ensure key points are specific and actionable  
 - Include relevant keywords for the book's domain
 - Generate 5 quiz questions based on the book content, each with 4 options and detailed explanations
@@ -211,7 +248,7 @@ Return only valid JSON without any markdown formatting or additional text.`
           content: analysisPrompt
         }
       ],
-      max_tokens: 2000,
+      max_tokens: 4096, // Maximum for gpt-4-turbo-preview model
       temperature: 0.3, // Lower temperature for more consistent analysis
     })
 

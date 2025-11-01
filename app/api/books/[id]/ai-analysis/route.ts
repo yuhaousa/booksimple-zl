@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { cookies } from 'next/headers'
 
@@ -26,6 +27,21 @@ async function loadPDFExtraction() {
 
 const supabaseUrl = "https://hbqurajgjhmdpgjuvdcy.supabase.co"
 const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhicXVyYWpnamhtZHBnanV2ZGN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1NDgyODIsImV4cCI6MjA3MjEyNDI4Mn0.80L5XZxrl_gg87Epm1gLRGfvU1s1AcwVk5gKyJOALdQ"
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+// Create admin client that bypasses RLS - only for server-side use!
+function createAdminClient() {
+  if (!supabaseServiceRoleKey) {
+    console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY not found, falling back to anon key')
+    return createSupabaseClient(supabaseUrl, supabaseAnonKey)
+  }
+  return createSupabaseClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  })
+}
 
 async function createServerSupabaseClient() {
   const cookieStore = await cookies()
@@ -44,6 +60,9 @@ async function createServerSupabaseClient() {
   })
 }
 
+// Extend the route timeout to 120 seconds for AI analysis
+export const maxDuration = 120
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -54,9 +73,9 @@ export async function POST(
     
     // Check if force regeneration is requested
     const { searchParams } = new URL(request.url)
-    const forceRegenerate = searchParams.get('force') === 'true'
+    const forceRegenerate = searchParams.get('force') === 'true' || searchParams.get('forceRegenerate') === 'true'
 
-    console.log('Starting AI analysis for book ID:', bookId, forceRegenerate ? '(forced regeneration)' : '')
+    console.log('Starting AI analysis for book ID:', bookId, forceRegenerate ? '🔄 (FORCED REGENERATION)' : '')
 
     // Create server-side Supabase client with auth
     const supabase = await createServerSupabaseClient()
@@ -94,22 +113,44 @@ export async function POST(
     console.log('🔍 Checking for existing analysis before API call:', {
       bookId: parseInt(bookId),
       userId: currentUser.id,
-      contentHash: contentHash.substring(0, 8) + '...'
+      contentHash: contentHash.substring(0, 16) + '...',
+      fullHash: contentHash
     })
     
-    const { data: existingAnalysisArray, error: existingError } = await supabase
+    // Use admin client to bypass RLS for cache lookup
+    const adminClient = createAdminClient()
+    
+    // Try the simplest possible query first - just get any analysis for this book
+    let { data: existingAnalysisArray, error: existingError } = await adminClient
       .from('ai_book_analysis')
       .select('*')
       .eq('book_id', parseInt(bookId))
-      .eq('user_id', currentUser.id)
-      .eq('content_hash', contentHash)
       .order('created_at', { ascending: false })
       .limit(1)
+    
+    console.log('📦 Cache query result:', { 
+      count: existingAnalysisArray?.length || 0,
+      error: existingError?.message || 'none',
+      bookId: parseInt(bookId)
+    })
+    
+    if (existingError) {
+      console.error('❌ Supabase query error:', existingError)
+    }
+    
+    if (existingAnalysisArray && existingAnalysisArray.length > 0) {
+      console.log('✅ Found cached analysis:', {
+        id: existingAnalysisArray[0].id,
+        userId: existingAnalysisArray[0].user_id,
+        createdAt: existingAnalysisArray[0].created_at
+      })
+    }
     
     const existingAnalysis = existingAnalysisArray?.[0] || null
     
     console.log('📊 Existing analysis check:', {
       found: !!existingAnalysis,
+      sharedCache: existingAnalysis?.user_id !== currentUser.id,
       error: existingError?.message || 'none',
       forceRegenerate
     })
@@ -121,6 +162,7 @@ export async function POST(
         fromCache: true,
         analysis: {
           summary: existingAnalysis.summary,
+          detailedSummary: existingAnalysis.content_analysis?.detailedSummary,
           keyPoints: existingAnalysis.key_themes || [],
           keywords: existingAnalysis.main_characters || [],
           topics: existingAnalysis.genre_analysis?.split(', ') || [],
@@ -139,6 +181,21 @@ export async function POST(
           cover_url: book.cover_url
         }
       })
+    }
+
+    // If force regenerate is true, delete all existing analyses for this book
+    if (forceRegenerate && existingAnalysis) {
+      console.log('🗑️ Deleting old cached analysis for book:', bookId)
+      const { error: deleteError } = await adminClient
+        .from('ai_book_analysis')
+        .delete()
+        .eq('book_id', parseInt(bookId))
+      
+      if (deleteError) {
+        console.error('❌ Failed to delete old cache:', deleteError)
+      } else {
+        console.log('✅ Old cache deleted successfully')
+      }
     }
 
     // Check if we have an OpenAI API key
@@ -208,7 +265,7 @@ export async function POST(
       // Add a timeout wrapper for the AI analysis
       const analysisPromise = aiModule.analyzeBookWithAI(bookContent)
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('AI analysis timeout')), 60000) // 60 second timeout
+        setTimeout(() => reject(new Error('AI analysis timeout')), 120000) // 120 second timeout (2 minutes)
       })
       
       analysis = await Promise.race([analysisPromise, timeoutPromise]) as any
@@ -243,6 +300,7 @@ export async function POST(
         page_count_estimate: pageCount || Math.ceil(analysis.readingTime * 200 / 300), // Estimate from reading time
         reading_time_minutes: analysis.readingTime,
         content_analysis: {
+          detailedSummary: analysis.detailedSummary,
           keyPoints: analysis.keyPoints,
           keywords: analysis.keywords,
           topics: analysis.topics,
@@ -258,7 +316,9 @@ export async function POST(
         ai_model_used: 'gpt-4'
       }
 
-      const { data: cachedResult, error: cacheError } = await supabase
+      // Use admin client to bypass RLS for cache insertion
+      const adminClient = createAdminClient()
+      const { data: cachedResult, error: cacheError } = await adminClient
         .from('ai_book_analysis')
         .insert(cacheData)
         .select()

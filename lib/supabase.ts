@@ -1,7 +1,9 @@
 import { createBrowserClient, createServerClient } from "@supabase/ssr"
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export function createClient() {
   if (typeof window !== 'undefined') {
@@ -36,6 +38,21 @@ export function createServerSupabaseClient(cookieStore?: any) {
       },
       setAll() {},
     },
+  })
+}
+
+// Admin client with service role key - bypasses RLS, use only server-side!
+export function createAdminClient() {
+  if (!supabaseServiceRoleKey) {
+    console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY not found, admin operations may fail')
+    // Fall back to anon key for development
+    return createSupabaseClient(supabaseUrl, supabaseAnonKey)
+  }
+  return createSupabaseClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
   })
 }
 

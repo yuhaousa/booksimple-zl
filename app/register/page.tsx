@@ -47,49 +47,33 @@ export default function RegisterPage() {
     }
 
     try {
-      const supabase = createClient()
-      
-      // Get the current URL origin for redirect
-      const redirectTo = `${window.location.origin}/auth/callback`
-      
-      // 1. Register with Supabase Auth (this handles secure password hashing)
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            display_name: formData.name,
-          },
-          emailRedirectTo: redirectTo,
-        },
+      // Use custom registration API that bypasses Supabase rate limits
+      const response = await fetch('/api/custom-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          name: formData.name
+        })
       })
-
-      if (error) throw error
-
-      // 2. Insert into user_list (only store display name, let Supabase handle passwords)
-      if (data.user) {
-        const { error: dbError } = await supabase
-          .from("user_list")
-          .insert([
-            {
-              email: formData.email,
-              display_name: formData.name,
-              auth_user_id: data.user.id, // Link to Supabase auth user
-            },
-          ])
-
-        if (dbError) {
-          console.warn('User list insertion error:', dbError)
-          // Don't throw error here as the main auth registration succeeded
-        }
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Registration failed')
       }
-
+      
+      // Success! Redirect to check-email page
       toast({
-        title: "Registration successful",
-        description: "Your account has been created. Please check your email to verify your account.",
+        title: "Registration successful! 📧",
+        description: "Redirecting to instructions...",
       })
 
-      router.push("/login")
+      // Redirect to check-email page with email parameter
+      setTimeout(() => {
+        router.push(`/check-email?email=${encodeURIComponent(formData.email)}`)
+      }, 1000)
     } catch (error: any) {
       toast({
         title: "Registration failed",

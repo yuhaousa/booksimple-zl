@@ -16,7 +16,8 @@ import {
   FileText, 
   BarChart3,
   Clock,
-  Star
+  Star,
+  User
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
@@ -57,13 +58,24 @@ interface Book {
 }
 
 interface BookAnalysis {
-  summary: string
+  summary: string // Short summary for overview
+  detailedSummary?: string // Extended 2-page summary for deep dive
   keyPoints: string[]
   keywords: string[]
   topics: string[]
   readingTime: number
   difficulty: "Beginner" | "Intermediate" | "Advanced"
   mindmapData: any
+  authorBackground?: string
+  bookBackground?: string
+  worldRelevance?: string
+  quizQuestions?: Array<{
+    question: string
+    options: string[]
+    correct: number
+    explanation: string
+  }>
+  confidence?: number
 }
 
 async function getBook(id: string) {
@@ -158,7 +170,11 @@ async function analyzeBookWithAI(book: Book): Promise<BookAnalysis> {
     }
     
     if (data.success && data.analysis) {
-      console.log('AI analysis successful!')
+      if (data.fromCache) {
+        console.log('✅ AI analysis retrieved from cache (instant)')
+      } else {
+        console.log('🆕 AI analysis generated fresh from OpenAI')
+      }
       return {
         summary: data.analysis.summary,
         keyPoints: data.analysis.keyPoints,
@@ -302,7 +318,7 @@ export default function BookPreviewPage({ params }: BookPreviewPageProps) {
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [usingAI, setUsingAI] = useState(false)
-  const [activeTab, setActiveTab] = useState<"overview" | "mindmap">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "details" | "mindmap">("overview")
 
   // Resolve params (handle both Promise and direct object cases)
   useEffect(() => {
@@ -387,9 +403,9 @@ export default function BookPreviewPage({ params }: BookPreviewPageProps) {
     setAnalysisError(null)
     
     try {
-      // Add a timeout to the AI analysis (45 seconds)
+      // Add a timeout to the AI analysis (120 seconds / 2 minutes)
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('AI analysis timed out')), 45000)
+        setTimeout(() => reject(new Error('AI analysis timed out')), 120000)
       })
       
       const analysisPromise = analyzeBookWithAI(bookData)
@@ -634,10 +650,19 @@ export default function BookPreviewPage({ params }: BookPreviewPageProps) {
                     </Link>
                   </Button>
                   
-                  <Button variant="outline" className="w-full" asChild>
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => setActiveTab("details")}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    View Deep Dive
+                  </Button>
+                  
+                  <Button variant="ghost" size="sm" className="w-full" asChild>
                     <Link href={`/books/${book.id}`}>
-                      <Eye className="w-4 h-4 mr-2" />
-                      View Details
+                      <FileText className="w-4 h-4 mr-2" />
+                      Book Info
                     </Link>
                   </Button>
                 </div>
@@ -658,6 +683,15 @@ export default function BookPreviewPage({ params }: BookPreviewPageProps) {
             >
               <FileText className="w-4 h-4 mr-2" />
               Overview
+            </Button>
+            <Button
+              variant={activeTab === "details" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("details")}
+              className="mb-2"
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              Deep Dive
             </Button>
             <Button
               variant={activeTab === "mindmap" ? "default" : "ghost"}
@@ -687,6 +721,55 @@ export default function BookPreviewPage({ params }: BookPreviewPageProps) {
                           <>
                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                             <span className="text-sm text-green-700">✨ AI-Powered Analysis</span>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              className="ml-4 h-7 text-xs"
+                              onClick={async () => {
+                                if (!book) return
+                                if (!confirm('Regenerate AI analysis? This will create a new analysis with updated insights.')) return
+                                setAnalysisLoading(true)
+                                setAnalysisError(null)
+                                try {
+                                  // Force regenerate by adding forceRegenerate parameter with timestamp to prevent caching
+                                  const timestamp = Date.now()
+                                  const response = await fetch(`/api/books/${book.id}/ai-analysis?forceRegenerate=true&t=${timestamp}`, {
+                                    method: 'POST',
+                                    headers: { 
+                                      'Content-Type': 'application/json',
+                                      'Cache-Control': 'no-cache'
+                                    }
+                                  })
+                                  const data = await response.json()
+                                  if (data.success && data.analysis) {
+                                    setAnalysis({
+                                      summary: data.analysis.summary,
+                                      detailedSummary: data.analysis.detailedSummary,
+                                      keyPoints: data.analysis.keyPoints || [],
+                                      keywords: data.analysis.keywords || [],
+                                      topics: data.analysis.topics || [],
+                                      readingTime: data.analysis.readingTime || 60,
+                                      difficulty: data.analysis.difficulty || 'Intermediate',
+                                      mindmapData: data.analysis.mindmapData || {},
+                                      authorBackground: data.analysis.authorBackground,
+                                      bookBackground: data.analysis.bookBackground,
+                                      worldRelevance: data.analysis.worldRelevance,
+                                      quizQuestions: data.analysis.quizQuestions,
+                                      confidence: data.analysis.confidence
+                                    })
+                                    setUsingAI(true)
+                                    toast.success('Analysis regenerated successfully!')
+                                  }
+                                } catch (error) {
+                                  console.error('Failed to regenerate analysis:', error)
+                                  toast.error('Failed to regenerate analysis')
+                                } finally {
+                                  setAnalysisLoading(false)
+                                }
+                              }}
+                            >
+                              🔄 Regenerate
+                            </Button>
                           </>
                         ) : analysisError ? (
                           <>
@@ -835,6 +918,318 @@ export default function BookPreviewPage({ params }: BookPreviewPageProps) {
                   </CardContent>
                 </Card>
               </div>
+            </div>
+          )}
+
+          {activeTab === "details" && (
+            <div className="space-y-6">
+              {/* About the Author */}
+              {analysis.authorBackground && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <User className="w-5 h-5" />
+                      About the Author
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-base leading-relaxed text-muted-foreground whitespace-pre-line">
+                      {analysis.authorBackground}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Book Background & Context */}
+              {analysis.bookBackground && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BookOpen className="w-5 h-5" />
+                      Book Background & Context
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-base leading-relaxed text-muted-foreground whitespace-pre-line">
+                      {analysis.bookBackground}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* World Relevance & Impact */}
+              {analysis.worldRelevance && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="w-5 h-5" />
+                      Relevance & Real-World Impact
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-base leading-relaxed text-muted-foreground whitespace-pre-line">
+                      {analysis.worldRelevance}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Extended Summary - 2 pages */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="w-5 h-5" />
+                    In-Depth Summary (2 Pages)
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    A comprehensive analysis covering the entire book (800-1000 words)
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="prose prose-sm max-w-none">
+                    <p className="text-base leading-relaxed text-muted-foreground whitespace-pre-line">
+                      {analysis.summary}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Quiz Questions */}
+              {analysis.quizQuestions && analysis.quizQuestions.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Lightbulb className="w-5 h-5" />
+                      Comprehension Questions
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Test your understanding of the key concepts
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {analysis.quizQuestions.map((quiz, index) => (
+                        <div key={index} className="border-l-4 border-primary/30 pl-4">
+                          <p className="font-medium mb-3">{index + 1}. {quiz.question}</p>
+                          <div className="space-y-2 ml-4">
+                            {quiz.options.map((option, optIndex) => (
+                              <div 
+                                key={optIndex} 
+                                className={`p-2 rounded-md text-sm ${
+                                  optIndex === quiz.correct 
+                                    ? 'bg-green-50 border border-green-200 text-green-900' 
+                                    : 'bg-muted/30'
+                                }`}
+                              >
+                                <span className="font-medium">{String.fromCharCode(65 + optIndex)}.</span> {option}
+                                {optIndex === quiz.correct && (
+                                  <span className="ml-2 text-green-600 text-xs">✓ Correct</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-2 italic">
+                            💡 {quiz.explanation}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Book Metadata */}
+              {book.description && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Publisher's Description
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-base leading-relaxed text-muted-foreground">
+                      {book.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Additional Book Info */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Tag className="w-5 h-5" />
+                    Book Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {book.publisher && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Publisher</p>
+                        <p className="font-medium">{book.publisher}</p>
+                      </div>
+                    )}
+                    {book.year && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Year</p>
+                        <p className="font-medium">{book.year}</p>
+                      </div>
+                    )}
+                    {book.isbn && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">ISBN</p>
+                        <p className="font-medium">{book.isbn}</p>
+                      </div>
+                    )}
+                    {book.tags && (
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-muted-foreground mb-2">Tags</p>
+                        <div className="flex flex-wrap gap-2">
+                          {book.tags.split(',').map((tag, index) => (
+                            <Badge key={index} variant="outline">
+                              {tag.trim()}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === "details" && (
+            <div className="space-y-6">
+              {/* Author Background */}
+              {analysis.authorBackground && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <User className="w-5 h-5" />
+                      Author Background
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-base leading-relaxed text-muted-foreground whitespace-pre-line">
+                      {analysis.authorBackground}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Book Background */}
+              {analysis.bookBackground && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BookOpen className="w-5 h-5" />
+                      Book Background & Context
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-base leading-relaxed text-muted-foreground whitespace-pre-line">
+                      {analysis.bookBackground}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Detailed Summary - 2 pages */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="w-5 h-5" />
+                    Detailed Summary (2 pages)
+                    {analysisLoading && (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary ml-2"></div>
+                    )}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Comprehensive 800-1000 word analysis covering all major aspects
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {analysisLoading ? (
+                    <div className="space-y-3">
+                      <div className="h-4 bg-muted animate-pulse rounded"></div>
+                      <div className="h-4 bg-muted animate-pulse rounded"></div>
+                      <div className="h-4 bg-muted animate-pulse rounded w-3/4"></div>
+                      <div className="h-4 bg-muted animate-pulse rounded"></div>
+                      <div className="h-4 bg-muted animate-pulse rounded w-5/6"></div>
+                    </div>
+                  ) : (
+                    <div className="prose prose-sm max-w-none">
+                      <p className="text-base leading-relaxed text-muted-foreground whitespace-pre-line">
+                        {analysis?.summary}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* World Relevance */}
+              {analysis.worldRelevance && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Star className="w-5 h-5" />
+                      Relevance & Impact
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-base leading-relaxed text-muted-foreground whitespace-pre-line">
+                      {analysis.worldRelevance}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Quiz Questions */}
+              {analysis.quizQuestions && analysis.quizQuestions.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Lightbulb className="w-5 h-5" />
+                      Comprehension Questions
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Test your understanding of the key concepts
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {analysis.quizQuestions.map((quiz, index) => (
+                        <div key={index} className="border-l-4 border-primary/30 pl-4">
+                          <p className="font-medium mb-3">{index + 1}. {quiz.question}</p>
+                          <div className="space-y-2 ml-4">
+                            {quiz.options.map((option, optIndex) => (
+                              <div 
+                                key={optIndex} 
+                                className={`p-2 rounded-md text-sm ${
+                                  optIndex === quiz.correct 
+                                    ? 'bg-green-50 border border-green-200 text-green-900' 
+                                    : 'bg-muted/30'
+                                }`}
+                              >
+                                <span className="font-medium">{String.fromCharCode(65 + optIndex)}.</span> {option}
+                                {optIndex === quiz.correct && (
+                                  <span className="ml-2 text-green-600 text-xs">✓ Correct</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-2 italic">
+                            💡 {quiz.explanation}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 
