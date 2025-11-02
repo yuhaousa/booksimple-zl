@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { Upload } from "lucide-react"
+import { Upload, Sparkles } from "lucide-react"
 
 interface BookUploadFormProps {
   onBookAdded: () => void
@@ -19,12 +19,66 @@ interface BookUploadFormProps {
 
 export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [isAILoading, setIsAILoading] = useState(false)
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [bookFile, setBookFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState<string>("")
   const formRef = useRef<HTMLFormElement>(null)
   const { toast } = useToast()
   const supabase = createClient()
+
+  const handleAIAutofill = async () => {
+    if (!bookFile) {
+      toast({
+        title: "No File Selected",
+        description: "Please upload a PDF file first to use AI auto-fill.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsAILoading(true)
+    try {
+      const formData = new FormData()
+      formData.append("file", bookFile)
+
+      const response = await fetch("/api/ai-autofill", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to extract metadata")
+      }
+
+      const metadata = await response.json()
+
+      // Fill the form fields
+      if (formRef.current) {
+        const form = formRef.current
+        if (metadata.title) (form.elements.namedItem("title") as HTMLInputElement).value = metadata.title
+        if (metadata.author) (form.elements.namedItem("author") as HTMLInputElement).value = metadata.author
+        if (metadata.publisher) (form.elements.namedItem("publisher") as HTMLInputElement).value = metadata.publisher
+        if (metadata.year) (form.elements.namedItem("year") as HTMLInputElement).value = metadata.year.toString()
+        if (metadata.isbn) (form.elements.namedItem("isbn") as HTMLInputElement).value = metadata.isbn
+        if (metadata.description) (form.elements.namedItem("description") as HTMLTextAreaElement).value = metadata.description
+      }
+
+      toast({
+        title: "Success",
+        description: "Book information filled automatically!",
+      })
+    } catch (error) {
+      console.error("AI autofill error:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to extract metadata. Please fill manually.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsAILoading(false)
+    }
+  }
 
   const uploadFile = async (file: File, bucket: string, folder = ""): Promise<string | null> => {
     try {
@@ -264,6 +318,29 @@ export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormPro
               </div>
             </div>
           </div>
+
+          {bookFile && (
+            <div className="flex justify-center">
+              <Button
+                type="button"
+                onClick={handleAIAutofill}
+                disabled={isAILoading || isLoading}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+              >
+                {isAILoading ? (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4 animate-spin" />
+                    AI Extracting Metadata...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    AI Auto-Fill Book Info
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
 
           {uploadProgress && <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">{uploadProgress}</div>}
 
