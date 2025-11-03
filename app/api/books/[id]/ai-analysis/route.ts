@@ -60,8 +60,10 @@ async function createServerSupabaseClient() {
   })
 }
 
-// Extend the route timeout to 120 seconds for AI analysis
-export const maxDuration = 120
+// Extend the route timeout for AI analysis
+// Vercel Pro allows up to 60 seconds, adjust based on your plan
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
 
 export async function POST(
   request: NextRequest,
