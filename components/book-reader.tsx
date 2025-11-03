@@ -1009,7 +1009,7 @@ export function BookReader({ book }: BookReaderProps) {
     <div className="min-h-screen bg-background">
       <div className="flex h-screen bg-background relative">
         {/* Sidebar */}
-        <div className={`${sidebarOpen ? 'w-96' : 'w-0'} transition-all duration-300 border-r border-border bg-card overflow-hidden`}>
+        <div className={`${sidebarOpen ? 'w-[432px]' : 'w-0'} flex-shrink-0 transition-all duration-300 border-r border-border bg-card overflow-hidden`}>
           <div className="h-full flex flex-col p-2">
             {/* Sidebar Header */}
             <div className="p-4 border-b border-border mx-2 mb-2 rounded-lg bg-background/50">
@@ -1269,7 +1269,7 @@ export function BookReader({ book }: BookReaderProps) {
                 {activeTab === 'highlights' && (
                   <div className="bg-muted/30 p-4 rounded-lg border border-border/50 space-y-3">
                     {highlights.map((highlight) => (
-                      <div key={highlight.id} className="p-3 border border-border rounded-lg">
+                      <div key={highlight.id} className="p-3 rounded-lg">
                         <div className="flex items-start justify-between mb-2">
                           <span className="text-xs text-muted-foreground">
                             Page {highlight.page}

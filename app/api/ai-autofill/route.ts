@@ -17,14 +17,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    // Convert file to buffer
+    // Convert file to Uint8Array for PDF.js
     const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const uint8Array = new Uint8Array(arrayBuffer)
 
     // Extract text from PDF
     console.log("📄 Extracting text from PDF...")
-    const loadingTask = getDocument({ data: buffer })
+    const loadingTask = getDocument({ data: uint8Array })
     const pdfDocument = await loadingTask.promise
+
+    // Note: Cover image generation from PDF is skipped for now
+    // as it requires complex canvas setup on server-side
+    let coverImageUrl = null
 
     // Extract text from first 5 pages for metadata
     let extractedText = ""
@@ -58,9 +62,11 @@ export async function POST(request: NextRequest) {
 - ISBN (if available)
 - Short Description (a 2-3 sentence summary based on the content)
 
+IMPORTANT: Write the description in the SAME LANGUAGE as the book content. If the book is in Chinese, write the description in Chinese. If the book is in English, write the description in English.
+
 Return the information as a JSON object with these exact keys: title, author, publisher, year, isbn, description.
 If you cannot find a field, use an empty string for text fields or null for year.
-Be concise and accurate. For the description, write a professional book description based on the content you see.`,
+Be concise and accurate. For the description, write a professional book description based on the content you see, in the same language as the book.`,
         },
         {
           role: "user",
@@ -95,6 +101,7 @@ Be concise and accurate. For the description, write a professional book descript
       year: metadata.year ? parseInt(metadata.year.toString()) : null,
       isbn: metadata.isbn || "",
       description: metadata.description || "",
+      coverImageUrl: coverImageUrl || null,
     }
 
     console.log("✅ Extracted metadata:", cleanedMetadata)

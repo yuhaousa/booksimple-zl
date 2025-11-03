@@ -30,25 +30,40 @@ export default function HomePage() {
 
   const fetchLatestBooks = async () => {
     try {
+      // Check if Supabase is configured
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        console.warn("Supabase environment variables not configured")
+        setLoading(false)
+        return
+      }
+
       const { data, error } = await supabase
         .from("Booklist")
         .select("id, title, author, user_id, description, cover_url, year, created_at") // include user_id
         .order("created_at", { ascending: false })
         .limit(4)
 
-      if (error) throw error
+      if (error) {
+        console.error("Supabase query error:", error)
+        throw error
+      }
 
       // Generate signed URLs for covers
       const booksWithSignedUrls = await Promise.all(
         (data || []).map(async (book) => {
           let coverUrl = book.cover_url
 
-          if (coverUrl) {
-            const { data: signedCover, error: coverError } = await supabase.storage
-              .from("book-cover")
-              .createSignedUrl(coverUrl.replace(/^book-cover\//, ""), 60 * 60 * 24)
-            if (!coverError && signedCover?.signedUrl) {
-              coverUrl = signedCover.signedUrl
+          if (coverUrl && !coverUrl.startsWith('http')) {
+            try {
+              const { data: signedCover, error: coverError } = await supabase.storage
+                .from("book-cover")
+                .createSignedUrl(coverUrl.replace(/^book-cover\//, ""), 60 * 60 * 24)
+              if (!coverError && signedCover?.signedUrl) {
+                coverUrl = signedCover.signedUrl
+              }
+            } catch (coverError) {
+              console.error("Error generating signed URL for cover:", coverError)
+              // Keep the original cover_url as fallback
             }
           }
 
@@ -59,6 +74,8 @@ export default function HomePage() {
       setLatestBooks(booksWithSignedUrls)
     } catch (error) {
       console.error("Error fetching latest books:", error)
+      // Set empty array instead of leaving it in loading state
+      setLatestBooks([])
     } finally {
       setLoading(false)
     }

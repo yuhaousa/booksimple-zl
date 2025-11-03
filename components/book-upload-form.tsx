@@ -23,6 +23,7 @@ export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormPro
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [bookFile, setBookFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState<string>("")
+  const [aiCoverUrl, setAiCoverUrl] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const { toast } = useToast()
   const supabase = createClient()
@@ -62,11 +63,18 @@ export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormPro
         if (metadata.year) (form.elements.namedItem("year") as HTMLInputElement).value = metadata.year.toString()
         if (metadata.isbn) (form.elements.namedItem("isbn") as HTMLInputElement).value = metadata.isbn
         if (metadata.description) (form.elements.namedItem("description") as HTMLTextAreaElement).value = metadata.description
+        
+        // Store the AI-generated cover URL
+        if (metadata.coverImageUrl) {
+          setAiCoverUrl(metadata.coverImageUrl)
+        }
       }
 
       toast({
         title: "Success",
-        description: "Book information filled automatically!",
+        description: metadata.coverImageUrl 
+          ? "Book information and cover image filled automatically!" 
+          : "Book information filled automatically!",
       })
     } catch (error) {
       console.error("AI autofill error:", error)
@@ -107,7 +115,7 @@ export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormPro
     const formData = new FormData(e.currentTarget)
 
     try {
-      let coverUrl = (formData.get("cover_url") as string) || "/abstract-book-cover.png"
+      let coverUrl = (formData.get("cover_url") as string) || aiCoverUrl || "/abstract-book-cover.png"
       let fileUrl = formData.get("file_url") as string
 
       if (coverFile) {
@@ -116,6 +124,9 @@ export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormPro
         if (uploadedCoverPath) {
           coverUrl = uploadedCoverPath // Save file path, not signed URL
         }
+      } else if (aiCoverUrl) {
+        // Use the AI-generated cover if no manual upload
+        coverUrl = aiCoverUrl
       }
 
       if (bookFile) {
