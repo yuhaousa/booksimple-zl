@@ -158,7 +158,11 @@ export default function NoteDetailsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl text-balance">{note.title}</CardTitle>
+          {note.title && note.title !== note.content.substring(0, 50) && note.title !== "Untitled Note" && (
+            <CardTitle className="text-2xl text-balance mb-4">
+              {note.title}
+            </CardTitle>
+          )}
 
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center">
@@ -181,17 +185,20 @@ export default function NoteDetailsPage() {
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mt-3">
             {note.category && <Badge variant="outline">{note.category}</Badge>}
 
             {note.tags && (
               <div className="flex flex-wrap gap-1">
-                {note.tags.split(",").map((tag, index) => (
-                  <Badge key={index} variant="secondary">
-                    <Tag className="h-3 w-3 mr-1" />
-                    {tag.trim()}
-                  </Badge>
-                ))}
+                {note.tags.split(/[,，、]+/).map((tag, index) => {
+                  const trimmedTag = tag.trim()
+                  return trimmedTag ? (
+                    <Badge key={index} variant="secondary">
+                      <Tag className="h-3 w-3 mr-1" />
+                      {trimmedTag}
+                    </Badge>
+                  ) : null
+                })}
               </div>
             )}
           </div>

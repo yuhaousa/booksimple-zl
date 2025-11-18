@@ -24,6 +24,10 @@ interface Book {
   tags: string | null
   cover_url: string | null
   file_url: string | null
+  video_url: string | null
+  video_file_url: string | null
+  video_title: string | null
+  video_description: string | null
 }
 
 export default function BookEditPage() {
@@ -206,6 +210,9 @@ export default function BookEditPage() {
         tags: formData.get("tags") as string || null,
         cover_url: coverPath,
         file_url: filePath,
+        video_url: formData.get("video_url") as string || null,
+        video_title: formData.get("video_title") as string || null,
+        video_description: formData.get("video_description") as string || null,
       }
 
       const { error } = await supabase
@@ -469,6 +476,46 @@ export default function BookEditPage() {
                   <p className="text-sm text-muted-foreground">
                     Separate multiple tags with commas to help categorize your book
                   </p>
+                </div>
+
+                {/* Video Section */}
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="text-lg font-semibold">Related Video (Optional)</h3>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="video_url">Video URL</Label>
+                    <Input
+                      id="video_url"
+                      name="video_url"
+                      defaultValue={book.video_url || ""}
+                      placeholder="Enter YouTube, Vimeo, or other video URL"
+                      type="url"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Paste a link to a video related to this book (YouTube, Vimeo, etc.)
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="video_title">Video Title</Label>
+                    <Input
+                      id="video_title"
+                      name="video_title"
+                      defaultValue={book.video_title || ""}
+                      placeholder="Enter video title"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="video_description">Video Description</Label>
+                    <Textarea
+                      id="video_description"
+                      name="video_description"
+                      defaultValue={book.video_description || ""}
+                      placeholder="Describe what the video is about"
+                      rows={3}
+                    />
+                  </div>
                 </div>
 
                 {/* Submit Button */}

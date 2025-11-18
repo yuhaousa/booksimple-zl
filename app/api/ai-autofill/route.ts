@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import OpenAI from "openai"
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs"
+import * as pdfjsLib from "pdfjs-dist"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Extract text from PDF
     console.log("📄 Extracting text from PDF...")
-    const loadingTask = getDocument({ data: uint8Array })
+    const loadingTask = pdfjsLib.getDocument({ data: uint8Array })
     const pdfDocument = await loadingTask.promise
 
     // Note: Cover image generation from PDF is skipped for now

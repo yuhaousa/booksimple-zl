@@ -10,11 +10,8 @@ import { Input } from '@/components/ui/input'
 import { ArrowLeft, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
 import Link from 'next/link'
 
-// Set up PDF.js worker - using version 3.11.174 bundled with react-pdf 7.7.3
-if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`
-
-}
+// Configure PDF.js worker - using version 3.11.174 bundled with react-pdf 7.7.3
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`
 
 interface Book {
   id: number

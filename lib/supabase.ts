@@ -71,4 +71,8 @@ export type Book = {
   cover_url: string | null
   file_url: string | null
   user_id: number
+  video_url: string | null
+  video_file_url: string | null
+  video_title: string | null
+  video_description: string | null
 }

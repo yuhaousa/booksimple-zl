@@ -113,16 +113,19 @@ export default function NotesPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {notes.map((note) => (
-            <Card key={note.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <CardTitle className="text-xl line-clamp-2">
-                  <Link href={`/notes/${note.id}`} className="hover:text-primary">
-                    {note.title}
-                  </Link>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {note.content && <p className="text-base text-muted-foreground line-clamp-3">{note.content}</p>}
+            <Link key={note.id} href={`/notes/${note.id}`} className="block">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                {note.title && note.title !== note.content.substring(0, 50) && note.title !== "Untitled Note" && (
+                  <CardHeader>
+                    <CardTitle className="text-xl line-clamp-2 hover:text-primary transition-colors">
+                      {note.title}
+                    </CardTitle>
+                  </CardHeader>
+                )}
+                <CardContent className="space-y-4">
+                  {note.content && (
+                    <p className="text-base text-muted-foreground line-clamp-3">{note.content}</p>
+                  )}
 
                 {note.book && (
                   <div className="flex items-center text-base text-primary">
@@ -142,11 +145,14 @@ export default function NotesPage() {
 
                 {note.tags && (
                   <div className="flex flex-wrap gap-1">
-                    {note.tags.split(",").map((tag, index) => (
-                      <Badge key={index} variant="secondary" className="text-sm">
-                        {tag.trim()}
-                      </Badge>
-                    ))}
+                    {note.tags.split(/[,，、]+/).map((tag, index) => {
+                      const trimmedTag = tag.trim()
+                      return trimmedTag ? (
+                        <Badge key={index} variant="secondary" className="text-sm">
+                          {trimmedTag}
+                        </Badge>
+                      ) : null
+                    })}
                   </div>
                 )}
 
@@ -157,6 +163,7 @@ export default function NotesPage() {
                 )}
               </CardContent>
             </Card>
+            </Link>
           ))}
         </div>
       )}

@@ -81,8 +81,8 @@ function NewNotePageContent({ bookId }: { bookId: string | null }) {
       return
     }
 
-    if (!formData.title.trim()) {
-      toast.error("Please enter a title")
+    if (!formData.content.trim()) {
+      toast.error("Please enter note content")
       return
     }
 
@@ -90,8 +90,8 @@ function NewNotePageContent({ bookId }: { bookId: string | null }) {
 
     try {
       const noteData = {
-        title: formData.title.trim(),
-        content: formData.content.trim() || null,
+        title: formData.title.trim() || formData.content.trim().substring(0, 50),
+        content: formData.content.trim(),
         book_id: formData.book_id ? Number.parseInt(formData.book_id) : null,
         tags: formData.tags.trim() || null,
         category: formData.category.trim() || null,
@@ -157,24 +157,24 @@ function NewNotePageContent({ bookId }: { bookId: string | null }) {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="title">Title *</Label>
+              <Label htmlFor="title">Title (Optional)</Label>
               <Input
                 id="title"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Enter note title"
-                required
+                placeholder="Enter note title (optional)"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="content">Content</Label>
+              <Label htmlFor="content">Content *</Label>
               <Textarea
                 id="content"
                 value={formData.content}
                 onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                 placeholder="Write your study notes here..."
                 rows={10}
+                required
               />
             </div>
 

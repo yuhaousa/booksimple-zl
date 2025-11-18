@@ -38,10 +38,8 @@ import {
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-// Set up PDF.js worker - using version 3.11.174 bundled with react-pdf 7.7.3
-if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`
-}
+// Configure PDF.js worker - using legacy build for compatibility
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.4.394/legacy/build/pdf.worker.min.mjs`
 
 const HIGHLIGHT_COLORS = [
   { name: 'Yellow', value: '#FBBF24', class: 'bg-yellow-300' },

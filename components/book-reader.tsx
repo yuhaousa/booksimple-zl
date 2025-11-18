@@ -5,8 +5,8 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/TextLayer.css'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 
-// Configure PDF.js worker - using version 5.4.394 bundled with react-pdf 10.2.0
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.394/pdf.worker.min.js`
+// Configure PDF.js worker - using version 3.11.174 bundled with react-pdf 7.7.3
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -276,6 +276,50 @@ export function BookReader({ book }: BookReaderProps) {
       }
     }
   }, [])
+
+  // Track reading progress - update when page changes or document loads
+  useEffect(() => {
+    const updateProgress = async () => {
+      if (!numPages || !pageNumber || pageNumber < 1 || pageNumber > numPages) {
+        console.log('Skipping progress update - invalid state:', { numPages, pageNumber })
+        return
+      }
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          console.log('Skipping progress update - no user logged in')
+          return
+        }
+
+        console.log('Updating reading progress:', {
+          user_id: user.id,
+          book_id: book.id,
+          current_page: pageNumber,
+          total_pages: numPages
+        })
+
+        const { error } = await supabase.rpc('update_reading_progress', {
+          p_user_id: user.id,
+          p_book_id: book.id,
+          p_current_page: pageNumber,
+          p_total_pages: numPages
+        })
+
+        if (error) {
+          console.error('Error updating reading progress:', error)
+        } else {
+          console.log('Reading progress updated successfully')
+        }
+      } catch (err) {
+        console.error('Failed to update reading progress:', err)
+      }
+    }
+
+    // Debounce the update to avoid too many calls
+    const timeoutId = setTimeout(updateProgress, 1000)
+    return () => clearTimeout(timeoutId)
+  }, [pageNumber, numPages, book.id])
 
   // Detect book language based on title and content
   const detectBookLanguage = () => {

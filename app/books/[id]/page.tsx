@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Calendar, User, Building, BookPlus, Check, BookOpen, FileText, Plus, Tag, Edit } from "lucide-react"
+import { ArrowLeft, Calendar, User, Building, BookPlus, Check, BookOpen, FileText, Plus, Tag, Edit, Highlighter, Video, ExternalLink } from "lucide-react"
 import { createClient } from "@/lib/supabase"
 import Image from "next/image"
 import Link from "next/link"
@@ -15,6 +15,17 @@ import { useAuth } from "@/hooks/use-auth"
 
 interface BookDetailPageProps {
   params: Promise<{ id: string }> | { id: string }
+}
+
+interface BookNote {
+  id: string
+  book_id: number
+  page_number: number
+  content: string
+  position: any
+  user_id: string
+  created_at: string
+  updated_at: string
 }
 
 interface StudyNote {
@@ -29,6 +40,16 @@ interface StudyNote {
   updated_at: string
 }
 
+interface Highlight {
+  id: number
+  book_id: number
+  user_id: string
+  text: string
+  color: string
+  page_number: number
+  created_at: string
+}
+
 interface Book {
   id: number
   title: string
@@ -41,6 +62,10 @@ interface Book {
   isbn: string | null
   tags: string | null
   created_at: string
+  video_url: string | null
+  video_file_url: string | null
+  video_title: string | null
+  video_description: string | null
 }
 
 async function getBook(id: string) {
@@ -86,8 +111,12 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   const [isInReadingList, setIsInReadingList] = useState(false)
   const [readingListStatus, setReadingListStatus] = useState<"to_read" | "reading" | "completed" | null>(null)
   const [addingToList, setAddingToList] = useState(false)
-  const [notes, setNotes] = useState<StudyNote[]>([])
-  const [notesLoading, setNotesLoading] = useState(true)
+  const [readerNotes, setReaderNotes] = useState<BookNote[]>([])
+  const [readerNotesLoading, setReaderNotesLoading] = useState(true)
+  const [studyNotes, setStudyNotes] = useState<StudyNote[]>([])
+  const [studyNotesLoading, setStudyNotesLoading] = useState(true)
+  const [highlights, setHighlights] = useState<Highlight[]>([])
+  const [highlightsLoading, setHighlightsLoading] = useState(true)
   const { user, loading: authLoading } = useAuth()
 
   // Resolve params (handle both Promise and direct object cases)
@@ -136,23 +165,61 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     // Only fetch user-specific data if authenticated
     if (user) {
       await checkReadingListStatus(bookData.id)
-      await fetchBookNotes(bookData.id)
+      await Promise.all([
+        fetchReaderNotes(bookData.id),
+        fetchStudyNotes(bookData.id),
+        fetchBookHighlights(bookData.id)
+      ])
     } else {
-      setNotesLoading(false)
+      setReaderNotesLoading(false)
+      setStudyNotesLoading(false)
+      setHighlightsLoading(false)
     }
     
     setLoading(false)
   }
 
-  const fetchBookNotes = async (bookId: number) => {
+  const fetchReaderNotes = async (bookId: number) => {
     if (!user) {
-      console.log("No user logged in, skipping notes fetch")
-      setNotesLoading(false)
+      console.log("No user logged in, skipping reader notes fetch")
+      setReaderNotesLoading(false)
       return
     }
     
     try {
-      console.log("Fetching notes for book:", bookId, "user:", user.id)
+      console.log("Fetching reader notes for book:", bookId, "user:", user.id)
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("book_notes")
+        .select("*")
+        .eq("book_id", bookId)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Supabase error fetching reader notes:", error)
+        setReaderNotes([])
+      } else {
+        console.log("Reader notes fetched successfully:", data?.length || 0, "notes")
+        setReaderNotes(data || [])
+      }
+    } catch (error) {
+      console.error("Error fetching reader notes:", error)
+      setReaderNotes([])
+    } finally {
+      setReaderNotesLoading(false)
+    }
+  }
+
+  const fetchStudyNotes = async (bookId: number) => {
+    if (!user) {
+      console.log("No user logged in, skipping study notes fetch")
+      setStudyNotesLoading(false)
+      return
+    }
+    
+    try {
+      console.log("Fetching study notes for book:", bookId, "user:", user.id)
       const supabase = createClient()
       const { data, error } = await supabase
         .from("study_notes")
@@ -162,26 +229,49 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
         .order("created_at", { ascending: false })
 
       if (error) {
-        console.error("Supabase error fetching notes:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
-        // Don't throw, just log and continue
-        setNotes([])
+        console.error("Supabase error fetching study notes:", error)
+        setStudyNotes([])
       } else {
-        console.log("Notes fetched successfully:", data?.length || 0, "notes")
-        setNotes(data || [])
+        console.log("Study notes fetched successfully:", data?.length || 0, "notes")
+        setStudyNotes(data || [])
       }
     } catch (error) {
-      console.error("Error fetching book notes:", {
-        message: error instanceof Error ? error.message : String(error),
-        error: error
-      })
-      setNotes([])
+      console.error("Error fetching study notes:", error)
+      setStudyNotes([])
     } finally {
-      setNotesLoading(false)
+      setStudyNotesLoading(false)
+    }
+  }
+
+  const fetchBookHighlights = async (bookId: number) => {
+    if (!user) {
+      console.log("No user logged in, skipping highlights fetch")
+      setHighlightsLoading(false)
+      return
+    }
+    
+    try {
+      console.log("Fetching highlights for book:", bookId, "user:", user.id)
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("book_highlights")
+        .select("*")
+        .eq("book_id", bookId)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Supabase error fetching highlights:", error)
+        setHighlights([])
+      } else {
+        console.log("Highlights fetched successfully:", data?.length || 0, "highlights")
+        setHighlights(data || [])
+      }
+    } catch (error) {
+      console.error("Error fetching book highlights:", error)
+      setHighlights([])
+    } finally {
+      setHighlightsLoading(false)
     }
   }
 
@@ -276,7 +366,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
@@ -302,7 +392,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="container mx-auto px-4 py-8 max-w-6xl">
       <div className="mb-6">
         <Link href="/books">
           <Button variant="ghost" size="sm" className="mb-4">
@@ -381,7 +471,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
         <div className="md:col-span-2 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-3xl md:text-4xl text-balance">{book.title || "Untitled"}</CardTitle>
+              <CardTitle className="text-xl md:text-2xl text-balance">{book.title || "Untitled"}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-4 text-base text-muted-foreground">
@@ -423,18 +513,164 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                 <div>
                   <h3 className="text-lg font-semibold mb-2">Tags</h3>
                   <div className="flex flex-wrap gap-2">
-                    {book.tags.split(",").map((tag, index) => (
-                      <Badge key={index} variant="secondary" className="text-sm">
-                        {tag.trim()}
-                      </Badge>
-                    ))}
+                    {book.tags
+                      .split(/[,，、]+/)
+                      .map(t => t.trim())
+                      .filter(t => t.length > 0)
+                      .map((tag, index) => (
+                        <Badge key={index} variant="secondary" className="text-sm">
+                          {tag}
+                        </Badge>
+                      ))}
                   </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Study Notes Section - Only for authenticated users */}
+          {/* Highlights Section - Only for authenticated users */}
+          {user && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Highlighter className="w-5 h-5" />
+                    Highlights
+                    <Badge variant="secondary">{highlights.length}</Badge>
+                  </CardTitle>
+                  <Button size="sm" asChild>
+                    <Link href={`/books/${book.id}/reader`}>
+                      <BookOpen className="w-4 h-4 mr-1" />
+                      Open Reader
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {highlightsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Loading highlights...</p>
+                    </div>
+                  </div>
+                ) : highlights.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Highlighter className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                    <h4 className="text-xl font-medium mb-2">No highlights yet</h4>
+                    <p className="text-base text-muted-foreground mb-4">
+                      Start highlighting important passages while reading
+                    </p>
+                    <Button size="sm" asChild>
+                      <Link href={`/books/${book.id}/reader`}>
+                        <BookOpen className="w-4 h-4 mr-1" />
+                        Start Reading
+                      </Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {highlights.slice(0, 3).map((highlight) => (
+                      <div
+                        key={highlight.id}
+                        className="border border-border rounded-lg p-3 hover:bg-muted/50 transition-colors"
+                        style={{
+                          borderLeftWidth: '4px',
+                          borderLeftColor: highlight.color
+                        }}
+                      >
+                        <p className="text-sm mb-2 line-clamp-3">{highlight.text}</p>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Page {highlight.page_number}</span>
+                          <span>{new Date(highlight.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {highlights.length > 3 && (
+                      <div className="pt-2 border-t border-border">
+                        <Button variant="outline" size="sm" asChild className="w-full bg-transparent">
+                          <Link href={`/books/${book.id}/highlights`}>
+                            View All Highlights ({highlights.length})
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Reader Notes Section - From PDF reader */}
+          {user && readerNotes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5" />
+                    Reader Notes
+                    <Badge variant="secondary">{readerNotes.length}</Badge>
+                  </CardTitle>
+                  <Button size="sm" asChild>
+                    <Link href={`/books/${book.id}/reader`}>
+                      <BookOpen className="w-4 h-4 mr-1" />
+                      Open Reader
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {readerNotes.slice(0, 3).map((note) => (
+                  <div
+                    key={note.id}
+                    className="border border-border rounded-lg p-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          Page {note.page_number}
+                        </Badge>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        asChild
+                        className="h-6 px-2"
+                      >
+                        <Link href={`/books/${book.id}/reader?page=${note.page_number}`}>
+                          <BookOpen className="w-3 h-3 mr-1" />
+                          View
+                        </Link>
+                      </Button>
+                    </div>
+
+                    {note.content && (
+                      <p className="text-sm text-foreground line-clamp-3 mb-2">
+                        {note.content}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{new Date(note.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ))}
+
+                {readerNotes.length > 3 && (
+                  <div className="pt-2 border-t border-border">
+                    <Button variant="outline" size="sm" asChild className="w-full bg-transparent">
+                      <Link href={`/books/${book.id}/reader`}>View All Reader Notes ({readerNotes.length})</Link>
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+            </Card>
+          )}
+
+          {/* Study Notes Section - From /notes page */}
           {user && (
             <Card>
               <CardHeader>
@@ -442,7 +678,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="w-5 h-5" />
                     Study Notes
-                    <Badge variant="secondary">{notes.length}</Badge>
+                    <Badge variant="secondary">{studyNotes.length}</Badge>
                   </CardTitle>
                   <Button size="sm" asChild>
                     <Link href={`/notes/new?bookId=${book.id}`}>
@@ -453,18 +689,18 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                 </div>
               </CardHeader>
             <CardContent>
-              {notesLoading ? (
+              {studyNotesLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
                     <p className="text-sm text-muted-foreground">Loading notes...</p>
                   </div>
                 </div>
-              ) : notes.length === 0 ? (
+              ) : studyNotes.length === 0 ? (
                 <div className="text-center py-8">
                   <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                  <h4 className="text-xl font-medium mb-2">No notes yet</h4>
-                  <p className="text-base text-muted-foreground mb-4">Start taking notes while reading this book</p>
+                  <h4 className="text-xl font-medium mb-2">No study notes yet</h4>
+                  <p className="text-base text-muted-foreground mb-4">Create detailed notes for this book</p>
                   <Button size="sm" asChild>
                     <Link href={`/notes/new?bookId=${book.id}`}>
                       <Plus className="w-4 h-4 mr-1" />
@@ -474,24 +710,19 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {notes.map((note) => (
-                    <div
+                  {studyNotes.slice(0, 3).map((note) => (
+                    <Link
                       key={note.id}
-                      className="border border-border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                      href={`/notes/${note.id}`}
+                      className="block border border-border rounded-lg p-4 hover:bg-muted/50 transition-colors cursor-pointer"
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <Link
-                          href={`/notes/${note.id}`}
-                          className="text-lg font-medium hover:text-primary transition-colors flex-1"
-                        >
-                          {note.title}
-                        </Link>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/notes/${note.id}/edit`}>
-                            <Edit className="w-3 h-3" />
-                          </Link>
-                        </Button>
-                      </div>
+                      {note.title && note.title !== note.content.substring(0, 50) && note.title !== "Untitled Note" && (
+                        <div className="mb-2">
+                          <div className="text-lg font-medium hover:text-primary transition-colors">
+                            {note.title}
+                          </div>
+                        </div>
+                      )}
 
                       {note.content && (
                         <p className="text-base text-muted-foreground line-clamp-2 mb-2">
@@ -511,7 +742,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                             note.tags
                               .split(",")
                               .slice(0, 2)
-                              .map((tag, index) => (
+                              .map((tag: string, index: number) => (
                                 <Badge key={index} variant="secondary" className="text-sm">
                                   <Tag className="w-2 h-2 mr-1" />
                                   {tag.trim()}
@@ -523,19 +754,84 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                           {new Date(note.created_at).toLocaleDateString()}
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   ))}
 
-                  {notes.length > 0 && (
+                  {studyNotes.length > 3 && (
                     <div className="pt-2 border-t border-border">
                       <Button variant="outline" size="sm" asChild className="w-full bg-transparent">
-                        <Link href={`/notes?bookId=${book.id}`}>View All Notes ({notes.length})</Link>
+                        <Link href={`/notes?bookId=${book.id}`}>View All Notes ({studyNotes.length})</Link>
                       </Button>
                     </div>
                   )}
                 </div>
               )}
             </CardContent>
+            </Card>
+          )}
+
+          {/* Related Videos Section */}
+          {(book.video_url || book.video_file_url) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Video className="w-5 h-5" />
+                  Related Videos
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* External Video Link */}
+                  {book.video_url && (
+                    <div className="border border-border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="font-medium">{book.video_title || "Related Video"}</h4>
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={book.video_url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-3 h-3 mr-1" />
+                            Watch
+                          </a>
+                        </Button>
+                      </div>
+                      {book.video_description && (
+                        <p className="text-sm text-muted-foreground mb-3">{book.video_description}</p>
+                      )}
+                      {/* Embed video if it's a YouTube link */}
+                      {book.video_url.includes('youtube.com') || book.video_url.includes('youtu.be') ? (
+                        <div className="aspect-video bg-muted rounded-md overflow-hidden">
+                          <iframe
+                            src={book.video_url.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
+                            className="w-full h-full"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* Uploaded Video File */}
+                  {book.video_file_url && (
+                    <div className="border border-border rounded-lg p-4">
+                      <h4 className="font-medium mb-3">
+                        {book.video_title || "Uploaded Video"}
+                      </h4>
+                      {book.video_description && (
+                        <p className="text-sm text-muted-foreground mb-3">{book.video_description}</p>
+                      )}
+                      <div className="aspect-video bg-black rounded-md overflow-hidden">
+                        <video
+                          controls
+                          className="w-full h-full"
+                          src={book.video_file_url}
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
             </Card>
           )}
         </div>

@@ -71,16 +71,23 @@ export function EditBookForm({ book }: EditBookFormProps) {
         fileUrl = await uploadFile(bookFile, "book-file", setFileUploadProgress)
       }
 
+      // Normalize tags: convert Chinese commas to English commas
+      const rawTags = formData.get("tags") as string
+      const normalizedTags = rawTags ? rawTags.replace(/[，、]/g, ',') : ''
+
       const bookData = {
         title: formData.get("title") as string,
         description: formData.get("description") as string,
         author: formData.get("author") as string,
         publisher: formData.get("publisher") as string,
         isbn: formData.get("isbn") as string,
-        tags: formData.get("tags") as string,
+        tags: normalizedTags,
         year: Number.parseInt(formData.get("year") as string) || null,
         cover_url: coverUrl,
         file_url: fileUrl,
+        video_url: formData.get("videoUrl") as string || null,
+        video_title: formData.get("videoTitle") as string || null,
+        video_description: formData.get("videoDescription") as string || null,
       }
 
       console.log("[v0] Updating book with data:", bookData)
@@ -164,6 +171,37 @@ export function EditBookForm({ book }: EditBookFormProps) {
               defaultValue={book.description || ""}
               placeholder="Enter book description"
               rows={4}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="videoUrl">Related Video URL</Label>
+            <Input 
+              id="videoUrl" 
+              name="videoUrl" 
+              defaultValue={book.video_url || ""} 
+              placeholder="YouTube, Vimeo, or other video link" 
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="videoTitle">Video Title</Label>
+            <Input 
+              id="videoTitle" 
+              name="videoTitle" 
+              defaultValue={book.video_title || ""} 
+              placeholder="Enter video title (optional)" 
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="videoDescription">Video Description</Label>
+            <Textarea 
+              id="videoDescription" 
+              name="videoDescription" 
+              defaultValue={book.video_description || ""} 
+              placeholder="Describe what the video covers" 
+              rows={2}
             />
           </div>
 

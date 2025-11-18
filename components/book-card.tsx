@@ -193,15 +193,29 @@ export function BookCard({ book, canEdit, isAuthenticated = false, onBookDeleted
 
       <CardFooter className="p-4 pt-0 flex flex-col gap-3">
         <div className="flex flex-wrap gap-1 w-full">
-          {book.tags &&
-            book.tags
-              .split(",")
-              .slice(0, 2)
+          {book.tags && (() => {
+            // Try to split tags by various delimiters
+            let tags = [book.tags]
+            
+            // Try splitting by different comma types
+            if (book.tags.includes('，')) {
+              tags = book.tags.split('，')
+            } else if (book.tags.includes(',')) {
+              tags = book.tags.split(',')
+            } else if (book.tags.includes('、')) {
+              tags = book.tags.split('、')
+            }
+            
+            return tags
+              .map(t => t.trim())
+              .filter(t => t.length > 0)
+              .slice(0, 4)
               .map((tag, index) => (
                 <Badge key={index} variant="secondary" className="text-sm">
-                  {tag.trim()}
+                  {tag}
                 </Badge>
-              ))}
+              ))
+          })()}
         </div>
 
         {/* Main Action Buttons - Only show to authenticated users */}
