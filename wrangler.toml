@@ -1,0 +1,8 @@
+name = "my-v0-project"
+main = ".open-next/worker.js"
+compatibility_date = "2026-02-21"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+binding = "ASSETS"
+directory = ".open-next/assets"
