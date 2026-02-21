@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import OpenAI from "openai"
 import * as pdfjsLib from "pdfjs-dist"
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    return null
+  }
+  return new OpenAI({ apiKey })
+}
 
 // Set maximum execution time (Vercel Pro supports up to 60 seconds)
 export const maxDuration = 60
@@ -12,6 +16,14 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
+    const openai = getOpenAIClient()
+    if (!openai) {
+      return NextResponse.json(
+        { error: "OPENAI_API_KEY is not configured" },
+        { status: 503 }
+      )
+    }
+
     const formData = await request.formData()
     const file = formData.get("file") as File
 

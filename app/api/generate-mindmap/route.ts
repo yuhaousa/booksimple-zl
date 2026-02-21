@@ -2,17 +2,41 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@supabase/supabase-js'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    return null
+  }
+  return new OpenAI({ apiKey })
+}
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+function getSupabaseAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null
+  }
+  return createClient(supabaseUrl, serviceRoleKey)
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const openai = getOpenAIClient()
+    if (!openai) {
+      return NextResponse.json(
+        { error: 'OPENAI_API_KEY is not configured' },
+        { status: 503 }
+      )
+    }
+
+    const supabase = getSupabaseAdminClient()
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Supabase server credentials are not configured' },
+        { status: 503 }
+      )
+    }
+
     const body = await request.json()
     console.log('Generate mindmap request:', body)
     

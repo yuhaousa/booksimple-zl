@@ -1,9 +1,12 @@
 import OpenAI from 'openai'
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    return null
+  }
+  return new OpenAI({ apiKey })
+}
 
 export interface QuizQuestion {
   question: string
@@ -67,8 +70,8 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
   const readingTimeMinutes = Math.floor(estimatedWords / 200)
 
   try {
-    // Check if OpenAI API key is available
-    if (!process.env.OPENAI_API_KEY) {
+    const openai = getOpenAIClient()
+    if (!openai) {
       throw new Error('OpenAI API key not configured')
     }
     
