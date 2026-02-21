@@ -1,4 +1,4 @@
-name = "my-v0-project"
+name = "book365"
 main = ".open-next/worker.js"
 compatibility_date = "2026-02-21"
 compatibility_flags = ["nodejs_compat"]
