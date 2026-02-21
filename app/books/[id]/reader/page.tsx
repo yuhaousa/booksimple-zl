@@ -5,30 +5,37 @@ import { useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Layout } from 'lucide-react'
 import Link from 'next/link'
+
+const LoadingScreen = () => (
+  <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="text-center space-y-4">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+      <div className="space-y-2">
+        <p className="text-lg font-medium">Initializing PDF Reader</p>
+        <p className="text-muted-foreground">Setting up document viewer...</p>
+      </div>
+      <div className="flex justify-center">
+        <div className="flex space-x-1">
+          <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '0ms'}}></div>
+          <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '150ms'}}></div>
+          <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '300ms'}}></div>
+        </div>
+      </div>
+    </div>
+  </div>
+)
 
 // Dynamic import to avoid SSR issues with PDF.js
 const BookReader = dynamic(() => import('@/components/book-reader').then(mod => ({ default: mod.BookReader })), {
   ssr: false,
-  loading: () => (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-        <div className="space-y-2">
-          <p className="text-lg font-medium">Initializing PDF Reader</p>
-          <p className="text-muted-foreground">Setting up document viewer...</p>
-        </div>
-        <div className="flex justify-center">
-          <div className="flex space-x-1">
-            <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '0ms'}}></div>
-            <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '150ms'}}></div>
-            <div className="animate-bounce h-2 w-2 bg-primary rounded-full" style={{animationDelay: '300ms'}}></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  loading: LoadingScreen
+})
+
+const ModernBookReader = dynamic(() => import('@/components/book-reader-modern').then(mod => ({ default: mod.ModernBookReader })), {
+  ssr: false,
+  loading: LoadingScreen
 })
 
 interface Book {
@@ -50,11 +57,24 @@ export default function BookReaderPage() {
   const [book, setBook] = useState<Book | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [readerTheme, setReaderTheme] = useState<'classic' | 'modern'>('modern')
 
   useEffect(() => {
     console.log('Fetching book with ID:', bookId)
     fetchBook()
+    
+    // Load reader theme preference
+    const savedTheme = localStorage.getItem('reader-theme')
+    if (savedTheme === 'classic' || savedTheme === 'modern') {
+      setReaderTheme(savedTheme)
+    }
   }, [bookId])
+
+  const toggleReaderTheme = () => {
+    const newTheme = readerTheme === 'classic' ? 'modern' : 'classic'
+    setReaderTheme(newTheme)
+    localStorage.setItem('reader-theme', newTheme)
+  }
 
   const fetchBook = async () => {
     try {
@@ -177,7 +197,25 @@ export default function BookReaderPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <BookReader book={book} />
+      {/* Theme Switcher Button */}
+      <div className="fixed top-4 right-4 z-50">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleReaderTheme}
+          className="shadow-lg"
+        >
+          <Layout className="w-4 h-4 mr-2" />
+          {readerTheme === 'classic' ? 'Modern' : 'Classic'} View
+        </Button>
+      </div>
+
+      {/* Render selected reader theme */}
+      {readerTheme === 'modern' ? (
+        <ModernBookReader book={book} />
+      ) : (
+        <BookReader book={book} />
+      )}
     </div>
   )
 }
