@@ -9,7 +9,7 @@ const config = {
       queue: "direct",
     },
   },
-  edgeExternals: ["node:crypto"],
+  edgeExternals: ["node:crypto", "canvas"],
   middleware: {
     external: true,
     override: {

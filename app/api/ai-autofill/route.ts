@@ -1,10 +1,38 @@
-import { NextRequest, NextResponse } from "next/server"
-import * as pdfjsLib from "pdfjs-dist"
+﻿import { NextRequest, NextResponse } from "next/server"
 import { createConfiguredOpenAIClient } from "@/lib/server/openai-config"
 
 // Set maximum execution time (Vercel Pro supports up to 60 seconds)
 export const maxDuration = 60
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
+
+function extractLikelyPdfText(pdfBytes: Uint8Array): string {
+  const raw = new TextDecoder("latin1").decode(pdfBytes)
+
+  // Prefer explicit PDF text operators: (...) Tj and [...] TJ.
+  const directTextMatches = Array.from(raw.matchAll(/\(([^()\\]|\\.){2,500}\)\s*Tj/g))
+    .map((match) => match[0])
+    .join(" ")
+
+  const arrayTextMatches = Array.from(raw.matchAll(/\[([\s\S]*?)\]\s*TJ/g))
+    .map((match) => match[1])
+    .join(" ")
+
+  const inlineLiterals = `${directTextMatches} ${arrayTextMatches}`
+    .replace(/[()[\]]/g, " ")
+    .replace(/\\[nrtbf()\\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  if (inlineLiterals.length > 200) {
+    return inlineLiterals
+  }
+
+  // Fallback for PDFs where text is encoded differently.
+  return raw
+    .replace(/[^\x20-\x7E\u00A0-\u00FF\u4E00-\u9FFF\r\n]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +40,7 @@ export async function POST(request: NextRequest) {
       openaiModel: "gpt-4o-mini",
       minimaxModel: "MiniMax-Text-01",
     })
+
     if (!openai) {
       return NextResponse.json(
         { error: "AI provider key is not configured. Set provider key in env vars or Admin Settings." },
@@ -26,36 +55,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    // Convert file to Uint8Array for PDF.js
     const arrayBuffer = await file.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
+    const textSample = extractLikelyPdfText(uint8Array).slice(0, 4000)
 
-    // Extract text from PDF
-    console.log("📄 Extracting text from PDF...")
-    const loadingTask = pdfjsLib.getDocument({ data: uint8Array })
-    const pdfDocument = await loadingTask.promise
-
-    // Note: Cover image generation from PDF is skipped for now
-    // as it requires complex canvas setup on server-side
-    let coverImageUrl = null
-
-    // Extract text from first 5 pages for metadata
-    let extractedText = ""
-    const maxPages = Math.min(5, pdfDocument.numPages)
-
-    for (let i = 1; i <= maxPages; i++) {
-      const page = await pdfDocument.getPage(i)
-      const textContent = await page.getTextContent()
-      const pageText = textContent.items.map((item: any) => item.str).join(" ")
-      extractedText += pageText + "\n"
+    if (!textSample) {
+      return NextResponse.json(
+        { error: "Could not extract readable text from this PDF. Please fill metadata manually." },
+        { status: 422 }
+      )
     }
 
-    // Limit text to first 4000 characters to save tokens
-    const textSample = extractedText.slice(0, 4000)
-
-    console.log("🤖 Asking AI to extract metadata...")
-    
-    // Use AI to extract metadata
     const completion = await openai.chat.completions.create({
       model,
       temperature: 0.3,
@@ -85,35 +95,29 @@ Be concise and accurate. For the description, write a professional book descript
     })
 
     const responseText = completion.choices[0]?.message?.content || "{}"
-    console.log("🤖 AI Response:", responseText)
 
-    // Parse the JSON response
     let metadata
     try {
-      // Try to extract JSON from the response
       const jsonMatch = responseText.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         metadata = JSON.parse(jsonMatch[0])
       } else {
         metadata = JSON.parse(responseText)
       }
-    } catch (e) {
-      console.error("Failed to parse AI response:", e)
+    } catch (error) {
+      console.error("Failed to parse AI response:", error)
       return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 })
     }
 
-    // Clean up and validate the metadata
     const cleanedMetadata = {
       title: metadata.title || "",
       author: metadata.author || "",
       publisher: metadata.publisher || "",
-      year: metadata.year ? parseInt(metadata.year.toString()) : null,
+      year: metadata.year ? parseInt(metadata.year.toString(), 10) : null,
       isbn: metadata.isbn || "",
       description: metadata.description || "",
-      coverImageUrl: coverImageUrl || null,
+      coverImageUrl: null,
     }
-
-    console.log("✅ Extracted metadata:", cleanedMetadata)
 
     return NextResponse.json(cleanedMetadata)
   } catch (error) {
