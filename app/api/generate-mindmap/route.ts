@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
 import { createClient } from '@supabase/supabase-js'
-
-function getOpenAIClient() {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return null
-  }
-  return new OpenAI({ apiKey })
-}
+import { createConfiguredOpenAIClient } from "@/lib/server/openai-config"
 
 function getSupabaseAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -21,10 +13,13 @@ function getSupabaseAdminClient() {
 
 export async function POST(request: NextRequest) {
   try {
-    const openai = getOpenAIClient()
+    const { client: openai, model, provider } = await createConfiguredOpenAIClient({
+      openaiModel: "gpt-4o-mini",
+      minimaxModel: "MiniMax-Text-01",
+    })
     if (!openai) {
       return NextResponse.json(
-        { error: 'OPENAI_API_KEY is not configured' },
+        { error: "AI provider key is not configured. Set provider key in env vars or Admin Settings." },
         { status: 503 }
       )
     }
@@ -116,7 +111,7 @@ ${book.description ? `书籍简介：${book.description}` : ''}
 
     console.log('Calling OpenAI for mind map generation...')
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model,
       messages: [
         {
           role: 'system',
@@ -144,7 +139,7 @@ ${book.description ? `书籍简介：${book.description}` : ''}
     const summaryPrompt = `请为《${book.title}》写一段200字左右的导读，概括这本书的核心价值和阅读要点。`
 
     const summaryCompletion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model,
       messages: [
         {
           role: 'system',
@@ -182,7 +177,7 @@ ${book.description ? `书籍简介：${book.description}` : ''}
           content_analysis: mindMapData,
           mind_map_data: mindMapData,
           updated_at: new Date().toISOString(),
-          ai_model_used: 'gpt-4o-mini',
+          ai_model_used: `${provider}:${model}`,
           analysis_version: '1.0',
           last_accessed_at: new Date().toISOString()
         })
@@ -207,7 +202,7 @@ ${book.description ? `书籍简介：${book.description}` : ''}
           content_analysis: mindMapData,
           mind_map_data: mindMapData,
           content_hash: 'ai_generated_' + Date.now(),
-          ai_model_used: 'gpt-4o-mini',
+          ai_model_used: `${provider}:${model}`,
           analysis_version: '1.0'
         })
         .select()

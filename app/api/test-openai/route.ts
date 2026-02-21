@@ -1,25 +1,32 @@
 import { NextResponse } from 'next/server'
-import OpenAI from 'openai'
+import { createConfiguredOpenAIClient, getConfiguredOpenAIKey } from '@/lib/server/openai-config'
 
 export async function GET() {
   try {
-    const apiKey = process.env.OPENAI_API_KEY
-    
-    if (!apiKey || apiKey === 'your_openai_api_key_here') {
+    const configured = await getConfiguredOpenAIKey()
+    if (!configured.apiKey || configured.apiKey === 'your_openai_api_key_here') {
       return NextResponse.json({
         success: false,
-        error: 'OpenAI API key not configured or is placeholder',
-        apiKey: apiKey ? 'Key exists but may be invalid' : 'No key found'
+        error: 'AI provider key not configured or is placeholder',
+        source: configured.source,
+        provider: configured.provider,
       }, { status: 400 })
     }
 
     // Test the API key with a simple request
-    const openai = new OpenAI({
-      apiKey: apiKey,
+    const { client: openai, model, provider } = await createConfiguredOpenAIClient({
+      openaiModel: "gpt-4o-mini",
+      minimaxModel: "MiniMax-Text-01",
     })
+    if (!openai) {
+      return NextResponse.json({
+        success: false,
+        error: 'AI provider key is unavailable at runtime',
+      }, { status: 400 })
+    }
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model,
       messages: [
         { role: 'user', content: 'Say "API key is working!" in one sentence.' }
       ],
@@ -28,12 +35,14 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: 'OpenAI API key is valid and working!',
+      message: 'AI provider key is valid and working!',
       testResponse: response.choices[0].message.content,
       model: response.model,
+      source: configured.source,
+      provider,
     })
   } catch (error: any) {
-    console.error('OpenAI API test error:', error)
+    console.error('AI API test error:', error)
     return NextResponse.json({
       success: false,
       error: error.message || 'Unknown error',

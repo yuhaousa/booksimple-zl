@@ -1,12 +1,4 @@
-import OpenAI from 'openai'
-
-function getOpenAIClient() {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return null
-  }
-  return new OpenAI({ apiKey })
-}
+import { createConfiguredOpenAIClient } from '@/lib/server/openai-config'
 
 export interface QuizQuestion {
   question: string
@@ -70,9 +62,12 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
   const readingTimeMinutes = Math.floor(estimatedWords / 200)
 
   try {
-    const openai = getOpenAIClient()
+    const { client: openai, model } = await createConfiguredOpenAIClient({
+      openaiModel: "gpt-4-turbo-preview",
+      minimaxModel: "MiniMax-Text-01",
+    })
     if (!openai) {
-      throw new Error('OpenAI API key not configured')
+      throw new Error('AI provider key not configured')
     }
     
     // Extract available text content
@@ -240,7 +235,7 @@ Return only valid JSON without any markdown formatting or additional text.`
       : "You are an expert book analyst and knowledge extraction specialist. You analyze books and create structured insights, summaries, and mind maps. Always return valid JSON without any markdown formatting."
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo-preview",
+      model,
       messages: [
         {
           role: "system", 

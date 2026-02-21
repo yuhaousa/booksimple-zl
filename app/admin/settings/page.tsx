@@ -1,300 +1,463 @@
 "use client"
 
-import type React from "react"
+import { useEffect, useState, type FormEvent } from "react"
+import { useRouter } from "next/navigation"
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
-import { Eye, EyeOff, Lock, User, BookOpen } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
+import { createClient } from "@/lib/supabase"
+import { Eye, EyeOff, KeyRound, Loader2, RefreshCw, ShieldAlert } from "lucide-react"
 
-const AVAILABLE_GENRES = [
-  "Fiction",
-  "Non-Fiction",
-  "Science Fiction",
-  "Fantasy",
-  "Mystery",
-  "Thriller",
-  "Romance",
-  "Historical Fiction",
-  "Biography",
-  "Self-Help",
-  "Business",
-  "Science",
-  "History",
-  "Philosophy",
-  "Poetry",
-  "Drama",
-  "Horror",
-  "Adventure",
-]
+type AIProvider = "openai" | "minimax"
 
-export default function AccountSettingsPage() {
+type ProviderInfo = {
+  environmentKeyConfigured: boolean
+  databaseKeyConfigured: boolean
+  databaseKeyPreview: string | null
+  model: string
+  modelSource: "environment" | "database" | "default"
+  environmentOverridesDatabase: boolean
+  keyUpdatedAt: string | null
+}
+
+type MiniMaxInfo = ProviderInfo & {
+  baseURL: string
+  baseURLSource: "environment" | "database" | "default"
+}
+
+type AISettingsResponse = {
+  success: boolean
+  activeProvider: AIProvider | "none"
+  activeModel: string | null
+  activeKeySource: "environment" | "database" | "none"
+  activeKeyPreview: string | null
+  defaultProvider: AIProvider
+  defaultProviderSource: "environment" | "database" | "default"
+  openai: ProviderInfo
+  minimax: MiniMaxInfo
+}
+
+const DEFAULT_SETTINGS: AISettingsResponse = {
+  success: true,
+  activeProvider: "none",
+  activeModel: null,
+  activeKeySource: "none",
+  activeKeyPreview: null,
+  defaultProvider: "openai",
+  defaultProviderSource: "default",
+  openai: {
+    environmentKeyConfigured: false,
+    databaseKeyConfigured: false,
+    databaseKeyPreview: null,
+    model: "gpt-4o-mini",
+    modelSource: "default",
+    environmentOverridesDatabase: false,
+    keyUpdatedAt: null,
+  },
+  minimax: {
+    environmentKeyConfigured: false,
+    databaseKeyConfigured: false,
+    databaseKeyPreview: null,
+    model: "MiniMax-Text-01",
+    modelSource: "default",
+    environmentOverridesDatabase: false,
+    keyUpdatedAt: null,
+    baseURL: "https://api.minimax.chat/v1",
+    baseURLSource: "default",
+  },
+}
+
+export default function AdminSettingsPage() {
   const { toast } = useToast()
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth(true)
 
-  // Password form state
-  const [currentPassword, setCurrentPassword] = useState("")
-  const [newPassword, setNewPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [checkingAdmin, setCheckingAdmin] = useState(true)
+  const [loadingSettings, setLoadingSettings] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  // Reading profile state
-  const [readingGoal, setReadingGoal] = useState("12")
-  const [favoriteGenres, setFavoriteGenres] = useState<string[]>(["Fiction", "Science"])
-  const [readingSpeed, setReadingSpeed] = useState("medium")
+  const [showOpenAIKey, setShowOpenAIKey] = useState(false)
+  const [showMiniMaxKey, setShowMiniMaxKey] = useState(false)
 
-  const handleGenreToggle = (genre: string) => {
-    setFavoriteGenres((prev) => (prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]))
+  const [settings, setSettings] = useState<AISettingsResponse>(DEFAULT_SETTINGS)
+
+  const [openaiApiKey, setOpenaiApiKey] = useState("")
+  const [openaiModel, setOpenaiModel] = useState("gpt-4o-mini")
+
+  const [minimaxApiKey, setMinimaxApiKey] = useState("")
+  const [minimaxModel, setMinimaxModel] = useState("MiniMax-Text-01")
+  const [minimaxBaseUrl, setMinimaxBaseUrl] = useState("https://api.minimax.chat/v1")
+
+  const [defaultProvider, setDefaultProvider] = useState<AIProvider>("openai")
+
+  const hydrateForm = (result: AISettingsResponse) => {
+    setOpenaiModel(result.openai.model || "gpt-4o-mini")
+    setMinimaxModel(result.minimax.model || "MiniMax-Text-01")
+    setMinimaxBaseUrl(result.minimax.baseURL || "https://api.minimax.chat/v1")
+    setDefaultProvider(result.defaultProvider || "openai")
   }
 
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const fetchSettings = async () => {
+    setLoadingSettings(true)
+    try {
+      const response = await fetch("/api/admin/settings/ai-key")
+      const result = await response.json()
 
-    if (newPassword !== confirmPassword) {
+      if (!response.ok) {
+        throw new Error(result?.details || result?.error || "Failed to load AI settings")
+      }
+
+      setSettings(result)
+      hydrateForm(result)
+    } catch (error: any) {
       toast({
-        title: "Error",
-        description: "New passwords do not match",
+        title: "Failed to load settings",
+        description: error?.message || "Unknown error",
         variant: "destructive",
       })
-      return
+    } finally {
+      setLoadingSettings(false)
+    }
+  }
+
+  useEffect(() => {
+    if (authLoading || !user) return
+
+    let cancelled = false
+
+    const checkAdmin = async () => {
+      setCheckingAdmin(true)
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("admin_users")
+          .select("user_id")
+          .eq("user_id", user.id)
+          .maybeSingle()
+
+        if (error || !data) {
+          router.push("/")
+          return
+        }
+
+        if (!cancelled) {
+          setIsAdmin(true)
+          await fetchSettings()
+        }
+      } catch {
+        router.push("/")
+      } finally {
+        if (!cancelled) {
+          setCheckingAdmin(false)
+        }
+      }
     }
 
-    if (newPassword.length < 6) {
+    checkAdmin()
+
+    return () => {
+      cancelled = true
+    }
+  }, [authLoading, user, router])
+
+  const saveSettings = async (payload: Record<string, string>) => {
+    setSaving(true)
+    try {
+      const response = await fetch("/api/admin/settings/ai-key", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result?.details || result?.error || "Failed to save settings")
+      }
+
+      setSettings(result)
+      hydrateForm(result)
+      setOpenaiApiKey("")
+      setMinimaxApiKey("")
       toast({
-        title: "Error",
-        description: "Password must be at least 6 characters",
+        title: "Saved",
+        description: "AI settings updated successfully.",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Save failed",
+        description: error?.message || "Unknown error",
         variant: "destructive",
       })
-      return
+    } finally {
+      setSaving(false)
     }
-
-    // TODO: Implement actual password change logic with Supabase
-    toast({
-      title: "Success",
-      description: "Password updated successfully",
-    })
-
-    // Reset form
-    setCurrentPassword("")
-    setNewPassword("")
-    setConfirmPassword("")
   }
 
-  const handleProfileUpdate = async (e: React.FormEvent) => {
+  const handleSaveOpenAI = async (e: FormEvent) => {
     e.preventDefault()
-
-    // TODO: Implement actual profile update logic with Supabase
-    toast({
-      title: "Success",
-      description: "Reading profile updated successfully",
-    })
+    const payload: Record<string, string> = { openaiModel }
+    const key = openaiApiKey.trim()
+    if (key) payload.openaiApiKey = key
+    await saveSettings(payload)
   }
+
+  const handleSaveMiniMax = async (e: FormEvent) => {
+    e.preventDefault()
+    const payload: Record<string, string> = {
+      minimaxModel,
+      minimaxBaseUrl,
+    }
+    const key = minimaxApiKey.trim()
+    if (key) payload.minimaxApiKey = key
+    await saveSettings(payload)
+  }
+
+  const handleSaveDefaultProvider = async () => {
+    await saveSettings({ defaultProvider })
+  }
+
+  const clearKey = async (provider: "openai" | "minimax") => {
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/admin/settings/ai-key?provider=${provider}`, {
+        method: "DELETE",
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result?.details || result?.error || "Failed to clear key")
+      }
+      setSettings(result)
+      hydrateForm(result)
+      toast({
+        title: "Key cleared",
+        description: `${provider === "openai" ? "OpenAI" : "MiniMax"} database key removed.`,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Clear failed",
+        description: error?.message || "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (authLoading || checkingAdmin) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Admin Settings</h1>
+          <p className="text-muted-foreground mt-2">Loading settings...</p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Checking admin access...
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!isAdmin) return null
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
-        <p className="text-muted-foreground mt-2">Manage your account preferences and reading profile</p>
+        <h1 className="text-3xl font-bold tracking-tight">Admin Settings</h1>
+        <p className="text-muted-foreground mt-2">Configure AI providers (OpenAI and MiniMax)</p>
       </div>
 
-      <Tabs defaultValue="password" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="password">Password</TabsTrigger>
-          <TabsTrigger value="profile">Reading Profile</TabsTrigger>
-        </TabsList>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5" />
+            Active AI Provider
+          </CardTitle>
+          <CardDescription>Choose which provider the app should use by default.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={settings.activeProvider === "none" ? "secondary" : "default"}>
+              Active: {settings.activeProvider}
+            </Badge>
+            {settings.activeModel && (
+              <span className="text-sm text-muted-foreground">
+                Model: {settings.activeModel} ({settings.activeKeySource})
+              </span>
+            )}
+          </div>
 
-        <TabsContent value="password" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Lock className="h-5 w-5" />
-                Change Password
-              </CardTitle>
-              <CardDescription>Update your password to keep your account secure</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handlePasswordChange} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="current-password">Current Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="current-password"
-                      type={showCurrentPassword ? "text" : "password"}
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      required
-                      className="pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    >
-                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="new-password"
-                      type={showNewPassword ? "text" : "password"}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      required
-                      className="pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                    >
-                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm New Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirm-password"
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                      className="pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    >
-                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full">
-                  Update Password
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="profile" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                Reading Profile
-              </CardTitle>
-              <CardDescription>Customize your reading preferences and goals</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleProfileUpdate} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="reading-goal">Annual Reading Goal (Books per year)</Label>
-                  <Input
-                    id="reading-goal"
-                    type="number"
-                    min="1"
-                    max="365"
-                    value={readingGoal}
-                    onChange={(e) => setReadingGoal(e.target.value)}
-                    placeholder="12"
-                  />
-                  <p className="text-sm text-muted-foreground">Set your yearly reading target</p>
-                </div>
-
-                <div className="space-y-3">
-                  <Label>Favorite Genres</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {AVAILABLE_GENRES.map((genre) => (
-                      <div key={genre} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`genre-${genre}`}
-                          checked={favoriteGenres.includes(genre)}
-                          onCheckedChange={() => handleGenreToggle(genre)}
-                        />
-                        <label
-                          htmlFor={`genre-${genre}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                        >
-                          {genre}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Selected: {favoriteGenres.length > 0 ? favoriteGenres.join(", ") : "None"}
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="reading-speed">Reading Speed</Label>
-                  <select
-                    id="reading-speed"
-                    value={readingSpeed}
-                    onChange={(e) => setReadingSpeed(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    <option value="slow">Slow (20-30 pages/hour)</option>
-                    <option value="medium">Medium (30-50 pages/hour)</option>
-                    <option value="fast">Fast (50+ pages/hour)</option>
-                  </select>
-                  <p className="text-sm text-muted-foreground">Help us estimate reading times for you</p>
-                </div>
-
-                <Button type="submit" className="w-full">
-                  Save Reading Profile
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Reading Statistics
-              </CardTitle>
-              <CardDescription>Your reading journey at a glance</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Books Read</p>
-                  <p className="text-2xl font-bold">24</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Notes Created</p>
-                  <p className="text-2xl font-bold">156</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Reading Streak</p>
-                  <p className="text-2xl font-bold">12 days</p>
+          {(settings.openai.environmentOverridesDatabase || settings.minimax.environmentOverridesDatabase) && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="h-4 w-4 mt-0.5" />
+                <div>
+                  Environment variables override database keys for the same provider.
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-[220px_1fr] sm:items-center">
+            <Label htmlFor="default-provider">Default Provider</Label>
+            <div className="flex gap-2">
+              <select
+                id="default-provider"
+                value={defaultProvider}
+                onChange={(e) => setDefaultProvider(e.target.value as AIProvider)}
+                className="flex h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="openai">OpenAI</option>
+                <option value="minimax">MiniMax</option>
+              </select>
+              <Button type="button" disabled={saving || loadingSettings} onClick={handleSaveDefaultProvider}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save
+              </Button>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Current default source: {settings.defaultProviderSource}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>OpenAI</CardTitle>
+          <CardDescription>Configure OpenAI key and model.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-sm text-muted-foreground">
+            Key: {settings.openai.databaseKeyConfigured ? settings.openai.databaseKeyPreview : "not set"}
+            {settings.openai.keyUpdatedAt && ` • Updated ${new Date(settings.openai.keyUpdatedAt).toLocaleString()}`}
+          </div>
+          <form onSubmit={handleSaveOpenAI} className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="openai-key">OpenAI API Key (optional if unchanged)</Label>
+              <div className="relative">
+                <Input
+                  id="openai-key"
+                  type={showOpenAIKey ? "text" : "password"}
+                  value={openaiApiKey}
+                  onChange={(e) => setOpenaiApiKey(e.target.value)}
+                  placeholder="sk-..."
+                  autoComplete="off"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowOpenAIKey((v) => !v)}
+                >
+                  {showOpenAIKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="openai-model">OpenAI Model</Label>
+              <Input
+                id="openai-model"
+                value={openaiModel}
+                onChange={(e) => setOpenaiModel(e.target.value)}
+                placeholder="gpt-4o-mini"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={saving || loadingSettings}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save OpenAI
+              </Button>
+              <Button type="button" variant="destructive" disabled={saving} onClick={() => clearKey("openai")}>
+                Clear OpenAI Key
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>MiniMax</CardTitle>
+          <CardDescription>Configure MiniMax key, model, and base URL.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-sm text-muted-foreground">
+            Key: {settings.minimax.databaseKeyConfigured ? settings.minimax.databaseKeyPreview : "not set"}
+            {settings.minimax.keyUpdatedAt && ` • Updated ${new Date(settings.minimax.keyUpdatedAt).toLocaleString()}`}
+          </div>
+          <form onSubmit={handleSaveMiniMax} className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="minimax-key">MiniMax API Key (optional if unchanged)</Label>
+              <div className="relative">
+                <Input
+                  id="minimax-key"
+                  type={showMiniMaxKey ? "text" : "password"}
+                  value={minimaxApiKey}
+                  onChange={(e) => setMinimaxApiKey(e.target.value)}
+                  autoComplete="off"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowMiniMaxKey((v) => !v)}
+                >
+                  {showMiniMaxKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="minimax-model">MiniMax Model</Label>
+              <Input
+                id="minimax-model"
+                value={minimaxModel}
+                onChange={(e) => setMinimaxModel(e.target.value)}
+                placeholder="MiniMax-Text-01"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="minimax-baseurl">MiniMax Base URL</Label>
+              <Input
+                id="minimax-baseurl"
+                value={minimaxBaseUrl}
+                onChange={(e) => setMinimaxBaseUrl(e.target.value)}
+                placeholder="https://api.minimax.chat/v1"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={saving || loadingSettings}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save MiniMax
+              </Button>
+              <Button type="button" variant="destructive" disabled={saving} onClick={() => clearKey("minimax")}>
+                Clear MiniMax Key
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" disabled={loadingSettings} onClick={fetchSettings}>
+          {loadingSettings ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+          Refresh
+        </Button>
+      </div>
     </div>
   )
 }
+

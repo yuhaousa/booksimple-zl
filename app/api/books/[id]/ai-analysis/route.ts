@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { cookies } from 'next/headers'
+import { getConfiguredOpenAIKey } from '@/lib/server/openai-config'
 
 // Conditionally import AI functions to avoid build-time issues
 async function loadAIAnalysis() {
@@ -200,13 +201,14 @@ export async function POST(
       }
     }
 
-    // Check if we have an OpenAI API key
-    if (!process.env.OPENAI_API_KEY) {
-      console.warn('No OpenAI API key configured, using fallback analysis')
+    // Check if we have a configured AI provider key
+    const configuredOpenAI = await getConfiguredOpenAIKey()
+    if (!configuredOpenAI.apiKey) {
+      console.warn('No AI provider key configured, using fallback analysis')
       return NextResponse.json(
         { 
-          error: 'OpenAI API key not configured',
-          details: 'AI analysis service is not available. Please configure OPENAI_API_KEY environment variable.',
+          error: 'AI provider key not configured',
+          details: 'AI analysis service is not available. Configure provider keys in environment variables or save them in Admin Settings.',
           fallbackRecommended: true
         },
         { status: 503 }
@@ -315,7 +317,7 @@ export async function POST(
         mind_map_data: analysis.mindmapData || {},
         content_hash: contentHash,
         analysis_version: '1.0',
-        ai_model_used: 'gpt-4'
+        ai_model_used: `${configuredOpenAI.provider}:${configuredOpenAI.model}`
       }
 
       // Use admin client to bypass RLS for cache insertion

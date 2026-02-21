@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import OpenAI from "openai"
 import * as pdfjsLib from "pdfjs-dist"
-
-function getOpenAIClient() {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return null
-  }
-  return new OpenAI({ apiKey })
-}
+import { createConfiguredOpenAIClient } from "@/lib/server/openai-config"
 
 // Set maximum execution time (Vercel Pro supports up to 60 seconds)
 export const maxDuration = 60
@@ -16,10 +8,13 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const openai = getOpenAIClient()
+    const { client: openai, model } = await createConfiguredOpenAIClient({
+      openaiModel: "gpt-4o-mini",
+      minimaxModel: "MiniMax-Text-01",
+    })
     if (!openai) {
       return NextResponse.json(
-        { error: "OPENAI_API_KEY is not configured" },
+        { error: "AI provider key is not configured. Set provider key in env vars or Admin Settings." },
         { status: 503 }
       )
     }
@@ -62,7 +57,7 @@ export async function POST(request: NextRequest) {
     
     // Use AI to extract metadata
     const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo-preview",
+      model,
       temperature: 0.3,
       max_tokens: 1000,
       messages: [
