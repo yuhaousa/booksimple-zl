@@ -1,5 +1,11 @@
+import { dirname } from "node:path"
+import { fileURLToPath } from "node:url"
+
+const projectRoot = dirname(fileURLToPath(import.meta.url))
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -10,7 +16,7 @@ const nextConfig = {
     unoptimized: true,
   },
   // Fix workspace root warning
-  outputFileTracingRoot: '.',
+  outputFileTracingRoot: projectRoot,
   // Ensure compatibility with Edge Runtime
   serverExternalPackages: ['pdfjs-dist'],
   webpack: (config, { isServer }) => {
