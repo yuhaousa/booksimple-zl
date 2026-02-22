@@ -1,17 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { createClient } from "@/lib/supabase"
-import { getAllUsersWithLoginStats } from "@/lib/login-tracking"
-import { useAuth } from "@/hooks/use-auth"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Search, Users, MoreHorizontal, Calendar, Mail, User, Clock, LogIn } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
+
+import { useAuth } from "@/hooks/use-auth"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 interface UserData {
   id: string
@@ -20,236 +19,125 @@ interface UserData {
   full_name?: string
   display_name?: string
   created_at: string
-  last_sign_in_at?: string
+  last_sign_in_at?: string | null
   total_logins: number
-  first_login_at?: string
+  first_login_at?: string | null
   book_count: number
   note_count: number
   last_activity: string
 }
 
+type AdminUserRow = {
+  user_id: string
+  created_at?: string | null
+}
+
+type AdminUsersApiResponse = {
+  success?: boolean
+  users?: UserData[]
+  adminUsers?: AdminUserRow[]
+  error?: string
+  details?: string
+}
+
+function asDateLabel(value: string | null | undefined) {
+  if (!value || !Number.isFinite(Date.parse(value))) return "N/A"
+  return new Date(value).toLocaleDateString()
+}
+
+function asTimeLabel(value: string | null | undefined) {
+  if (!value || !Number.isFinite(Date.parse(value))) return "N/A"
+  return new Date(value).toLocaleTimeString()
+}
+
 export default function AdminUsers() {
-  const { user, loading: authLoading, isAuthenticated } = useAuth(true)
+  const { user, loading: authLoading } = useAuth(true)
   const router = useRouter()
+
   const [users, setUsers] = useState<UserData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [showingPlaceholderData, setShowingPlaceholderData] = useState(false)
-  const [adminList, setAdminList] = useState<{ user_id: string }[]>([])
+  const [adminList, setAdminList] = useState<AdminUserRow[]>([])
 
-  // Only allow admin users (by email or custom claim)
-  useEffect(() => {
-    if (!authLoading && user) {
-      const checkAdmin = async () => {
-        const supabase = createClient()
-        // Get all admins for dedicated admin table
-        const { data: allAdmins, error: adminError } = await supabase
-          .from("admin_users")
-          .select("user_id")
-        setAdminList(allAdmins || [])
-        if (adminError) {
-          toast.error("Failed to check admin status: " + adminError.message)
-          router.push("/")
-          return
-        }
-        if (!allAdmins || allAdmins.length === 0) {
-          // No admin exists, auto-promote current user
-          const { error: promoteError } = await supabase
-            .from("admin_users")
-            .upsert({ user_id: user.id })
-          if (promoteError) {
-            toast.error("Failed to auto-promote: " + promoteError.message)
-            router.push("/")
-            return
-          }
-          toast.success("You are now the first admin!")
-          fetchUsers()
-          return
-        }
-        // Check if current user is admin
-        const { data, error } = await supabase
-          .from("admin_users")
-          .select("user_id")
-          .eq("user_id", user.id)
-          .single()
-        if (error || !data) {
-          router.push("/")
-          return
-        }
-        fetchUsers()
-      }
-      checkAdmin()
-    }
-  }, [authLoading, user])
-  // Add user to admin_users table
-  const addAdminUser = async (userId: string) => {
+  const fetchUsers = async (currentUserId: string) => {
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from("admin_users").upsert({ user_id: userId })
-      if (error) {
-        toast.error("Failed to add admin user: " + error.message)
-      } else {
-        toast.success("User added as admin!")
-        fetchUsers()
+      const response = await fetch("/api/admin/users", {
+        cache: "no-store",
+        headers: {
+          "x-user-id": currentUserId,
+        },
+      })
+      const result = (await response.json().catch(() => null)) as AdminUsersApiResponse | null
+
+      if (response.status === 401) {
+        router.push("/login")
+        return
       }
+      if (response.status === 403) {
+        toast.error("Admin access required")
+        router.push("/")
+        return
+      }
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to fetch users")
+      }
+
+      setUsers(Array.isArray(result.users) ? result.users : [])
+      setAdminList(Array.isArray(result.adminUsers) ? result.adminUsers : [])
+      setShowingPlaceholderData(false)
     } catch (error: any) {
-      toast.error("Error: " + error.message)
-    }
-  }
-
-  const fetchUsers = async () => {
-    try {
-      const supabase = createClient()
-      // Fetch real user data from our admin API
-      let authUsers = null
-      let needsServiceKey = false
-      try {
-        const response = await fetch('/api/admin/users')
-        const result = await response.json()
-        authUsers = result.users
-        needsServiceKey = result.needsServiceKey
-        if (result.error) {
-          console.warn('Auth users fetch error:', result.error)
-        }
-      } catch (error) {
-        console.warn('Failed to fetch auth users:', error)
-      }
-      
-      // Get user activity from books and notes
-      const { data: bookData, error: bookError } = await supabase
-        .from("Booklist")
-        .select("user_id, created_at")
-      
-      const { data: noteData, error: noteError } = await supabase
-        .from("study_notes")
-        .select("user_id, created_at")
-      
-      if (bookError) console.warn('Books data error:', bookError)
-      if (noteError) console.warn('Notes data error:', noteError)
-      
-      // Get login statistics
-      let loginStats = []
-      try {
-        loginStats = await getAllUsersWithLoginStats()
-      } catch (error) {
-        console.warn('Login stats not available:', error)
-      }
-      
-      // Create user activity map
-      const userActivityMap = new Map()
-      
-      // Process books
-      bookData?.forEach((book: any) => {
-        if (book.user_id) {
-          const existing = userActivityMap.get(book.user_id) || {
-            book_count: 0,
-            note_count: 0,
-            last_activity: book.created_at,
-          }
-          existing.book_count++
-          if (new Date(book.created_at) > new Date(existing.last_activity)) {
-            existing.last_activity = book.created_at
-          }
-          userActivityMap.set(book.user_id, existing)
-        }
-      })
-
-      // Process notes  
-      noteData?.forEach((note: any) => {
-        if (note.user_id) {
-          const existing = userActivityMap.get(note.user_id) || {
-            book_count: 0,
-            note_count: 0,
-            last_activity: note.created_at,
-          }
-          existing.note_count++
-          if (new Date(note.created_at) > new Date(existing.last_activity)) {
-            existing.last_activity = note.created_at
-          }
-          userActivityMap.set(note.user_id, existing)
-        }
-      })
-
-      // Combine auth users with activity data
-      const userList: UserData[] = []
-      
-      if (authUsers) {
-        // If we have auth users, use real data
-        authUsers.forEach((authUser: any) => {
-          const activity = userActivityMap.get(authUser.id) || {
-            book_count: 0,
-            note_count: 0,
-            last_activity: authUser.created_at,
-          }
-          const loginStat = loginStats?.find((stat: any) => stat.user_id === authUser.id)
-          // Try to get display_name from user_metadata, fallback to full_name or username
-          const displayName = authUser.user_metadata?.display_name || authUser.user_metadata?.full_name || authUser.user_metadata?.username || authUser.user_metadata?.name || "No display name"
-          const userData: UserData = {
-            id: authUser.id,
-            email: authUser.email || 'No email',
-            username: authUser.user_metadata?.username || authUser.user_metadata?.full_name || 'No username',
-            full_name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || 'No name',
-            display_name: displayName,
-            created_at: authUser.created_at,
-            last_sign_in_at: authUser.last_sign_in_at,
-            total_logins: loginStat?.total_logins || 0,
-            first_login_at: loginStat?.first_login_at || authUser.created_at,
-            book_count: activity.book_count,
-            note_count: activity.note_count,
-            last_activity: activity.last_activity,
-          }
-          userList.push(userData)
-        })
-        setShowingPlaceholderData(false)
-      } else {
-        // Fallback: create user data based on activity only
-        setShowingPlaceholderData(true)
-        for (const [userId, activity] of userActivityMap.entries()) {
-          const loginStat = loginStats?.find((stat: any) => stat.user_id === userId)
-          const displayName = `User ${userId.slice(0, 8)}`
-          const userData: UserData = {
-            id: userId,
-            email: `user-${userId.slice(0, 8)}@domain.com`,
-            username: `User ${userId.slice(0, 8)}`,
-            full_name: `User ${userId.slice(0, 8)}`,
-            display_name: displayName,
-            created_at: activity.last_activity,
-            last_sign_in_at: loginStat?.last_login_at,
-            total_logins: loginStat?.total_logins || 0,
-            first_login_at: loginStat?.first_login_at,
-            book_count: activity.book_count,
-            note_count: activity.note_count,
-            last_activity: activity.last_activity,
-          }
-          userList.push(userData)
-        }
-      }
-
-      // Sort by created date (most recent first)
-      userList.sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )
-
-      setUsers(userList)
-    } catch (error) {
       console.error("Error fetching users:", error)
+      toast.error(error?.message || "Failed to fetch users")
       setUsers([])
+      setAdminList([])
     } finally {
       setLoading(false)
     }
   }
 
+  const addAdminUser = async (targetUserId: string) => {
+    if (!user?.id) return
 
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": user.id,
+        },
+        body: JSON.stringify({ userId: targetUserId }),
+      })
+      const result = (await response.json().catch(() => null)) as AdminUsersApiResponse | null
 
-  const filteredUsers = users.filter((user) => 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to add admin user")
+      }
+
+      toast.success("User added as admin")
+      await fetchUsers(user.id)
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to add admin user")
+    }
+  }
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!user?.id) return
+    fetchUsers(user.id)
+  }, [authLoading, user?.id])
+
+  const filteredUsers = users.filter((item) => {
+    const target = searchTerm.toLowerCase()
+    return (
+      item.email.toLowerCase().includes(target) ||
+      (item.username || "").toLowerCase().includes(target) ||
+      (item.full_name || "").toLowerCase().includes(target)
+    )
+  })
 
   return (
     <div className="space-y-6">
-      {/* Dedicated Admin User Table */}
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-2">Admin Users</h2>
         <div className="overflow-x-auto">
@@ -263,11 +151,13 @@ export default function AdminUsers() {
             <tbody>
               {adminList.length > 0 ? (
                 adminList.map((admin) => {
-                  const userInfo = users.find(u => u.id === admin.user_id)
+                  const userInfo = users.find((entry) => entry.id === admin.user_id)
                   return (
                     <tr key={admin.user_id} className="border-b border-border/50">
                       <td className="p-2 text-sm text-foreground">{admin.user_id}</td>
-                      <td className="p-2 text-sm text-foreground">{userInfo ? userInfo.email : <span className="text-muted-foreground">Not found</span>}</td>
+                      <td className="p-2 text-sm text-foreground">
+                        {userInfo ? userInfo.email : <span className="text-muted-foreground">Not found</span>}
+                      </td>
                     </tr>
                   )
                 })
@@ -281,14 +171,14 @@ export default function AdminUsers() {
           </table>
         </div>
       </div>
-      {/* Existing User Management UI */}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">User Management</h1>
           <p className="text-muted-foreground mt-2">Monitor user activity and manage accounts</p>
           {showingPlaceholderData && (
             <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-              <strong>Note:</strong> Showing placeholder data. Add SUPABASE_SERVICE_ROLE_KEY to .env.local for real user information.
+              <strong>Note:</strong> Showing placeholder data.
             </div>
           )}
         </div>
@@ -306,7 +196,7 @@ export default function AdminUsers() {
               <Input
                 placeholder="Search by email, username, or name..."
                 value={searchTerm}
-                onChange={(e: any) => setSearchTerm(e.target.value)}
+                onChange={(event: any) => setSearchTerm(event.target.value)}
                 className="pl-10"
               />
             </div>
@@ -315,8 +205,8 @@ export default function AdminUsers() {
         <CardContent>
           {loading ? (
             <div className="space-y-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center justify-between p-4 border rounded-lg animate-pulse">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div key={index} className="flex items-center justify-between p-4 border rounded-lg animate-pulse">
                   <div className="space-y-2">
                     <div className="h-4 bg-muted rounded w-48"></div>
                     <div className="h-3 bg-muted rounded w-32"></div>
@@ -371,69 +261,55 @@ export default function AdminUsers() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => (
+                  {filteredUsers.map((entry) => (
                     <tr
-                      key={user.id}
+                      key={entry.id}
                       className="border-b border-border/50 hover:bg-muted/50 transition-colors"
                     >
                       <td className="p-4">
-                        <div className="font-medium text-foreground">
-                          {user.username || 'N/A'}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          ID: {user.id.slice(0, 8)}...
-                        </div>
+                        <div className="font-medium text-foreground">{entry.username || "N/A"}</div>
+                        <div className="text-sm text-muted-foreground">ID: {entry.id.slice(0, 8)}...</div>
                       </td>
                       <td className="p-4">
-                        <div className="text-sm text-foreground">{user.display_name || user.full_name || 'N/A'}</div>
-                        <div className="text-xs text-muted-foreground mt-1">{user.username || ''}</div>
+                        <div className="text-sm text-foreground">{entry.display_name || entry.full_name || "N/A"}</div>
+                        <div className="text-xs text-muted-foreground mt-1">{entry.username || ""}</div>
                       </td>
                       <td className="p-4">
-                        <div className="text-sm text-foreground">{user.email}</div>
+                        <div className="text-sm text-foreground">{entry.email}</div>
                       </td>
                       <td className="p-4">
-                        <div className="text-sm text-foreground">
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(user.created_at).toLocaleTimeString()}
-                        </div>
+                        <div className="text-sm text-foreground">{asDateLabel(entry.created_at)}</div>
+                        <div className="text-xs text-muted-foreground">{asTimeLabel(entry.created_at)}</div>
                       </td>
                       <td className="p-4">
-                        {user.last_sign_in_at ? (
+                        {entry.last_sign_in_at ? (
                           <div>
-                            <div className="text-sm text-foreground">
-                              {new Date(user.last_sign_in_at).toLocaleDateString()}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {new Date(user.last_sign_in_at).toLocaleTimeString()}
-                            </div>
+                            <div className="text-sm text-foreground">{asDateLabel(entry.last_sign_in_at)}</div>
+                            <div className="text-xs text-muted-foreground">{asTimeLabel(entry.last_sign_in_at)}</div>
                           </div>
                         ) : (
                           <div className="text-sm text-muted-foreground">Never</div>
                         )}
                       </td>
                       <td className="p-4">
-                        <div className="text-sm text-foreground">
-                          {user.total_logins} logins
-                        </div>
-                        {user.first_login_at && (
+                        <div className="text-sm text-foreground">{entry.total_logins} logins</div>
+                        {entry.first_login_at && (
                           <div className="text-xs text-muted-foreground">
-                            First: {new Date(user.first_login_at).toLocaleDateString()}
+                            First: {asDateLabel(entry.first_login_at)}
                           </div>
                         )}
                       </td>
                       <td className="p-4">
                         <div className="flex gap-2">
                           <Badge variant="outline" className="text-xs">
-                            {user.book_count} books
+                            {entry.book_count} books
                           </Badge>
                           <Badge variant="outline" className="text-xs">
-                            {user.note_count} notes
+                            {entry.note_count} notes
                           </Badge>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          Last activity: {new Date(user.last_activity).toLocaleDateString()}
+                          Last activity: {asDateLabel(entry.last_activity)}
                         </div>
                       </td>
                       <td className="p-4">
@@ -447,12 +323,8 @@ export default function AdminUsers() {
                             <DropdownMenuItem>View Profile</DropdownMenuItem>
                             <DropdownMenuItem>View Books</DropdownMenuItem>
                             <DropdownMenuItem>View Notes</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => addAdminUser(user.id)}>
-                              Add as Admin
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive">
-                              Suspend User
-                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => addAdminUser(entry.id)}>Add as Admin</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive">Suspend User</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
@@ -475,3 +347,4 @@ export default function AdminUsers() {
     </div>
   )
 }
+
