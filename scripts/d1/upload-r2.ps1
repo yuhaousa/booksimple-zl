@@ -29,7 +29,7 @@ foreach ($file in $files) {
   $target = "$Bucket/$key"
 
   Write-Host "Uploading: $key"
-  npx wrangler r2 object put $target --file "$full" | Out-Null
+  npx wrangler r2 object put $target --remote --file "$full" | Out-Null
 
   if ($LASTEXITCODE -eq 0) {
     $ok++
@@ -43,4 +43,3 @@ Write-Host "Done. Uploaded: $ok, Failed: $fail"
 if ($fail -gt 0) {
   exit 1
 }
-
