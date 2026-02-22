@@ -1,7 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Inter, JetBrains_Mono } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { Navigation } from "@/components/navigation"
 import { Toaster } from "@/components/ui/toaster"
@@ -35,7 +34,6 @@ export default function RootLayout({
           <Navigation />
           <main className="min-h-screen">{children}</main>
           <Toaster />
-          <Analytics />
         </Suspense>
       </body>
     </html>
