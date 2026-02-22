@@ -6,3 +6,12 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 binding = "ASSETS"
 directory = ".open-next/assets"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "book365-db"
+database_id = "419b85fc-74d4-4a75-870c-111358e1e2c0"
+
+[[r2_buckets]]
+binding = "BOOK_FILES"
+bucket_name = "book365-files"
