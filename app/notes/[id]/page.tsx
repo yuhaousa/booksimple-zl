@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +20,8 @@ interface StudyNote {
   category: string | null
   created_at: string
   updated_at: string
-  Booklist?: {
+  book?: {
+    id: number
     title: string
   }
 }
@@ -43,29 +43,24 @@ export default function NoteDetailsPage() {
     if (!user) return
     
     try {
-      const { data, error } = await supabase
-        .from("study_notes")
-        .select(`
-          *,
-          Booklist:book_id (
-            title
-          )
-        `)
-        .eq("id", params.id)
-        .eq("user_id", user.id) // Only fetch note if it belongs to authenticated user
-        .single()
-
-      if (error) {
-        if (error.code === 'PGRST116') {
+      const response = await fetch(`/api/study-notes/${params.id}`, {
+        cache: "no-store",
+        headers: {
+          "x-user-id": user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success || !result?.note) {
+        if (response.status === 404) {
           toast.error("Note not found or you don't have permission to view it")
         } else {
-          throw error
+          throw new Error(result?.details || result?.error || "Failed to load note")
         }
         router.push("/notes")
         return
       }
       
-      setNote(data)
+      setNote(result.note as StudyNote)
     } catch (error) {
       console.error("Error fetching note:", error)
       toast.error("Failed to load study note")
@@ -79,13 +74,16 @@ export default function NoteDetailsPage() {
     if (!note || !user || !confirm("Are you sure you want to delete this note?")) return
 
     try {
-      const { error } = await supabase
-        .from("study_notes")
-        .delete()
-        .eq("id", note.id)
-        .eq("user_id", user.id) // Only allow deletion if user owns the note
-
-      if (error) throw error
+      const response = await fetch(`/api/study-notes/${note.id}`, {
+        method: "DELETE",
+        headers: {
+          "x-user-id": user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to delete note")
+      }
 
       toast.success("Note deleted successfully")
       router.push("/notes")
@@ -177,10 +175,10 @@ export default function NoteDetailsPage() {
               </div>
             )}
 
-            {note.Booklist && (
+            {note.book && (
               <div className="flex items-center">
                 <FileText className="h-4 w-4 mr-1" />
-                <span>Book: {note.Booklist.title}</span>
+                <span>Book: {note.book.title}</span>
               </div>
             )}
           </div>

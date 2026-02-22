@@ -8,10 +8,25 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { supabase, type Book } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Upload, Loader2 } from "lucide-react"
+
+type Book = {
+  id: number
+  title: string | null
+  description: string | null
+  author: string | null
+  publisher: string | null
+  isbn: string | null
+  tags: string | null
+  year: number | null
+  cover_url: string | null
+  file_url: string | null
+  video_url: string | null
+  video_title: string | null
+  video_description: string | null
+}
 
 interface EditBookFormProps {
   book: Book
@@ -26,25 +41,24 @@ export function EditBookForm({ book }: EditBookFormProps) {
   const { toast } = useToast()
 
   const uploadFile = async (file: File, bucket: string, onProgress: (progress: number) => void) => {
-    const fileExt = file.name.split(".").pop()
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-
     onProgress(50)
 
-    const { data, error } = await supabase.storage.from(bucket).upload(fileName, file)
+    const payload = new FormData()
+    payload.append("file", file)
+    payload.append("kind", bucket as "book-cover" | "book-file")
 
-    if (error) {
-      console.error(`[v0] Upload error for ${bucket}:`, error)
-      throw new Error(`Failed to upload to ${bucket}`)
+    const response = await fetch("/api/files/upload", {
+      method: "POST",
+      body: payload,
+    })
+    const result = await response.json().catch(() => null)
+    if (!response.ok || !result?.success) {
+      console.error(`[v0] Upload error for ${bucket}:`, result)
+      throw new Error(result?.details || result?.error || `Failed to upload to ${bucket}`)
     }
 
     onProgress(100)
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from(bucket).getPublicUrl(fileName)
-
-    return publicUrl
+    return result.key as string
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -92,11 +106,17 @@ export function EditBookForm({ book }: EditBookFormProps) {
 
       console.log("[v0] Updating book with data:", bookData)
 
-      const { error } = await supabase.from("Booklist").update(bookData).eq("id", book.id)
-
-      if (error) {
-        console.error("[v0] Database update error:", error)
-        throw new Error("Failed to update book")
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bookData),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        console.error("[v0] Database update error:", result)
+        throw new Error(result?.details || result?.error || "Failed to update book")
       }
 
       toast({

@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button"
 import { BookOpen, Eye, Edit, Brain, GraduationCap } from "lucide-react"
 import Link from "next/link"
 import { recordBookClick } from "@/lib/book-tracking"
-import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/use-auth"
 
 interface BookActionsProps {
@@ -19,7 +18,6 @@ export function BookActions({ bookId, fileUrl }: BookActionsProps) {
     if (fileUrl) {
       // Record the click before opening the file
       try {
-        const { data: { user } } = await supabase.auth.getUser()
         console.log('Recording book click for book ID:', bookId, 'user:', user?.id)
         await recordBookClick(parseInt(bookId), 'read', user?.id)
         console.log('Book click recorded successfully')

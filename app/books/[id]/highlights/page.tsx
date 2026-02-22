@@ -6,13 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Highlighter, BookOpen, Calendar, Trash2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/use-auth'
 import { toast } from 'sonner'
 
 interface Highlight {
-  id: number
+  id: string
   book_id: number
   user_id: string
   text: string
@@ -49,40 +48,26 @@ export default function HighlightsPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const supabase = createClient()
-
-      // Load book info
-      const { data: bookData, error: bookError } = await supabase
-        .from('Booklist')
-        .select('id, title, author, cover_url')
-        .eq('id', bookId)
-        .single()
-
-      if (bookError) throw bookError
-      setBook(bookData)
-
-      // Generate signed URL for cover
-      if (bookData.cover_url) {
-        const { data: signedCover } = await supabase.storage
-          .from('book-cover')
-          .createSignedUrl(bookData.cover_url.replace(/^book-cover\//, ''), 60 * 60 * 24)
-        
-        if (signedCover?.signedUrl) {
-          setBook({ ...bookData, cover_url: signedCover.signedUrl })
-        }
+      // Load book info from D1 API
+      const bookResponse = await fetch(`/api/books/${bookId}`, { cache: "no-store" })
+      const bookResult = await bookResponse.json().catch(() => null)
+      if (!bookResponse.ok || !bookResult?.success || !bookResult?.book) {
+        throw new Error(bookResult?.details || bookResult?.error || "Failed to load book")
       }
+      setBook(bookResult.book)
 
       // Load highlights
-      const { data: highlightsData, error: highlightsError } = await supabase
-        .from('book_highlights')
-        .select('*')
-        .eq('book_id', bookId)
-        .eq('user_id', user!.id)
-        .order('page_number', { ascending: true })
-        .order('created_at', { ascending: true })
-
-      if (highlightsError) throw highlightsError
-      setHighlights(highlightsData || [])
+      const highlightsResponse = await fetch(`/api/book-highlights?bookId=${bookId}`, {
+        cache: "no-store",
+        headers: {
+          "x-user-id": user!.id,
+        },
+      })
+      const highlightsResult = await highlightsResponse.json().catch(() => null)
+      if (!highlightsResponse.ok || !highlightsResult?.success) {
+        throw new Error(highlightsResult?.details || highlightsResult?.error || "Failed to load highlights")
+      }
+      setHighlights((highlightsResult.highlights || []) as Highlight[])
     } catch (error) {
       console.error('Error loading highlights:', error)
       toast.error('Failed to load highlights')
@@ -91,18 +76,20 @@ export default function HighlightsPage() {
     }
   }
 
-  const deleteHighlight = async (highlightId: number) => {
+  const deleteHighlight = async (highlightId: string) => {
     if (!confirm('Are you sure you want to delete this highlight?')) return
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('book_highlights')
-        .delete()
-        .eq('id', highlightId)
-        .eq('user_id', user!.id)
-
-      if (error) throw error
+      const response = await fetch(`/api/book-highlights/${encodeURIComponent(highlightId)}`, {
+        method: "DELETE",
+        headers: {
+          "x-user-id": user!.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to delete highlight")
+      }
 
       setHighlights(highlights.filter(h => h.id !== highlightId))
       toast.success('Highlight deleted')

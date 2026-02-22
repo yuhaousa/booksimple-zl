@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import BannerCarousel from "@/components/banner-carousel"
-import { supabase } from "@/lib/supabase"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, BookOpen, FileText, Users, BarChart3, Heart, Shield } from "lucide-react"
@@ -17,7 +16,6 @@ interface Book {
   cover_url: string | null
   year: number | null
   created_at: string
-  user_id: string // <-- must be present
 }
 
 export default function HomePage() {
@@ -30,48 +28,16 @@ export default function HomePage() {
 
   const fetchLatestBooks = async () => {
     try {
-      // Check if Supabase is configured
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        console.warn("Supabase environment variables not configured")
-        setLoading(false)
-        return
+      const response = await fetch("/api/books?page=1&pageSize=4", {
+        cache: "no-store",
+      })
+      const result = await response.json().catch(() => null)
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to fetch books")
       }
 
-      const { data, error } = await supabase
-        .from("Booklist")
-        .select("id, title, author, user_id, description, cover_url, year, created_at") // include user_id
-        .order("created_at", { ascending: false })
-        .limit(4)
-
-      if (error) {
-        console.error("Supabase query error:", error)
-        throw error
-      }
-
-      // Generate signed URLs for covers
-      const booksWithSignedUrls = await Promise.all(
-        (data || []).map(async (book) => {
-          let coverUrl = book.cover_url
-
-          if (coverUrl && !coverUrl.startsWith('http')) {
-            try {
-              const { data: signedCover, error: coverError } = await supabase.storage
-                .from("book-cover")
-                .createSignedUrl(coverUrl.replace(/^book-cover\//, ""), 60 * 60 * 24)
-              if (!coverError && signedCover?.signedUrl) {
-                coverUrl = signedCover.signedUrl
-              }
-            } catch (coverError) {
-              console.error("Error generating signed URL for cover:", coverError)
-              // Keep the original cover_url as fallback
-            }
-          }
-
-          return { ...book, cover_url: coverUrl }
-        })
-      )
-
-      setLatestBooks(booksWithSignedUrls)
+      setLatestBooks((result.books || []) as Book[])
     } catch (error) {
       console.error("Error fetching latest books:", error)
       // Set empty array instead of leaving it in loading state

@@ -4,7 +4,8 @@
  * In production, you would enhance this with more sophisticated PDF parsing
  */
 
-import { supabase } from '@/lib/supabase'
+import { requireD1Database } from "@/lib/server/cloudflare-bindings"
+import { toAssetUrl } from "@/lib/server/storage"
 
 export interface PDFExtractionResult {
   text: string
@@ -58,34 +59,24 @@ export async function extractTextFromPDF(fileUrl: string): Promise<PDFExtraction
 }
 
 /**
- * Extract text from a book's PDF file using Supabase storage
+ * Extract text from a book's PDF file using D1 + R2-backed file URLs
  */
 export async function extractTextFromBookPDF(bookId: number): Promise<PDFExtractionResult | null> {
   try {
-    // Get book file URL from database
-    const { data: book, error } = await supabase
-      .from("Booklist")
-      .select("file_url, title, author")
-      .eq("id", bookId)
-      .single()
-    
-    if (error || !book?.file_url) {
+    const db = requireD1Database()
+    const book = (await db
+      .prepare('SELECT file_url, title, author FROM "Booklist" WHERE id = ? LIMIT 1')
+      .bind(bookId)
+      .first()) as { file_url: string | null; title: string | null; author: string | null } | null
+
+    const fileUrl = toAssetUrl(book?.file_url)
+    if (!book || !fileUrl) {
       console.log('No PDF file found for book:', bookId)
       return null
     }
-    
-    // Generate signed URL for file access
-    const { data: signedFile, error: signedError } = await supabase.storage
-      .from("book-file")
-      .createSignedUrl(book.file_url.replace(/^book-file\//, ""), 60 * 60) // 1 hour
-    
-    if (signedError || !signedFile?.signedUrl) {
-      console.error('Failed to generate signed URL:', signedError)
-      return null
-    }
-    
+
     // Extract text from the PDF
-    const extractionResult = await extractTextFromPDF(signedFile.signedUrl)
+    const extractionResult = await extractTextFromPDF(fileUrl)
     
     // Enhance with book metadata if extraction didn't get it
     if (!extractionResult.metadata.title && book.title) {

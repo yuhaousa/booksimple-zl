@@ -19,7 +19,6 @@ import {
   Clock,
   Award
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -66,24 +65,15 @@ interface AIAnalysis {
 }
 
 async function getBook(id: string) {
-  const { data: book, error } = await supabase.from("Booklist").select("*").eq("id", id).single()
+  const response = await fetch(`/api/books/${id}`, {
+    cache: "no-store",
+  })
+  const result = await response.json().catch(() => null)
 
-  if (error || !book) {
+  if (!response.ok || !result?.success || !result?.book) {
     return null
   }
-
-  // Generate signed URL for cover
-  let coverUrl = book.cover_url
-  if (coverUrl) {
-    const { data: signedCover, error: coverError } = await supabase.storage
-      .from("book-cover")
-      .createSignedUrl(coverUrl.replace(/^book-cover\//, ""), 60 * 60 * 24)
-    if (!coverError && signedCover?.signedUrl) {
-      coverUrl = signedCover.signedUrl
-    }
-  }
-
-  return { ...book, cover_url: coverUrl }
+  return result.book as Book
 }
 
 async function getAIAnalysis(bookId: string): Promise<AIAnalysis | null> {

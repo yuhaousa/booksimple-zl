@@ -7,6 +7,20 @@ function decodeKey(segments: string[] | undefined) {
   return segments.map((segment) => decodeURIComponent(segment)).join("/")
 }
 
+function getCandidateKeys(rawKey: string) {
+  if (rawKey.includes("/")) return [rawKey]
+
+  const lower = rawKey.toLowerCase()
+  if (lower.endsWith(".pdf")) {
+    return [rawKey, `book-file/${rawKey}`, `video-file/${rawKey}`, `book-cover/${rawKey}`]
+  }
+  if (/\.(png|jpe?g|gif|webp|bmp|svg)$/.test(lower)) {
+    return [rawKey, `book-cover/${rawKey}`, `book-file/${rawKey}`, `video-file/${rawKey}`]
+  }
+
+  return [rawKey, `book-file/${rawKey}`, `book-cover/${rawKey}`, `video-file/${rawKey}`]
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ key: string[] }> }
@@ -21,9 +35,13 @@ export async function GET(
     }
 
     const rangeHeader = request.headers.get("range")
-    const object = rangeHeader
-      ? await bucket.get(key, { range: request.headers })
-      : await bucket.get(key)
+    const candidateKeys = getCandidateKeys(key)
+
+    let object: any | null = null
+    for (const candidateKey of candidateKeys) {
+      object = rangeHeader ? await bucket.get(candidateKey, { range: request.headers }) : await bucket.get(candidateKey)
+      if (object) break
+    }
 
     if (!object) {
       return NextResponse.json({ success: false, error: "File not found" }, { status: 404 })

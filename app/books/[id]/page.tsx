@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Calendar, User, Building, BookPlus, Check, BookOpen, FileText, Plus, Tag, Edit, Highlighter, Video, ExternalLink } from "lucide-react"
-import { createClient } from "@/lib/supabase"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -41,7 +40,7 @@ interface StudyNote {
 }
 
 interface Highlight {
-  id: number
+  id: string
   book_id: number
   user_id: string
   text: string
@@ -69,39 +68,15 @@ interface Book {
 }
 
 async function getBook(id: string) {
-  const supabase = createClient()
-  // Fetch book details
-  const { data: book, error: bookError } = await supabase.from("Booklist").select("*").eq("id", id).single()
+  const response = await fetch(`/api/books/${id}`, {
+    cache: "no-store",
+  })
+  const result = await response.json().catch(() => null)
 
-  if (bookError || !book) {
+  if (!response.ok || !result?.success || !result?.book) {
     return null
   }
-
-  // Generate signed URLs for cover and file
-  let coverUrl = book.cover_url
-  let fileUrl = book.file_url
-
-  // Only generate signed URL if file path exists
-  if (coverUrl) {
-    const { data: signedCover, error: coverError } = await supabase.storage
-      .from("book-cover")
-      .createSignedUrl(coverUrl.replace(/^book-cover\//, ""), 60 * 60 * 24)
-    if (!coverError && signedCover?.signedUrl) {
-      coverUrl = signedCover.signedUrl
-    }
-  }
-
-  if (fileUrl) {
-    const { data: signedFile, error: fileError } = await supabase.storage
-      .from("book-file")
-      .createSignedUrl(fileUrl.replace(/^book-file\//, ""), 60 * 60 * 24)
-    if (!fileError && signedFile?.signedUrl) {
-      fileUrl = signedFile.signedUrl
-    }
-  }
-
-  // Create book with signed URLs
-  return { ...book, cover_url: coverUrl, file_url: fileUrl }
+  return result.book
 }
 
 export default function BookDetailPage({ params }: BookDetailPageProps) {
@@ -188,20 +163,20 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     
     try {
       console.log("Fetching reader notes for book:", bookId, "user:", user.id)
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("book_notes")
-        .select("*")
-        .eq("book_id", bookId)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-
-      if (error) {
-        console.error("Supabase error fetching reader notes:", error)
+      const response = await fetch(`/api/book-notes?bookId=${bookId}`, {
+        cache: "no-store",
+        headers: {
+          "x-user-id": user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        console.error("Error fetching reader notes:", result)
         setReaderNotes([])
       } else {
-        console.log("Reader notes fetched successfully:", data?.length || 0, "notes")
-        setReaderNotes(data || [])
+        const notes = (result.notes || []) as BookNote[]
+        console.log("Reader notes fetched successfully:", notes.length, "notes")
+        setReaderNotes(notes)
       }
     } catch (error) {
       console.error("Error fetching reader notes:", error)
@@ -220,20 +195,20 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     
     try {
       console.log("Fetching study notes for book:", bookId, "user:", user.id)
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("study_notes")
-        .select("*")
-        .eq("book_id", bookId)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-
-      if (error) {
-        console.error("Supabase error fetching study notes:", error)
+      const response = await fetch(`/api/study-notes?bookId=${bookId}`, {
+        cache: "no-store",
+        headers: {
+          "x-user-id": user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        console.error("Error fetching study notes:", result)
         setStudyNotes([])
       } else {
-        console.log("Study notes fetched successfully:", data?.length || 0, "notes")
-        setStudyNotes(data || [])
+        const notes = (result.notes || []) as StudyNote[]
+        console.log("Study notes fetched successfully:", notes.length, "notes")
+        setStudyNotes(notes)
       }
     } catch (error) {
       console.error("Error fetching study notes:", error)
@@ -252,20 +227,20 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
     
     try {
       console.log("Fetching highlights for book:", bookId, "user:", user.id)
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("book_highlights")
-        .select("*")
-        .eq("book_id", bookId)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-
-      if (error) {
-        console.error("Supabase error fetching highlights:", error)
+      const response = await fetch(`/api/book-highlights?bookId=${bookId}`, {
+        cache: "no-store",
+        headers: {
+          "x-user-id": user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        console.error("Error fetching highlights:", result)
         setHighlights([])
       } else {
-        console.log("Highlights fetched successfully:", data?.length || 0, "highlights")
-        setHighlights(data || [])
+        const highlights = (result.highlights || []) as Highlight[]
+        console.log("Highlights fetched successfully:", highlights.length, "highlights")
+        setHighlights(highlights)
       }
     } catch (error) {
       console.error("Error fetching book highlights:", error)
@@ -277,32 +252,27 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
 
   const checkReadingListStatus = async (bookId: number) => {
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.from("reading_list_full").select("status").eq("book_id", bookId).single()
-
-      if (error && error.code !== "PGRST116") {
-        // PGRST116 is "not found" error
-        // Check if it's a table not found error (PGRST106 or similar)
-        if (error.code === "PGRST106" || error.message?.includes("does not exist")) {
-          console.warn("Reading list table not found. Please run database setup scripts.")
-          setIsInReadingList(false)
-          setReadingListStatus(null)
-          return
-        }
-        
-        console.error("Reading list query error:", {
-          error: error,
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        })
-        throw error
+      if (!user) {
+        setIsInReadingList(false)
+        setReadingListStatus(null)
+        return
       }
 
-      if (data) {
+      const response = await fetch(`/api/reading-list?bookId=${bookId}`, {
+        cache: "no-store",
+        headers: {
+          "x-user-id": user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to check reading-list status")
+      }
+
+      const item = (result.items || [])[0]
+      if (item) {
         setIsInReadingList(true)
-        setReadingListStatus(data.status)
+        setReadingListStatus(item.status)
       } else {
         setIsInReadingList(false)
         setReadingListStatus(null)
@@ -316,20 +286,26 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   }
 
   const addToReadingList = async () => {
-    if (!book || addingToList) return
+    if (!book || addingToList || !user) return
 
     setAddingToList(true)
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from("reading_list_full").insert([
-        {
+      const response = await fetch("/api/reading-list", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": user.id,
+        },
+        body: JSON.stringify({
           book_id: book.id,
           status: "to_read",
-        },
-      ])
-
-      if (error) throw error
+        }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to add book to reading list")
+      }
 
       setIsInReadingList(true)
       setReadingListStatus("to_read")
@@ -343,15 +319,21 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
   }
 
   const removeFromReadingList = async () => {
-    if (!book || addingToList) return
+    if (!book || addingToList || !user) return
 
     setAddingToList(true)
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from("reading_list_full").delete().eq("book_id", book.id)
-
-      if (error) throw error
+      const response = await fetch(`/api/reading-list?bookId=${book.id}`, {
+        method: "DELETE",
+        headers: {
+          "x-user-id": user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to remove book from reading list")
+      }
 
       setIsInReadingList(false)
       setReadingListStatus(null)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { BOOK_SELECT_SQL, BookRow, normalizeBookForResponse, parsePositiveInt } from "@/lib/server/books-db"
 import { requireD1Database } from "@/lib/server/cloudflare-bindings"
+import { extractAssetKey } from "@/lib/server/storage"
 
 const DEFAULT_PAGE_SIZE = 12
 const MAX_PAGE_SIZE = 50
@@ -35,6 +36,18 @@ function asNullableYear(value: unknown) {
   const parsed = Number.parseInt(String(value), 10)
   if (!Number.isFinite(parsed)) return null
   return parsed
+}
+
+function normalizeStoredAssetValue(
+  value: string | null,
+  kind: "book-cover" | "book-file" | "video-file"
+) {
+  if (!value) return null
+
+  const key = extractAssetKey(value) ?? value
+  if (key.includes("/")) return key
+
+  return `${kind}/${key}`
 }
 
 function clampPageSize(value: number) {
@@ -101,11 +114,11 @@ export async function POST(request: NextRequest) {
     const isbn = asNullableString(body.isbn)
     const tags = asNullableString(body.tags)
     const year = asNullableYear(body.year)
-    const coverUrl = asNullableString(body.cover_url)
-    const fileUrl = asNullableString(body.file_url)
+    const coverUrl = normalizeStoredAssetValue(asNullableString(body.cover_url), "book-cover")
+    const fileUrl = normalizeStoredAssetValue(asNullableString(body.file_url), "book-file")
     const userId = asNullableString(body.user_id)
     const videoUrl = asNullableString(body.video_url)
-    const videoFileUrl = asNullableString(body.video_file_url)
+    const videoFileUrl = normalizeStoredAssetValue(asNullableString(body.video_file_url), "video-file")
     const videoTitle = asNullableString(body.video_title)
     const videoDescription = asNullableString(body.video_description)
 

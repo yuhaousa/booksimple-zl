@@ -7,10 +7,28 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { BookOpen, Edit, Trash2 } from "lucide-react"
 
-import type { Book } from "@/lib/supabase"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
+
+type Book = {
+  id: number
+  created_at: string
+  title: string | null
+  description: string | null
+  author: string | null
+  publisher: string | null
+  isbn: string | null
+  tags: string | null
+  year: number | null
+  cover_url: string | null
+  file_url: string | null
+  user_id: string | null
+  video_url: string | null
+  video_file_url: string | null
+  video_title: string | null
+  video_description: string | null
+}
 
 interface BookCardProps {
   book: Book

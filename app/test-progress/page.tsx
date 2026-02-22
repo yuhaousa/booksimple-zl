@@ -1,36 +1,41 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function TestProgressPage() {
-  const [user, setUser] = useState<any>(null)
+  const { user, loading: authLoading } = useAuth()
   const [trackingData, setTrackingData] = useState<any[]>([])
   const [testResult, setTestResult] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (!authLoading) {
+      loadData()
+    }
+  }, [user, authLoading])
 
   const loadData = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
-
     if (user) {
-      const { data, error } = await supabase
-        .from('book_tracking')
-        .select('*')
-        .eq('user_id', user.id)
-      
-      if (error) {
-        console.error('Error loading tracking data:', error)
-        setTestResult(`Error loading data: ${error.message}`)
+      const response = await fetch('/api/book-tracking', {
+        cache: 'no-store',
+        headers: {
+          'x-user-id': user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        console.error('Error loading tracking data:', result)
+        setTestResult(`Error loading data: ${result?.details || result?.error || 'Unknown error'}`)
       } else {
-        setTrackingData(data || [])
-        setTestResult(`Found ${data?.length || 0} tracking records`)
+        const records = result.records || []
+        setTrackingData(records)
+        setTestResult(`Found ${records.length} tracking records`)
       }
+    } else {
+      setTrackingData([])
+      setTestResult('')
     }
   }
 
@@ -43,33 +48,37 @@ export default function TestProgressPage() {
     setLoading(true)
     try {
       // First, get a real book ID from the user's library
-      const { data: books, error: bookError } = await supabase
-        .from('Booklist')
-        .select('id, title')
-        .limit(1)
-      
-      if (bookError || !books || books.length === 0) {
+      const booksResponse = await fetch('/api/books?page=1&pageSize=1', { cache: 'no-store' })
+      const booksResult = await booksResponse.json().catch(() => null)
+      if (!booksResponse.ok || !booksResult?.success || !booksResult?.books || booksResult.books.length === 0) {
         setTestResult('No books found in your library. Please upload a book first.')
         setLoading(false)
         return
       }
 
-      const testBookId = books[0].id
-      setTestResult(`Testing with book: "${books[0].title}" (ID: ${testBookId})...`)
+      const testBookId = booksResult.books[0].id
+      setTestResult(`Testing with book: "${booksResult.books[0].title}" (ID: ${testBookId})...`)
 
       // Test with the actual book ID, page 10 of 100
-      const { data, error } = await supabase.rpc('update_reading_progress', {
-        p_user_id: user.id,
-        p_book_id: testBookId,
-        p_current_page: 10,
-        p_total_pages: 100
+      const updateResponse = await fetch('/api/book-tracking', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+        },
+        body: JSON.stringify({
+          book_id: testBookId,
+          current_page: 10,
+          total_pages: 100,
+        }),
       })
 
-      if (error) {
-        setTestResult(`RPC Error: ${error.message}`)
-        console.error('RPC Error:', error)
+      const updateResult = await updateResponse.json().catch(() => null)
+      if (!updateResponse.ok || !updateResult?.success) {
+        setTestResult(`Update Error: ${updateResult?.details || updateResult?.error || 'Unknown error'}`)
+        console.error('Progress update error:', updateResult)
       } else {
-        setTestResult(`RPC function executed successfully for "${books[0].title}"!`)
+        setTestResult(`Reading progress updated successfully for "${booksResult.books[0].title}"!`)
         await loadData()
       }
     } catch (err: any) {

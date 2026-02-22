@@ -19,7 +19,6 @@ import {
   Star,
   User
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -79,35 +78,15 @@ interface BookAnalysis {
 }
 
 async function getBook(id: string) {
-  const { data: book, error: bookError } = await supabase.from("Booklist").select("*").eq("id", id).single()
+  const response = await fetch(`/api/books/${id}`, {
+    cache: "no-store",
+  })
+  const result = await response.json().catch(() => null)
 
-  if (bookError || !book) {
+  if (!response.ok || !result?.success || !result?.book) {
     return null
   }
-
-  // Generate signed URLs for cover and file
-  let coverUrl = book.cover_url
-  let fileUrl = book.file_url
-
-  if (coverUrl) {
-    const { data: signedCover, error: coverError } = await supabase.storage
-      .from("book-cover")
-      .createSignedUrl(coverUrl.replace(/^book-cover\//, ""), 60 * 60 * 24)
-    if (!coverError && signedCover?.signedUrl) {
-      coverUrl = signedCover.signedUrl
-    }
-  }
-
-  if (fileUrl) {
-    const { data: signedFile, error: fileError } = await supabase.storage
-      .from("book-file")
-      .createSignedUrl(fileUrl.replace(/^book-file\//, ""), 60 * 60 * 24)
-    if (!fileError && signedFile?.signedUrl) {
-      fileUrl = signedFile.signedUrl
-    }
-  }
-
-  return { ...book, cover_url: coverUrl, file_url: fileUrl }
+  return result.book as Book
 }
 
 // AI-powered book analysis function

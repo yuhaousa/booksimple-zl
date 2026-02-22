@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -48,23 +47,24 @@ export default function EditNotePage() {
     if (!user) return
 
     try {
-      const { data, error } = await supabase
-        .from("study_notes")
-        .select("*")
-        .eq("id", params.id)
-        .eq("user_id", user.id)
-        .single()
-
-      if (error) {
-        if (error.code === 'PGRST116') {
+      const response = await fetch(`/api/study-notes/${params.id}`, {
+        cache: "no-store",
+        headers: {
+          "x-user-id": user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success || !result?.note) {
+        if (response.status === 404) {
           toast.error("Note not found or you don't have permission to edit it")
         } else {
-          throw error
+          throw new Error(result?.details || result?.error || "Failed to load note")
         }
         router.push("/notes")
         return
       }
 
+      const data = result.note as StudyNote
       setNote(data)
       setFormData({
         title: data.title || "",
@@ -99,19 +99,23 @@ export default function EditNotePage() {
       // Auto-generate title from content if no title provided
       const finalTitle = formData.title.trim() || formData.content.trim().substring(0, 50)
 
-      const { error } = await supabase
-        .from("study_notes")
-        .update({
+      const response = await fetch(`/api/study-notes/${note.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": user.id,
+        },
+        body: JSON.stringify({
           title: finalTitle,
           content: formData.content.trim(),
           tags: normalizedTags,
           category: formData.category.trim() || null,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", note.id)
-        .eq("user_id", user.id)
-
-      if (error) throw error
+        }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to update note")
+      }
 
       toast.success("Note updated successfully")
       router.push(`/notes/${note.id}`)

@@ -5,7 +5,6 @@ import { Suspense } from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -60,12 +59,29 @@ function NewNotePageContent({ bookId }: { bookId: string | null }) {
 
   const fetchBooks = async () => {
     try {
-      const { data, error } = await supabase.from("Booklist").select("id, title").order("title")
+      const collected: Book[] = []
+      let page = 1
+      let total = 0
 
-      if (error) throw error
-      
-      // Filter out any books with empty titles and log the data
-      const validBooks = (data || []).filter(book => book.title && book.title.trim() !== '')
+      do {
+        const response = await fetch(`/api/books?page=${page}&pageSize=50`, { cache: "no-store" })
+        const result = await response.json().catch(() => null)
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.details || result?.error || "Failed to fetch books")
+        }
+
+        const batch = (result.books || []) as Book[]
+        total = Number(result.total || 0)
+        collected.push(...batch)
+        page += 1
+
+        if (batch.length === 0) break
+      } while (collected.length < total)
+
+      // Filter out empty titles and keep alphabetical order for select
+      const validBooks = collected
+        .filter((book) => book.title && book.title.trim() !== "")
+        .sort((a, b) => (a.title || "").localeCompare(b.title || ""))
       console.log("Fetched books:", validBooks)
       setBooks(validBooks)
     } catch (error) {
@@ -98,9 +114,18 @@ function NewNotePageContent({ bookId }: { bookId: string | null }) {
         user_id: user.id, // Associate note with authenticated user
       }
 
-      const { data, error } = await supabase.from("study_notes").insert([noteData]).select().single()
-
-      if (error) throw error
+      const response = await fetch("/api/study-notes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": user.id,
+        },
+        body: JSON.stringify(noteData),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success || !result?.note) {
+        throw new Error(result?.details || result?.error || "Failed to create note")
+      }
 
       toast.success("Study note created successfully")
       
@@ -108,7 +133,7 @@ function NewNotePageContent({ bookId }: { bookId: string | null }) {
       if (bookId) {
         router.push(`/books/${bookId}`)
       } else {
-        router.push(`/notes/${data.id}`)
+        router.push(`/notes/${result.note.id}`)
       }
     } catch (error) {
       console.error("Error creating note:", error)

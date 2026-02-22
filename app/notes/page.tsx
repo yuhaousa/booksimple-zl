@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -41,21 +40,17 @@ export default function NotesPage() {
     if (!user) return
     
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("study_notes")
-        .select(`
-          *,
-          book:Booklist!book_id (
-            id,
-            title
-          )
-        `)
-        .eq('user_id', user.id) // Only fetch notes for the authenticated user
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-      setNotes(data || [])
+      const response = await fetch("/api/study-notes", {
+        cache: "no-store",
+        headers: {
+          "x-user-id": user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to load notes")
+      }
+      setNotes((result.notes || []) as StudyNote[])
     } catch (error) {
       console.error("Error fetching notes:", error)
       toast.error("Failed to load study notes")

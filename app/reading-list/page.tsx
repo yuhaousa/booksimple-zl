@@ -3,10 +3,8 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +21,7 @@ import {
   ChevronsRight,
 } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/hooks/use-auth"
 
 interface ReadingListItem {
   id: number
@@ -58,79 +57,34 @@ const STATUS_LABELS = {
 const ITEMS_PER_PAGE = 12
 
 export default function ReadingListPage() {
+  const { user, loading: authLoading } = useAuth()
   const [readingList, setReadingList] = useState<ReadingListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<"all" | "to_read" | "reading" | "completed">("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const [user, setUser] = useState<any>(null)
-  const router = useRouter()
 
   useEffect(() => {
-    const fetchUserAndList = async () => {
-      const { data } = await supabase.auth.getUser()
-      if (!data?.user) {
-        setUser(null)
+    const fetchList = async () => {
+      if (authLoading) return
+
+      if (!user) {
         setLoading(false)
         return
       }
-      setUser(data.user)
 
       try {
-        const { data: listData, error } = await supabase
-          .from("reading_list_full")
-          .select(`
-            id,
-            status,
-            added_at,
-            user_id,
-            book:Booklist!book_id (
-              id,
-              title,
-              author,
-              publisher,
-              year,
-              cover_url,
-              file_url,
-              description,
-              tags,
-              user_id
-            )
-          `)
-          .order("added_at", { ascending: false })
+        const response = await fetch("/api/reading-list", {
+          cache: "no-store",
+          headers: {
+            "x-user-id": user.id,
+          },
+        })
+        const result = await response.json().catch(() => null)
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.details || result?.error || "Failed to fetch reading list")
+        }
 
-        if (error) throw error
-
-        const listWithSignedUrls = await Promise.all(
-          (listData || []).map(async (item: ReadingListItem) => {
-            let coverUrl = item.book.cover_url
-            let fileUrl = item.book.file_url
-
-            if (coverUrl) {
-              const { data: signedCover, error: coverError } = await supabase.storage
-                .from("book-cover")
-                .createSignedUrl(coverUrl.replace(/^book-cover\//, ""), 60 * 60 * 24)
-              if (!coverError && signedCover?.signedUrl) {
-                coverUrl = signedCover.signedUrl
-              }
-            }
-
-            if (fileUrl) {
-              const { data: signedFile, error: fileError } = await supabase.storage
-                .from("book-file")
-                .createSignedUrl(fileUrl.replace(/^book-file\//, ""), 60 * 60 * 24)
-              if (!fileError && signedFile?.signedUrl) {
-                fileUrl = signedFile.signedUrl
-              }
-            }
-
-            return {
-              ...item,
-              book: { ...item.book, cover_url: coverUrl, file_url: fileUrl },
-            }
-          }),
-        )
-
-        setReadingList(listWithSignedUrls)
+        setReadingList((result.items || []) as ReadingListItem[])
       } catch (error) {
         console.error("Error fetching reading list:", error)
         toast.error("Failed to load reading list")
@@ -138,8 +92,8 @@ export default function ReadingListPage() {
         setLoading(false)
       }
     }
-    fetchUserAndList()
-  }, [])
+    fetchList()
+  }, [user, authLoading])
 
   if (!loading && !user) {
     return (
@@ -159,11 +113,22 @@ export default function ReadingListPage() {
 
   const removeFromReadingList = async (itemId: number) => {
     if (!confirm("Are you sure you want to remove this book from your reading list?")) return
+    if (!user) {
+      toast.error("Please log in first")
+      return
+    }
 
     try {
-      const { error } = await supabase.from("reading_list_full").delete().eq("id", itemId)
-
-      if (error) throw error
+      const response = await fetch(`/api/reading-list?id=${itemId}`, {
+        method: "DELETE",
+        headers: {
+          "x-user-id": user.id,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to delete reading-list item")
+      }
 
       toast.success("Book removed from reading list")
       setReadingList((prev: ReadingListItem[]) => prev.filter((item: ReadingListItem) => item.id !== itemId))
@@ -174,10 +139,24 @@ export default function ReadingListPage() {
   }
 
   const updateStatus = async (itemId: number, newStatus: ReadingListItem["status"]) => {
-    try {
-      const { error } = await supabase.from("reading_list_full").update({ status: newStatus }).eq("id", itemId)
+    if (!user) {
+      toast.error("Please log in first")
+      return
+    }
 
-      if (error) throw error
+    try {
+      const response = await fetch("/api/reading-list", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": user.id,
+        },
+        body: JSON.stringify({ id: itemId, status: newStatus }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to update status")
+      }
 
       toast.success(`Status updated to ${STATUS_LABELS[newStatus]}`)
       setReadingList((prev: ReadingListItem[]) =>
@@ -219,6 +198,19 @@ export default function ReadingListPage() {
   }
 
   const statusCounts = getStatusCounts()
+
+  if (authLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Checking login status...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

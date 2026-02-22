@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -50,39 +49,23 @@ export default function BookEditPage() {
   const fetchBook = async () => {
     try {
       const bookId = Array.isArray(params.id) ? params.id[0] : params.id
-      
-      const { data, error } = await supabase
-        .from("Booklist")
-        .select("*")
-        .eq("id", bookId)
-        .single()
 
-      if (error) {
-        console.error("Supabase error:", error)
-        throw error
-      }
+      const response = await fetch(`/api/books/${bookId}`, {
+        cache: "no-store",
+      })
+      const result = await response.json().catch(() => null)
 
-      if (!data) {
+      if (!response.ok || !result?.success || !result?.book) {
         throw new Error("Book not found")
       }
 
-      // Generate signed URL for cover if it exists
-      let coverUrl = data.cover_url
-      if (coverUrl) {
-        const { data: signedCover, error: coverError } = await supabase.storage
-          .from("book-cover")
-          .createSignedUrl(coverUrl.replace(/^book-cover\//, ""), 60 * 60 * 24)
-        if (!coverError && signedCover?.signedUrl) {
-          coverUrl = signedCover.signedUrl
-        }
-      }
-
-      setBook({ ...data, cover_url: coverUrl })
-      setCoverPreview(coverUrl || "")
+      const data = result.book as Book
+      setBook(data)
+      setCoverPreview(data.cover_url || "")
       
       // Set current PDF file name if exists
       if (data.file_url) {
-        const fileName = data.file_url.split('/').pop() || 'Current PDF file'
+        const fileName = data.file_url.split("/").pop() || "Current PDF file"
         setPdfFileName(fileName)
       }
     } catch (error) {
@@ -140,42 +123,22 @@ export default function BookEditPage() {
     toast.success("PDF file selected successfully")
   }
 
-  const uploadCoverImage = async (file: File): Promise<string | null> => {
-    try {
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-      const filePath = `${fileName}`
+  const uploadToR2 = async (file: File, kind: "book-cover" | "book-file"): Promise<string | null> => {
+    const payload = new FormData()
+    payload.append("file", file)
+    payload.append("kind", kind)
 
-      const { error: uploadError } = await supabase.storage
-        .from("book-cover")
-        .upload(filePath, file)
+    const response = await fetch("/api/files/upload", {
+      method: "POST",
+      body: payload,
+    })
+    const result = await response.json().catch(() => null)
 
-      if (uploadError) throw uploadError
-
-      return `book-cover/${filePath}`
-    } catch (error) {
-      console.error("Error uploading cover:", error)
-      throw error
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.details || result?.error || `Failed to upload ${kind}`)
     }
-  }
 
-  const uploadPdfFile = async (file: File): Promise<string | null> => {
-    try {
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-      const filePath = `${fileName}`
-
-      const { error: uploadError } = await supabase.storage
-        .from("book-file")
-        .upload(filePath, file)
-
-      if (uploadError) throw uploadError
-
-      return `book-file/${filePath}`
-    } catch (error) {
-      console.error("Error uploading PDF:", error)
-      throw error
-    }
+    return result.key || null
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -191,12 +154,12 @@ export default function BookEditPage() {
 
       // Upload new cover if selected
       if (coverFile) {
-        coverPath = await uploadCoverImage(coverFile)
+        coverPath = await uploadToR2(coverFile, "book-cover")
       }
 
       // Upload new PDF if selected
       if (pdfFile) {
-        filePath = await uploadPdfFile(pdfFile)
+        filePath = await uploadToR2(pdfFile, "book-file")
       }
 
       // Prepare update data
@@ -215,12 +178,17 @@ export default function BookEditPage() {
         video_description: formData.get("video_description") as string || null,
       }
 
-      const { error } = await supabase
-        .from("Booklist")
-        .update(updateData)
-        .eq("id", book.id)
-
-      if (error) throw error
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to update book")
+      }
 
       const uploadedItems = []
       if (coverFile) uploadedItems.push("cover")

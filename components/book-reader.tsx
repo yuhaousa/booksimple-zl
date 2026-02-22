@@ -219,6 +219,11 @@ export function BookReader({ book }: BookReaderProps) {
   // Refs
   const pageRef = useRef<HTMLDivElement>(null)
 
+  const getCurrentUserId = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user?.id || null
+  }
+
   // Ensure TextLayer CSS is loaded to prevent warning
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -286,28 +291,35 @@ export function BookReader({ book }: BookReaderProps) {
       }
 
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
+        const userId = await getCurrentUserId()
+        if (!userId) {
           console.log('Skipping progress update - no user logged in')
           return
         }
 
         console.log('Updating reading progress:', {
-          user_id: user.id,
+          user_id: userId,
           book_id: book.id,
           current_page: pageNumber,
           total_pages: numPages
         })
 
-        const { error } = await supabase.rpc('update_reading_progress', {
-          p_user_id: user.id,
-          p_book_id: book.id,
-          p_current_page: pageNumber,
-          p_total_pages: numPages
+        const response = await fetch('/api/book-tracking', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': userId,
+          },
+          body: JSON.stringify({
+            book_id: book.id,
+            current_page: pageNumber,
+            total_pages: numPages,
+          }),
         })
+        const result = await response.json().catch(() => null)
 
-        if (error) {
-          console.error('Error updating reading progress:', error)
+        if (!response.ok || !result?.success) {
+          console.error('Error updating reading progress:', result)
         } else {
           console.log('Reading progress updated successfully')
         }
@@ -422,40 +434,48 @@ export function BookReader({ book }: BookReaderProps) {
 
   const loadBookData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const userId = await getCurrentUserId()
+      if (!userId) return
 
-      // Load highlights
-      const { data: highlightsData } = await supabase
-        .from('book_highlights')
-        .select('*')
-        .eq('book_id', book.id)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-
-      if (highlightsData) {
-        setHighlights(highlightsData.map(h => ({
-          id: h.id,
-          bookId: h.book_id,
-          page: h.page_number,
-          text: h.text,
-          color: h.color,
-          position: h.position,
-          rects: h.position?.rects || [h.position],
-          createdAt: h.created_at
-        })))
+      const response = await fetch(`/api/books/${book.id}/reader-data`, {
+        cache: 'no-store',
+        headers: {
+          'x-user-id': userId,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || 'Failed to load reader data')
       }
 
-      // Load notes
-      const { data: notesData } = await supabase
-        .from('book_notes')
-        .select('*')
-        .eq('book_id', book.id)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+      const highlightsData = (result.highlights || []) as Array<any>
+      if (highlightsData.length > 0) {
+        setHighlights(highlightsData.map((h) => {
+          const position = h.position || { x: 0, y: 0, width: 100, height: 20 }
+          const rects = Array.isArray(position?.rects)
+            ? position.rects
+            : position?.x !== undefined
+              ? [position]
+              : []
 
-      if (notesData) {
-        setNotes(notesData.map(n => ({
+          return {
+            id: h.id,
+            bookId: h.book_id,
+            page: h.page_number,
+            text: h.text,
+            color: h.color,
+            position,
+            rects,
+            createdAt: h.created_at
+          }
+        }))
+      } else {
+        setHighlights([])
+      }
+
+      const notesData = (result.notes || []) as Array<any>
+      if (notesData.length > 0) {
+        setNotes(notesData.map((n) => ({
           id: n.id,
           bookId: n.book_id,
           page: n.page_number,
@@ -464,19 +484,12 @@ export function BookReader({ book }: BookReaderProps) {
           createdAt: n.created_at,
           updatedAt: n.updated_at
         })))
+      } else {
+        setNotes([])
       }
 
-      // Load custom outlines
-      const { data: customOutlineData } = await supabase
-        .from('custom_outline')
-        .select('*')
-        .eq('book_id', book.id)
-        .eq('user_id', user.id)
-        .order('sort_order', { ascending: true })
-
-      if (customOutlineData) {
-        setCustomOutlines(customOutlineData)
-      }
+      const customOutlineData = (result.customOutlines || []) as CustomOutlineItem[]
+      setCustomOutlines(customOutlineData)
     } catch (error) {
       console.error('Error loading book data:', error)
     }
@@ -581,24 +594,30 @@ export function BookReader({ book }: BookReaderProps) {
     if (!newOutlineTitle.trim() || newOutlinePage < 1 || newOutlinePage > numPages) return
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const userId = await getCurrentUserId()
+      if (!userId) return
 
       const maxOrder = Math.max(...customOutlines.map(o => o.sort_order), -1)
 
-      const { data, error } = await supabase
-        .from('custom_outline')
-        .insert({
+      const response = await fetch('/api/custom-outline', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({
           book_id: book.id,
           title: newOutlineTitle.trim(),
           page_number: newOutlinePage,
           sort_order: maxOrder + 1,
-          user_id: user.id
-        })
-        .select()
-        .single()
+        }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success || !result?.outline) {
+        throw new Error(result?.details || result?.error || 'Failed to add custom outline item')
+      }
 
-      if (error) throw error
+      const data = result.outline as CustomOutlineItem
 
       if (data) {
         setCustomOutlines(prev => [...prev, data])
@@ -613,12 +632,19 @@ export function BookReader({ book }: BookReaderProps) {
 
   const deleteCustomOutlineItem = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('custom_outline')
-        .delete()
-        .eq('id', id)
+      const userId = await getCurrentUserId()
+      if (!userId) return
 
-      if (error) throw error
+      const response = await fetch(`/api/custom-outline/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-id': userId,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || 'Failed to delete custom outline item')
+      }
 
       setCustomOutlines(prev => prev.filter(item => item.id !== id))
     } catch (error) {
@@ -628,20 +654,30 @@ export function BookReader({ book }: BookReaderProps) {
 
   const updateCustomOutlineItem = async (id: string, title: string, pageNumber: number) => {
     try {
-      const { error } = await supabase
-        .from('custom_outline')
-        .update({ 
+      const userId = await getCurrentUserId()
+      if (!userId) return
+
+      const response = await fetch(`/api/custom-outline/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({
           title: title.trim(),
           page_number: pageNumber,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
+        }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success || !result?.outline) {
+        throw new Error(result?.details || result?.error || 'Failed to update custom outline item')
+      }
 
-      if (error) throw error
+      const updatedAt = result.outline.updated_at || new Date().toISOString()
 
       setCustomOutlines(prev => prev.map(item => 
         item.id === id 
-          ? { ...item, title: title.trim(), page_number: pageNumber, updated_at: new Date().toISOString() }
+          ? { ...item, title: title.trim(), page_number: pageNumber, updated_at: updatedAt }
           : item
       ))
 
@@ -655,25 +691,31 @@ export function BookReader({ book }: BookReaderProps) {
 
   const convertPdfOutlineToCustom = async (title: string, pageNumber: number, originalIndex: number) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return null
+      const userId = await getCurrentUserId()
+      if (!userId) return null
 
       const maxOrder = Math.max(...customOutlines.map(o => o.sort_order), -1)
 
-      const { data, error } = await supabase
-        .from('custom_outline')
-        .insert({
+      const response = await fetch('/api/custom-outline', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({
           book_id: book.id,
           title: title.trim(),
           page_number: pageNumber,
           sort_order: maxOrder + 1,
           original_pdf_index: originalIndex,
-          user_id: user.id
-        })
-        .select()
-        .single()
+        }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success || !result?.outline) {
+        throw new Error(result?.details || result?.error || 'Failed to convert PDF outline')
+      }
 
-      if (error) throw error
+      const data = result.outline as CustomOutlineItem
 
       if (data) {
         setCustomOutlines(prev => [...prev, data])
@@ -806,8 +848,8 @@ export function BookReader({ book }: BookReaderProps) {
     if (!newNoteContent.trim() || !selectedPosition) return
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const userId = await getCurrentUserId()
+      if (!userId) return
 
       let content = newNoteContent.trim()
       
@@ -816,19 +858,25 @@ export function BookReader({ book }: BookReaderProps) {
         content = `"${selectedText.trim()}"\n\n${content}`
       }
 
-      const { data, error } = await supabase
-        .from('book_notes')
-        .insert({
+      const response = await fetch('/api/book-notes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({
           book_id: book.id,
           page_number: pageNumber,
           content,
           position: selectedPosition,
-          user_id: user.id
-        })
-        .select()
-        .single()
+        }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success || !result?.note) {
+        throw new Error(result?.details || result?.error || 'Failed to create note')
+      }
 
-      if (error) throw error
+      const data = result.note
 
       const newNote: Note = {
         id: data.id,
@@ -852,19 +900,29 @@ export function BookReader({ book }: BookReaderProps) {
 
   const updateNote = async (noteId: string, content: string) => {
     try {
-      const { error } = await supabase
-        .from('book_notes')
-        .update({ 
-          content,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', noteId)
+      const userId = await getCurrentUserId()
+      if (!userId) return
 
-      if (error) throw error
+      const response = await fetch(`/api/book-notes/${encodeURIComponent(noteId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+        },
+        body: JSON.stringify({
+          content,
+        }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success || !result?.note) {
+        throw new Error(result?.details || result?.error || 'Failed to update note')
+      }
+
+      const updatedAt = result.note.updated_at || new Date().toISOString()
 
       setNotes(prev => prev.map(note => 
         note.id === noteId 
-          ? { ...note, content, updatedAt: new Date().toISOString() }
+          ? { ...note, content, updatedAt }
           : note
       ))
 
@@ -877,12 +935,19 @@ export function BookReader({ book }: BookReaderProps) {
 
   const deleteNote = async (noteId: string) => {
     try {
-      const { error } = await supabase
-        .from('book_notes')
-        .delete()
-        .eq('id', noteId)
+      const userId = await getCurrentUserId()
+      if (!userId) return
 
-      if (error) throw error
+      const response = await fetch(`/api/book-notes/${encodeURIComponent(noteId)}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-id': userId,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || 'Failed to delete note')
+      }
 
       setNotes(prev => prev.filter(note => note.id !== noteId))
     } catch (error) {
@@ -892,12 +957,19 @@ export function BookReader({ book }: BookReaderProps) {
 
   const deleteHighlight = async (highlightId: string) => {
     try {
-      const { error } = await supabase
-        .from('book_highlights')
-        .delete()
-        .eq('id', highlightId)
+      const userId = await getCurrentUserId()
+      if (!userId) return
 
-      if (error) throw error
+      const response = await fetch(`/api/book-highlights/${encodeURIComponent(highlightId)}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-id': userId,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || 'Failed to delete highlight')
+      }
 
       setHighlights(prev => prev.filter(highlight => highlight.id !== highlightId))
     } catch (error) {
@@ -958,8 +1030,8 @@ export function BookReader({ book }: BookReaderProps) {
 
       if (isHighlightMode && !isNoteMode) {
         // Handle highlighting only if note mode is off
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        const userId = await getCurrentUserId()
+        if (!userId) return
 
         // Calculate highlight rects for multi-line selection
         const range = selection.getRangeAt(0)
@@ -985,20 +1057,26 @@ export function BookReader({ book }: BookReaderProps) {
           position: rects.length > 0 ? { rects } : { x: 0, y: 0, width: 100, height: 20 }
         }
 
-        const { data, error } = await supabase
-          .from('book_highlights')
-          .insert({
+        const response = await fetch('/api/book-highlights', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': userId,
+          },
+          body: JSON.stringify({
             book_id: highlight.bookId,
             page_number: highlight.page,
             text: highlight.text,
             color: highlight.color,
             position: highlight.position,
-            user_id: user.id
-          })
-          .select()
-          .single()
+          }),
+        })
+        const result = await response.json().catch(() => null)
+        if (!response.ok || !result?.success || !result?.highlight) {
+          throw new Error(result?.details || result?.error || 'Failed to create highlight')
+        }
 
-        if (error) throw error
+        const data = result.highlight
 
         setHighlights(prev => [{
           ...highlight,
