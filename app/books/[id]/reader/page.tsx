@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Layout } from 'lucide-react'
 import Link from 'next/link'
@@ -79,18 +78,15 @@ export default function BookReaderPage() {
   const fetchBook = async () => {
     try {
       console.log('Fetching book data for reader:', bookId)
-      
-      const { data, error } = await supabase
-        .from('Booklist')
-        .select('*')
-        .eq('id', bookId)
-        .single()
 
-      if (error) {
-        console.error('Database error:', error)
-        throw error
+      const response = await fetch(`/api/books/${bookId}`, { cache: "no-store" })
+      const result = await response.json().catch(() => null)
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || 'Failed to load book')
       }
-      
+
+      const data = result.book as Book | undefined
       if (!data) {
         setError('Book not found.')
         return
@@ -101,37 +97,21 @@ export default function BookReaderPage() {
         return
       }
 
-      console.log('Book data loaded, generating signed URL for:', data.file_url)
-
-      // Generate signed URL for the file
-      let signedUrl = data.file_url
-      if (data.file_url && !data.file_url.startsWith('http')) {
-        const { data: signedData, error: signError } = await supabase.storage
-          .from('book-file')
-          .createSignedUrl(data.file_url.replace(/^book-file\//, ''), 60 * 60 * 24) // 24 hour expiry
-
-        if (!signError && signedData?.signedUrl) {
-          signedUrl = signedData.signedUrl
-          console.log('Signed URL generated successfully')
-        } else {
-          console.error('Error generating signed URL:', signError)
-          setError('Failed to access PDF file. Please contact support.')
-          return
-        }
-      }
-
-      // Validate the signed URL
+      // Validate file URL
       try {
-        const urlTest = new URL(signedUrl)
+        const urlTest = new URL(data.file_url, window.location.origin)
         console.log('PDF URL validated:', urlTest.origin)
       } catch (urlError) {
-        console.error('Invalid PDF URL:', signedUrl, urlError)
+        console.error('Invalid PDF URL:', data.file_url, urlError)
         setError('Invalid PDF file URL. Please contact support.')
         return
       }
 
       console.log('Book reader data prepared successfully')
-      setBook({ ...data, file_url: signedUrl })
+      setBook({
+        ...data,
+        user_id: data.user_id || "",
+      })
     } catch (error: any) {
       console.error('Error fetching book:', error)
       let errorMessage = 'Failed to load book.'
@@ -168,10 +148,10 @@ export default function BookReaderPage() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-500 mb-4">{error}</p>
-          <Link href={`/books/${bookId}`}>
+          <Link href="/books">
             <Button variant="outline">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Book Details
+              Back to Books
             </Button>
           </Link>
         </div>

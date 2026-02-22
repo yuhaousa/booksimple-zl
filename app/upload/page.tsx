@@ -1,50 +1,30 @@
 "use client"
 
-
+import { useRouter } from "next/navigation"
 
 import { BookUploadForm } from "@/components/book-upload-form"
 import { Toaster } from "@/components/ui/toaster"
-import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase" // Use your shared client!
-import { useEffect, useState } from "react"
 
 export default function UploadPage() {
   const router = useRouter()
-  const [user, setUser] = useState(null)
-
-
-
-  useEffect(() => {
-  supabase.auth.getUser().then(({ data }) => {
-    console.log("getUser data:", data)
-    setUser(data?.user ?? null)
-  })
-}, [])
 
   const handleBookAdded = () => {
     router.push("/books")
   }
 
-      console.log("wait to add to book list:")
+  const addBookToList = async (bookData: Record<string, unknown>) => {
+    const response = await fetch("/api/books", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bookData),
+    })
 
- const addBookToList = async (bookData) => {
-    if (!user) {
-      console.error("Warning: User not found, cannot add book.")
-      return
+    const result = await response.json().catch(() => null)
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.details || result?.error || "Failed to save book")
     }
+  }
 
-    const { error: insertError } = await supabase.from("Booklist").insert({
-      ...bookData,
-      user_id: user.id // <-- UUID from Supabase Auth
-})
-
-if (insertError) {
-  console.error("Insert error:", insertError)
-} else {
-  console.log("Book inserted with user_id:", user.id)
-}
-
-}
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">

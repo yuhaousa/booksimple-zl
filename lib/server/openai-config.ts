@@ -1,7 +1,7 @@
 import "server-only"
 
 import OpenAI from "openai"
-import { createClient } from "@supabase/supabase-js"
+import { getD1Database } from "@/lib/server/cloudflare-bindings"
 
 export type AIProvider = "openai" | "minimax"
 export type OpenAIKeySource = "environment" | "database" | "none"
@@ -60,20 +60,10 @@ export type AIConfigurationStatus = {
   }
 }
 
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
+type AdminSettingRow = {
+  setting_key: string
+  setting_value: string
+  updated_at: string | null
 }
 
 function normalizeValue(value: string | null | undefined) {
@@ -91,8 +81,8 @@ function getEnvSetting(name: string) {
 }
 
 async function getSettingsMap(): Promise<SettingsMap> {
-  const adminClient = createAdminClient()
-  if (!adminClient) return {}
+  const db = getD1Database()
+  if (!db) return {}
 
   const keys = [
     OPENAI_SETTING_KEY,
@@ -103,23 +93,29 @@ async function getSettingsMap(): Promise<SettingsMap> {
     DEFAULT_PROVIDER_KEY,
   ]
 
-  const { data, error } = await adminClient
-    .from("admin_settings")
-    .select("setting_key, setting_value, updated_at")
-    .in("setting_key", keys)
+  try {
+    const result = await db
+      .prepare("SELECT setting_key, setting_value, updated_at FROM admin_settings")
+      .all()
 
-  if (error || !data) return {}
+    const rows = (result?.results ?? []) as AdminSettingRow[]
+    if (!rows.length) return {}
 
-  const map: SettingsMap = {}
-  for (const row of data) {
-    const normalized = normalizeValue(row.setting_value)
-    if (!normalized) continue
-    map[row.setting_key] = {
-      value: normalized,
-      updatedAt: row.updated_at ?? null,
+    const allowed = new Set(keys)
+    const map: SettingsMap = {}
+    for (const row of rows) {
+      if (!allowed.has(row.setting_key)) continue
+      const normalized = normalizeValue(row.setting_value)
+      if (!normalized) continue
+      map[row.setting_key] = {
+        value: normalized,
+        updatedAt: row.updated_at ?? null,
+      }
     }
+    return map
+  } catch {
+    return {}
   }
-  return map
 }
 
 function resolveModel(
@@ -340,4 +336,3 @@ export async function createConfiguredOpenAIClient(options?: {
     model: activeRuntime.model,
   }
 }
-

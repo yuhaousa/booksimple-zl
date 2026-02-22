@@ -70,7 +70,7 @@ export type Book = {
   year: number | null
   cover_url: string | null
   file_url: string | null
-  user_id: number
+  user_id: string | null
   video_url: string | null
   video_file_url: string | null
   video_title: string | null

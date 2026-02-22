@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Upload, Sparkles } from "lucide-react"
 
@@ -26,7 +25,6 @@ export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormPro
   const [aiCoverUrl, setAiCoverUrl] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const { toast } = useToast()
-  const supabase = createClient()
 
   const handleAIAutofill = async () => {
     if (!bookFile) {
@@ -88,23 +86,22 @@ export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormPro
     }
   }
 
-  const uploadFile = async (file: File, bucket: string, folder = ""): Promise<string | null> => {
-    try {
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-      const filePath = folder ? `${folder}/${fileName}` : fileName
+  const uploadFile = async (file: File, kind: "book-cover" | "book-file"): Promise<string | null> => {
+    const payload = new FormData()
+    payload.append("file", file)
+    payload.append("kind", kind)
 
-      const { data, error } = await supabase.storage.from(bucket).upload(filePath, file)
+    const response = await fetch("/api/files/upload", {
+      method: "POST",
+      body: payload,
+    })
 
-      if (error) {
-        throw new Error(`Upload failed: ${error.message}`)
-      }
-
-      // Return only the file path, not a signed URL
-      return data.path
-    } catch (error) {
-      throw error
+    const result = await response.json().catch(() => null)
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.details || result?.error || "Upload failed")
     }
+
+    return result.key || null
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
-import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 
+import { getD1Database } from "@/lib/server/cloudflare-bindings"
 import { AIProvider, getAIConfigurationStatus } from "@/lib/server/openai-config"
 
 const OPENAI_SETTING_KEY = "openai_api_key"
@@ -12,110 +12,14 @@ const MINIMAX_MODEL_KEY = "minimax_model"
 const MINIMAX_BASE_URL_KEY = "minimax_base_url"
 const DEFAULT_PROVIDER_KEY = "ai_default_provider"
 
-type AdminSupabaseClient = NonNullable<ReturnType<typeof createAdminClient>>
 type AdminAccessResult =
-  | { error: NextResponse; adminClient: null; userId: null }
-  | { error: null; adminClient: AdminSupabaseClient; userId: string }
+  | { error: NextResponse; db: null; userId: null }
+  | { error: null; db: any; userId: string }
 
 function getSupabaseEnv() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  return { supabaseUrl, supabaseAnonKey, serviceRoleKey }
-}
-
-function createAdminClient() {
-  const { supabaseUrl, serviceRoleKey } = getSupabaseEnv()
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
-}
-
-async function createUserServerClient() {
-  const { supabaseUrl, supabaseAnonKey } = getSupabaseEnv()
-  if (!supabaseUrl || !supabaseAnonKey) return null
-
-  const cookieStore = await cookies()
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll()
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options)
-        })
-      },
-    },
-  })
-}
-
-async function requireAdminAccess(): Promise<AdminAccessResult> {
-  const userClient = await createUserServerClient()
-  if (!userClient) {
-    return {
-      error: NextResponse.json({ error: "Supabase client is not configured" }, { status: 503 }),
-      adminClient: null,
-      userId: null,
-    }
-  }
-
-  const {
-    data: { user },
-    error: userError,
-  } = await userClient.auth.getUser()
-
-  if (userError || !user) {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-      adminClient: null,
-      userId: null,
-    }
-  }
-
-  const adminClient = createAdminClient()
-  if (!adminClient) {
-    return {
-      error: NextResponse.json({ error: "Service role key is not configured" }, { status: 503 }),
-      adminClient: null,
-      userId: null,
-    }
-  }
-
-  const { data: adminRow, error: adminError } = await adminClient
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle()
-
-  if (adminError) {
-    return {
-      error: NextResponse.json(
-        { error: "Failed to verify admin permissions", details: adminError.message },
-        { status: 500 }
-      ),
-      adminClient: null,
-      userId: null,
-    }
-  }
-
-  if (!adminRow) {
-    return {
-      error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
-      adminClient: null,
-      userId: null,
-    }
-  }
-
-  return { adminClient, userId: user.id, error: null }
+  return { supabaseUrl, supabaseAnonKey }
 }
 
 function normalizeValue(value: unknown) {
@@ -130,11 +34,129 @@ function asProvider(value: unknown): AIProvider | null {
 }
 
 function isMissingSettingsTableError(errorMessage: string) {
-  return errorMessage.toLowerCase().includes("admin_settings")
+  const message = errorMessage.toLowerCase()
+  return message.includes("admin_settings") && message.includes("no such table")
 }
 
-export async function GET() {
-  const access = await requireAdminAccess()
+async function getUserIdFromSupabaseSession() {
+  const { supabaseUrl, supabaseAnonKey } = getSupabaseEnv()
+  if (!supabaseUrl || !supabaseAnonKey) return null
+
+  try {
+    const cookieStore = await cookies()
+    const userClient = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    })
+
+    const {
+      data: { user },
+      error,
+    } = await userClient.auth.getUser()
+
+    if (error || !user) return null
+    return user.id
+  } catch {
+    return null
+  }
+}
+
+function getUserIdFromHeaders(request: NextRequest) {
+  return normalizeValue(request.headers.get("x-user-id") || request.headers.get("x-admin-user-id"))
+}
+
+async function resolveUserId(request: NextRequest) {
+  const sessionUserId = await getUserIdFromSupabaseSession()
+  if (sessionUserId) return sessionUserId
+  return getUserIdFromHeaders(request)
+}
+
+async function requireAdminAccess(request: NextRequest): Promise<AdminAccessResult> {
+  const db = getD1Database()
+  if (!db) {
+    return {
+      error: NextResponse.json({ error: "Cloudflare D1 binding `DB` is not configured" }, { status: 503 }),
+      db: null,
+      userId: null,
+    }
+  }
+
+  const userId = await resolveUserId(request)
+  if (!userId) {
+    return {
+      error: NextResponse.json(
+        { error: "Unauthorized. Login with Supabase session or send x-user-id header." },
+        { status: 401 }
+      ),
+      db: null,
+      userId: null,
+    }
+  }
+
+  try {
+    const adminRow = (await db
+      .prepare("SELECT user_id FROM admin_users WHERE user_id = ? LIMIT 1")
+      .bind(userId)
+      .first()) as { user_id: string } | null
+
+    if (!adminRow) {
+      return {
+        error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+        db: null,
+        userId: null,
+      }
+    }
+  } catch (error) {
+    return {
+      error: NextResponse.json(
+        {
+          error: "Failed to verify admin permissions",
+          details: error instanceof Error ? error.message : "Unknown error",
+        },
+        { status: 500 }
+      ),
+      db: null,
+      userId: null,
+    }
+  }
+
+  return { db, userId, error: null }
+}
+
+async function saveSettings(db: any, updates: { setting_key: string; setting_value: string; updated_at: string; updated_by: string }[]) {
+  const statements = updates.map((update) =>
+    db
+      .prepare(
+        `INSERT INTO admin_settings (setting_key, setting_value, updated_at, updated_by)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(setting_key) DO UPDATE SET
+           setting_value = excluded.setting_value,
+           updated_at = excluded.updated_at,
+           updated_by = excluded.updated_by`
+      )
+      .bind(update.setting_key, update.setting_value, update.updated_at, update.updated_by)
+  )
+
+  if (typeof db.batch === "function") {
+    await db.batch(statements)
+    return
+  }
+
+  for (const statement of statements) {
+    await statement.run()
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const access = await requireAdminAccess(request)
   if (access.error) return access.error
 
   const status = await getAIConfigurationStatus()
@@ -142,10 +164,10 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const access = await requireAdminAccess()
+  const access = await requireAdminAccess(request)
   if (access.error) return access.error
 
-  const { adminClient, userId } = access
+  const { db, userId } = access
   const body = await request.json().catch(() => null)
 
   const updates: { setting_key: string; setting_value: string; updated_at: string; updated_by: string }[] = []
@@ -227,19 +249,18 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "No settings provided to update" }, { status: 400 })
   }
 
-  const { error: upsertError } = await adminClient
-    .from("admin_settings")
-    .upsert(updates, { onConflict: "setting_key" })
-
-  if (upsertError) {
-    const status = isMissingSettingsTableError(upsertError.message) ? 400 : 500
+  try {
+    await saveSettings(db, updates)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    const status = isMissingSettingsTableError(message) ? 400 : 500
     return NextResponse.json(
       {
         error: "Failed to save AI settings",
-        details: upsertError.message,
+        details: message,
         hint:
           status === 400
-            ? "Run scripts/create-admin-settings-table.sql in Supabase SQL editor first."
+            ? "Run scripts/d1/001_schema.sql against D1 to create admin_settings."
             : undefined,
       },
       { status }
@@ -255,10 +276,10 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const access = await requireAdminAccess()
+  const access = await requireAdminAccess(request)
   if (access.error) return access.error
 
-  const { adminClient } = access
+  const { db } = access
 
   const providerParam = request.nextUrl.searchParams.get("provider")
   let keysToDelete: string[] = []
@@ -277,20 +298,22 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "provider must be openai, minimax, or all" }, { status: 400 })
   }
 
-  const { error: deleteError } = await adminClient
-    .from("admin_settings")
-    .delete()
-    .in("setting_key", keysToDelete)
-
-  if (deleteError) {
-    const status = isMissingSettingsTableError(deleteError.message) ? 400 : 500
+  const placeholders = keysToDelete.map(() => "?").join(", ")
+  try {
+    await db
+      .prepare(`DELETE FROM admin_settings WHERE setting_key IN (${placeholders})`)
+      .bind(...keysToDelete)
+      .run()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    const status = isMissingSettingsTableError(message) ? 400 : 500
     return NextResponse.json(
       {
         error: "Failed to clear AI key",
-        details: deleteError.message,
+        details: message,
         hint:
           status === 400
-            ? "Run scripts/create-admin-settings-table.sql in Supabase SQL editor first."
+            ? "Run scripts/d1/001_schema.sql against D1 to create admin_settings."
             : undefined,
       },
       { status }
@@ -304,4 +327,3 @@ export async function DELETE(request: NextRequest) {
     ...status,
   })
 }
-
