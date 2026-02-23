@@ -26,6 +26,20 @@ function getSessionSecret() {
   )
 }
 
+function shouldUseSecureCookie(request?: NextRequest) {
+  const envOverride = normalizeString(process.env.AUTH_COOKIE_SECURE)?.toLowerCase()
+  if (envOverride === "1" || envOverride === "true") return true
+  if (envOverride === "0" || envOverride === "false") return false
+
+  if (request) {
+    const forwardedProto = normalizeString(request.headers.get("x-forwarded-proto"))?.split(",")[0]?.trim()
+    if (forwardedProto) return forwardedProto === "https"
+    return request.nextUrl.protocol === "https:"
+  }
+
+  return process.env.NODE_ENV === "production"
+}
+
 function signPayload(payload: string) {
   return createHmac("sha256", getSessionSecret()).update(payload).digest("hex")
 }
@@ -77,9 +91,10 @@ export function resolveSessionUserIdFromRequest(request: NextRequest) {
 export function setSessionCookie(
   response: NextResponse,
   token: string,
-  ttlSeconds: number = DEFAULT_TTL_SECONDS
+  ttlSeconds: number = DEFAULT_TTL_SECONDS,
+  request?: NextRequest
 ) {
-  const secure = process.env.NODE_ENV === "production"
+  const secure = shouldUseSecureCookie(request)
   response.cookies.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     secure,
@@ -89,8 +104,8 @@ export function setSessionCookie(
   })
 }
 
-export function clearSessionCookie(response: NextResponse) {
-  const secure = process.env.NODE_ENV === "production"
+export function clearSessionCookie(response: NextResponse, request?: NextRequest) {
+  const secure = shouldUseSecureCookie(request)
   response.cookies.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
     secure,

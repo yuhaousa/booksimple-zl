@@ -32,32 +32,63 @@ export async function POST(request: NextRequest) {
     }
 
     const existing = (await db
-      .prepare(`SELECT auth_user_id FROM user_list WHERE lower(email) = ? LIMIT 1`)
+      .prepare(`SELECT auth_user_id, display_name FROM user_list WHERE lower(email) = ? LIMIT 1`)
       .bind(email)
-      .first()) as { auth_user_id: string | null } | null
+      .first()) as { auth_user_id: string | null; display_name: string | null } | null
+
+    const passwordHash = await hashPassword(password)
+    let userId = crypto.randomUUID()
+    let finalDisplayName = displayName
 
     if (existing) {
-      return NextResponse.json({ success: false, error: "Email is already registered" }, { status: 409 })
+      userId = existing.auth_user_id || crypto.randomUUID()
+      finalDisplayName = displayName ?? existing.display_name ?? null
+
+      const existingCredential = (await db
+        .prepare("SELECT user_id FROM auth_credentials WHERE user_id = ? LIMIT 1")
+        .bind(userId)
+        .first()) as { user_id: string } | null
+
+      if (existingCredential) {
+        return NextResponse.json({ success: false, error: "Email is already registered" }, { status: 409 })
+      }
+
+      if (existing.auth_user_id) {
+        await db
+          .prepare("UPDATE user_list SET display_name = COALESCE(?, display_name) WHERE auth_user_id = ?")
+          .bind(finalDisplayName, userId)
+          .run()
+      } else {
+        await db
+          .prepare("UPDATE user_list SET auth_user_id = ?, display_name = COALESCE(?, display_name) WHERE lower(email) = ?")
+          .bind(userId, finalDisplayName, email)
+          .run()
+      }
+
+      await db
+        .prepare(
+          `INSERT INTO auth_credentials (user_id, password_hash, created_at, updated_at)
+           VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        )
+        .bind(userId, passwordHash)
+        .run()
+    } else {
+      await db
+        .prepare(
+          `INSERT INTO user_list (auth_user_id, email, display_name, created_at)
+           VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
+        )
+        .bind(userId, email, finalDisplayName)
+        .run()
+
+      await db
+        .prepare(
+          `INSERT INTO auth_credentials (user_id, password_hash, created_at, updated_at)
+           VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        )
+        .bind(userId, passwordHash)
+        .run()
     }
-
-    const userId = crypto.randomUUID()
-    const passwordHash = await hashPassword(password)
-
-    await db
-      .prepare(
-        `INSERT INTO user_list (auth_user_id, email, display_name, created_at)
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
-      )
-      .bind(userId, email, displayName)
-      .run()
-
-    await db
-      .prepare(
-        `INSERT INTO auth_credentials (user_id, password_hash, created_at, updated_at)
-         VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-      )
-      .bind(userId, passwordHash)
-      .run()
 
     const token = createSessionToken(userId)
     const response = NextResponse.json({
@@ -65,10 +96,10 @@ export async function POST(request: NextRequest) {
       user: {
         id: userId,
         email,
-        display_name: displayName,
+        display_name: finalDisplayName,
       },
     })
-    setSessionCookie(response, token)
+    setSessionCookie(response, token, undefined, request)
     return response
   } catch (error) {
     return NextResponse.json(
@@ -81,4 +112,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

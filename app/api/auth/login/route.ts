@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { ensureAuthTables, normalizeEmail, normalizeValue, type AuthUserRecord } from "@/lib/server/auth-db"
+import { ensureAuthTables, normalizeEmail, normalizeValue } from "@/lib/server/auth-db"
 import { requireD1Database } from "@/lib/server/cloudflare-bindings"
 import { verifyPassword } from "@/lib/server/password"
 import { createSessionToken, setSessionCookie } from "@/lib/server/session"
+
+type LoginRow = {
+  user_id: string
+  email: string | null
+  display_name: string | null
+  password_hash: string | null
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,15 +39,26 @@ export async function POST(request: NextRequest) {
           u.display_name AS display_name,
           c.password_hash AS password_hash
         FROM user_list u
-        JOIN auth_credentials c ON c.user_id = u.auth_user_id
+        LEFT JOIN auth_credentials c ON c.user_id = u.auth_user_id
         WHERE lower(u.email) = ?
         LIMIT 1`
       )
       .bind(email)
-      .first()) as AuthUserRecord | null
+      .first()) as LoginRow | null
 
     if (!row) {
       return NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 })
+    }
+
+    if (!row.password_hash) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "This account needs to be activated after migration. Please register again with the same email to set a new password.",
+        },
+        { status: 409 }
+      )
     }
 
     const valid = await verifyPassword(password, row.password_hash)
@@ -57,7 +75,7 @@ export async function POST(request: NextRequest) {
         display_name: row.display_name,
       },
     })
-    setSessionCookie(response, token)
+    setSessionCookie(response, token, undefined, request)
     return response
   } catch (error) {
     return NextResponse.json(
@@ -70,4 +88,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
