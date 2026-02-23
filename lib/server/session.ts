@@ -79,9 +79,10 @@ export function setSessionCookie(
   token: string,
   ttlSeconds: number = DEFAULT_TTL_SECONDS
 ) {
+  const secure = process.env.NODE_ENV === "production"
   response.cookies.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: true,
+    secure,
     sameSite: "lax",
     path: "/",
     maxAge: Math.max(60, ttlSeconds),
@@ -89,12 +90,12 @@ export function setSessionCookie(
 }
 
 export function clearSessionCookie(response: NextResponse) {
+  const secure = process.env.NODE_ENV === "production"
   response.cookies.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
-    secure: true,
+    secure,
     sameSite: "lax",
     path: "/",
     maxAge: 0,
   })
 }
-

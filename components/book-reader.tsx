@@ -41,7 +41,6 @@ import {
   Settings
 } from 'lucide-react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 
 
 
@@ -220,8 +219,9 @@ export function BookReader({ book }: BookReaderProps) {
   const pageRef = useRef<HTMLDivElement>(null)
 
   const getCurrentUserId = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user?.id || null
+    const response = await fetch("/api/auth/me", { cache: "no-store" })
+    const result = await response.json().catch(() => null)
+    return result?.success && result?.user?.id ? String(result.user.id) : null
   }
 
   // Ensure TextLayer CSS is loaded to prevent warning

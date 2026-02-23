@@ -1,309 +1,292 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { createHash } from 'crypto'
-import { cookies } from 'next/headers'
-import { getConfiguredOpenAIKey } from '@/lib/server/openai-config'
+import { createHash } from "crypto"
+import { NextRequest, NextResponse } from "next/server"
 
-// Conditionally import AI functions to avoid build-time issues
+import { getConfiguredOpenAIKey } from "@/lib/server/openai-config"
+import { requireD1Database } from "@/lib/server/cloudflare-bindings"
+import { resolveUserIdFromRequest } from "@/lib/server/request-user"
+
 async function loadAIAnalysis() {
   try {
-    const { analyzeBookWithAI } = await import('@/lib/ai-book-analysis')
+    const { analyzeBookWithAI } = await import("@/lib/ai-book-analysis")
     return { analyzeBookWithAI }
   } catch (error) {
-    console.error('Failed to load AI analysis module:', error)
+    console.error("Failed to load AI analysis module:", error)
     return null
   }
 }
 
 async function loadPDFExtraction() {
   try {
-    const { extractTextFromBookPDF } = await import('@/lib/pdf-extraction')
+    const { extractTextFromBookPDF } = await import("@/lib/pdf-extraction")
     return { extractTextFromBookPDF }
   } catch (error) {
-    console.error('Failed to load PDF extraction module:', error)
+    console.error("Failed to load PDF extraction module:", error)
     return null
   }
 }
 
-const supabaseUrl = "https://hbqurajgjhmdpgjuvdcy.supabase.co"
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhicXVyYWpnamhtZHBnanV2ZGN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1NDgyODIsImV4cCI6MjA3MjEyNDI4Mn0.80L5XZxrl_gg87Epm1gLRGfvU1s1AcwVk5gKyJOALdQ"
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+type AnalysisRow = {
+  id: string
+  summary: string | null
+  key_themes: string | null
+  main_characters: string | null
+  genre_analysis: string | null
+  reading_level: string | null
+  reading_time_minutes: number | null
+  content_analysis: string | null
+  mind_map_data: string | null
+  analysis_version: string | null
+  ai_model_used: string | null
+  created_at: string | null
+  last_accessed_at: string | null
+}
 
-// Create admin client that bypasses RLS - only for server-side use!
-function createAdminClient() {
-  if (!supabaseServiceRoleKey) {
-    console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY not found, falling back to anon key')
-    return createSupabaseClient(supabaseUrl, supabaseAnonKey)
+type BookRow = {
+  id: number
+  title: string
+  author: string | null
+  description: string | null
+  cover_url: string | null
+  file_url: string | null
+  tags: string | null
+}
+
+function parseId(raw: string) {
+  const id = Number.parseInt(raw, 10)
+  if (!Number.isFinite(id) || id <= 0) return null
+  return id
+}
+
+function parseJson<T = any>(value: string | null | undefined): T | null {
+  if (!value) return null
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return null
   }
-  return createSupabaseClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  })
 }
 
-async function createServerSupabaseClient() {
-  const cookieStore = await cookies()
-  
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll()
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options)
-        })
-      },
-    },
-  })
+function asArrayOfStrings(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item)).filter((item) => item.trim().length > 0)
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+  return []
 }
 
-// Extend the route timeout for AI analysis
-// Vercel Pro allows up to 60 seconds, adjust based on your plan
+function makeId(prefix: string) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}_${crypto.randomUUID()}`
+  }
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+function makeContentHash(book: BookRow) {
+  const contentToHash = `${book.title}|${book.author || ""}|${book.description || ""}|${book.file_url || ""}`
+  return createHash("sha256").update(contentToHash).digest("hex")
+}
+
+function mapAnalysisRow(row: AnalysisRow) {
+  const contentAnalysis = parseJson<Record<string, any>>(row.content_analysis)
+  const mindMapData = parseJson<Record<string, any>>(row.mind_map_data)
+  const keyThemes = asArrayOfStrings(parseJson(row.key_themes) ?? row.key_themes)
+  const mainCharacters = asArrayOfStrings(parseJson(row.main_characters) ?? row.main_characters)
+
+  return {
+    summary: row.summary,
+    detailedSummary: contentAnalysis?.detailedSummary,
+    keyPoints: keyThemes,
+    keywords: mainCharacters,
+    topics: asArrayOfStrings(row.genre_analysis),
+    difficulty: row.reading_level,
+    readingTime: row.reading_time_minutes,
+    mindmapData: mindMapData,
+    confidence: contentAnalysis?.confidence || 0.8,
+    authorBackground: contentAnalysis?.authorBackground,
+    bookBackground: contentAnalysis?.bookBackground,
+    worldRelevance: contentAnalysis?.worldRelevance,
+    quizQuestions: contentAnalysis?.quizQuestions,
+  }
+}
+
+async function getBookById(db: any, bookId: number) {
+  return (await db
+    .prepare(
+      `SELECT id, title, author, description, cover_url, file_url, tags
+       FROM "Booklist"
+       WHERE id = ?
+       LIMIT 1`
+    )
+    .bind(bookId)
+    .first()) as BookRow | null
+}
+
 export const maxDuration = 60
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const db = requireD1Database()
     const resolvedParams = await params
-    const bookId = resolvedParams.id
-    
-    // Check if force regeneration is requested
-    const { searchParams } = new URL(request.url)
-    const forceRegenerate = searchParams.get('force') === 'true' || searchParams.get('forceRegenerate') === 'true'
-
-    console.log('Starting AI analysis for book ID:', bookId, forceRegenerate ? '🔄 (FORCED REGENERATION)' : '')
-
-    // Create server-side Supabase client with auth
-    const supabase = await createServerSupabaseClient()
-    
-    // Get current user (temporarily bypass for testing)
-    const { data: { user } } = await supabase.auth.getUser()
-    const testUserId = '2f88069f-0933-4036-a060-c136abf7dbf3' // Use test user ID for development
-    if (!user && process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
-    // Use actual user or test user
-    const currentUser = user || { id: testUserId }
-
-    // Fetch book data from database
-    const { data: book, error: bookError } = await supabase
-      .from("Booklist")
-      .select("*")
-      .eq("id", bookId)
-      .single()
-
-    if (bookError || !book) {
-      console.error('Book not found:', bookError)
-      return NextResponse.json(
-        { error: 'Book not found' }, 
-        { status: 404 }
-      )
+    const bookId = parseId(resolvedParams.id)
+    if (!bookId) {
+      return NextResponse.json({ success: false, error: "Invalid book id" }, { status: 400 })
     }
 
-    // Calculate content hash for cache validation
-    const contentToHash = `${book.title}|${book.author}|${book.description}|${book.file_url}`
-    const contentHash = createHash('sha256').update(contentToHash).digest('hex')
+    const forceRegenerate =
+      request.nextUrl.searchParams.get("force") === "true" ||
+      request.nextUrl.searchParams.get("forceRegenerate") === "true"
 
-    // Check if we already have a cached analysis for this exact content
-    console.log('🔍 Checking for existing analysis before API call:', {
-      bookId: parseInt(bookId),
-      userId: currentUser.id,
-      contentHash: contentHash.substring(0, 16) + '...',
-      fullHash: contentHash
-    })
-    
-    // Use admin client to bypass RLS for cache lookup
-    const adminClient = createAdminClient()
-    
-    // Try the simplest possible query first - just get any analysis for this book
-    let { data: existingAnalysisArray, error: existingError } = await adminClient
-      .from('ai_book_analysis')
-      .select('*')
-      .eq('book_id', parseInt(bookId))
-      .order('created_at', { ascending: false })
-      .limit(1)
-    
-    console.log('📦 Cache query result:', { 
-      count: existingAnalysisArray?.length || 0,
-      error: existingError?.message || 'none',
-      bookId: parseInt(bookId)
-    })
-    
-    if (existingError) {
-      console.error('❌ Supabase query error:', existingError)
-    }
-    
-    if (existingAnalysisArray && existingAnalysisArray.length > 0) {
-      console.log('✅ Found cached analysis:', {
-        id: existingAnalysisArray[0].id,
-        userId: existingAnalysisArray[0].user_id,
-        createdAt: existingAnalysisArray[0].created_at
-      })
-    }
-    
-    const existingAnalysis = existingAnalysisArray?.[0] || null
-    
-    console.log('📊 Existing analysis check:', {
-      found: !!existingAnalysis,
-      sharedCache: existingAnalysis?.user_id !== currentUser.id,
-      error: existingError?.message || 'none',
-      forceRegenerate
-    })
-
-    if (existingAnalysis && !forceRegenerate) {
-      console.log('✅ Found existing analysis, returning cached result')
-      return NextResponse.json({
-        success: true,
-        fromCache: true,
-        analysis: {
-          summary: existingAnalysis.summary,
-          detailedSummary: existingAnalysis.content_analysis?.detailedSummary,
-          keyPoints: existingAnalysis.key_themes || [],
-          keywords: existingAnalysis.main_characters || [],
-          topics: existingAnalysis.genre_analysis?.split(', ') || [],
-          difficulty: existingAnalysis.reading_level,
-          readingTime: existingAnalysis.reading_time_minutes,
-          mindmapData: existingAnalysis.mind_map_data,
-          confidence: existingAnalysis.content_analysis?.confidence || 0.8,
-          authorBackground: existingAnalysis.content_analysis?.authorBackground,
-          bookBackground: existingAnalysis.content_analysis?.bookBackground,
-          worldRelevance: existingAnalysis.content_analysis?.worldRelevance,
-          quizQuestions: existingAnalysis.content_analysis?.quizQuestions
-        },
-        bookInfo: {
-          title: book.title,
-          author: book.author,
-          cover_url: book.cover_url
-        }
-      })
+    const userId = resolveUserIdFromRequest(request)
+    const book = await getBookById(db, bookId)
+    if (!book) {
+      return NextResponse.json({ success: false, error: "Book not found" }, { status: 404 })
     }
 
-    // If force regenerate is true, delete all existing analyses for this book
-    if (forceRegenerate && existingAnalysis) {
-      console.log('🗑️ Deleting old cached analysis for book:', bookId)
-      const { error: deleteError } = await adminClient
-        .from('ai_book_analysis')
-        .delete()
-        .eq('book_id', parseInt(bookId))
-      
-      if (deleteError) {
-        console.error('❌ Failed to delete old cache:', deleteError)
-      } else {
-        console.log('✅ Old cache deleted successfully')
-      }
-    }
+    const contentHash = makeContentHash(book)
 
-    // Check if we have a configured AI provider key
-    const configuredOpenAI = await getConfiguredOpenAIKey()
-    if (!configuredOpenAI.apiKey) {
-      console.warn('No AI provider key configured, using fallback analysis')
-      return NextResponse.json(
-        { 
-          error: 'AI provider key not configured',
-          details: 'AI analysis service is not available. Configure provider keys in environment variables or save them in Admin Settings.',
-          fallbackRecommended: true
-        },
-        { status: 503 }
-      )
-    }
+    if (!forceRegenerate) {
+      const cached = (await db
+        .prepare(
+          `SELECT *
+           FROM ai_book_analysis
+           WHERE book_id = ? AND content_hash = ?
+           ORDER BY datetime(last_accessed_at) DESC, datetime(created_at) DESC
+           LIMIT 1`
+        )
+        .bind(bookId, contentHash)
+        .first()) as AnalysisRow | null
 
-    // Load AI and PDF extraction modules
-    const aiModule = await loadAIAnalysis()
-    const pdfModule = await loadPDFExtraction()
+      if (cached) {
+        await db
+          .prepare("UPDATE ai_book_analysis SET last_accessed_at = CURRENT_TIMESTAMP WHERE id = ?")
+          .bind(cached.id)
+          .run()
 
-    if (!aiModule) {
-      console.error('AI analysis module not available')
-      return NextResponse.json(
-        { 
-          error: 'AI analysis module not available',
-          details: 'AI analysis dependencies could not be loaded',
-          fallbackRecommended: true
-        },
-        { status: 503 }
-      )
-    }
-
-    // Try to extract PDF text for enhanced analysis
-    let pdfText: string | undefined
-    let pageCount: number | undefined
-    
-    if (pdfModule) {
-      try {
-        console.log('Attempting PDF text extraction...')
-        const pdfExtraction = await pdfModule.extractTextFromBookPDF(parseInt(bookId))
-        if (pdfExtraction && pdfExtraction.text) {
-          pdfText = pdfExtraction.text.slice(0, 8000) // Limit for AI processing
-          pageCount = pdfExtraction.pageCount
-          console.log(`Extracted ${pdfText.length} characters from PDF (${pageCount} pages)`)
-        }
-      } catch (error) {
-        console.warn('PDF extraction failed, using metadata only:', error)
+        return NextResponse.json({
+          success: true,
+          fromCache: true,
+          analysis: mapAnalysisRow(cached),
+          bookInfo: {
+            title: book.title,
+            author: book.author,
+            cover_url: book.cover_url,
+          },
+        })
       }
     } else {
-      console.warn('PDF extraction module not available, using metadata only')
+      await db.prepare("DELETE FROM ai_book_analysis WHERE book_id = ?").bind(bookId).run()
     }
 
-    // Prepare book content for analysis
-    const bookContent = {
-      title: book.title,
-      author: book.author,
-      description: book.description,
-      tags: book.tags,
-      textContent: pdfText,
-      pageCount: pageCount
-    }
-
-    console.log('Sending book to AI for analysis:', bookContent.title)
-
-    // Perform AI analysis with timeout protection
-    let analysis: any
-    try {
-      // Add a timeout wrapper for the AI analysis
-      const analysisPromise = aiModule.analyzeBookWithAI(bookContent)
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('AI analysis timeout')), 120000) // 120 second timeout (2 minutes)
-      })
-      
-      analysis = await Promise.race([analysisPromise, timeoutPromise]) as any
-      console.log('AI analysis completed successfully, caching result...')
-    } catch (aiError) {
-      console.error('AI analysis failed:', aiError)
-      
-      // Return structured error response
+    const configuredOpenAI = await getConfiguredOpenAIKey()
+    if (!configuredOpenAI.apiKey) {
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: 'AI analysis failed',
-          details: aiError instanceof Error ? aiError.message : 'AI processing error',
+          error: "AI provider key not configured",
+          details: "Configure provider keys in environment variables or Admin Settings.",
           fallbackRecommended: true,
-          timestamp: new Date().toISOString()
-        }, 
-        { status: 500 }
+        },
+        { status: 503 }
       )
     }
 
-    // Cache the analysis result in database
-    try {
-      console.log('Attempting to cache analysis for user:', currentUser.id, 'book:', bookId)
-      const cacheData = {
-        book_id: parseInt(bookId),
-        user_id: currentUser.id,
-        summary: analysis.summary,
-        key_themes: analysis.keyPoints || [],
-        main_characters: analysis.keywords || [],
-        genre_analysis: analysis.topics?.join(', ') || '',
-        reading_level: analysis.difficulty,
-        page_count_estimate: pageCount || Math.ceil(analysis.readingTime * 200 / 300), // Estimate from reading time
-        reading_time_minutes: analysis.readingTime,
-        content_analysis: {
+    const aiModule = await loadAIAnalysis()
+    if (!aiModule) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "AI analysis module not available",
+          details: "AI analysis dependencies could not be loaded",
+          fallbackRecommended: true,
+        },
+        { status: 503 }
+      )
+    }
+
+    const pdfModule = await loadPDFExtraction()
+    let pdfText: string | undefined
+    let pageCount: number | undefined
+
+    if (pdfModule) {
+      try {
+        const pdfExtraction = await pdfModule.extractTextFromBookPDF(bookId)
+        if (pdfExtraction?.text) {
+          pdfText = pdfExtraction.text.slice(0, 8000)
+          pageCount = pdfExtraction.pageCount
+        }
+      } catch (error) {
+        console.warn("PDF extraction failed, using metadata only:", error)
+      }
+    }
+
+    const bookContent = {
+      title: book.title,
+      author: book.author || undefined,
+      description: book.description || undefined,
+      tags: book.tags || undefined,
+      textContent: pdfText,
+      pageCount,
+    }
+
+    const analysisPromise = aiModule.analyzeBookWithAI(bookContent)
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("AI analysis timeout")), 120000)
+    })
+    const analysis = await Promise.race([analysisPromise, timeoutPromise])
+
+    const now = new Date().toISOString()
+    const readingTime =
+      typeof analysis.readingTime === "number" && Number.isFinite(analysis.readingTime) && analysis.readingTime > 0
+        ? Math.round(analysis.readingTime)
+        : 1
+    const pageCountEstimate =
+      typeof pageCount === "number" && Number.isFinite(pageCount) && pageCount > 0
+        ? Math.round(pageCount)
+        : Math.max(1, Math.ceil((readingTime * 200) / 300))
+    await db
+      .prepare(
+        `INSERT INTO ai_book_analysis
+          (id, book_id, user_id, summary, key_themes, main_characters, genre_analysis, reading_level, page_count_estimate, reading_time_minutes, content_analysis, mind_map_data, content_hash, analysis_version, ai_model_used, created_at, updated_at, last_accessed_at)
+         VALUES
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1.0', ?, ?, ?, ?)
+         ON CONFLICT(book_id, content_hash)
+         DO UPDATE SET
+          user_id = excluded.user_id,
+          summary = excluded.summary,
+          key_themes = excluded.key_themes,
+          main_characters = excluded.main_characters,
+          genre_analysis = excluded.genre_analysis,
+          reading_level = excluded.reading_level,
+          page_count_estimate = excluded.page_count_estimate,
+          reading_time_minutes = excluded.reading_time_minutes,
+          content_analysis = excluded.content_analysis,
+          mind_map_data = excluded.mind_map_data,
+          analysis_version = excluded.analysis_version,
+          ai_model_used = excluded.ai_model_used,
+          updated_at = excluded.updated_at,
+          last_accessed_at = excluded.last_accessed_at`
+      )
+      .bind(
+        makeId("ai"),
+        bookId,
+        userId,
+        analysis.summary,
+        JSON.stringify(analysis.keyPoints || []),
+        JSON.stringify(analysis.keywords || []),
+        (analysis.topics || []).join(", "),
+        analysis.difficulty,
+        pageCountEstimate,
+        readingTime,
+        JSON.stringify({
           detailedSummary: analysis.detailedSummary,
           keyPoints: analysis.keyPoints,
           keywords: analysis.keywords,
@@ -312,223 +295,125 @@ export async function POST(
           authorBackground: analysis.authorBackground,
           bookBackground: analysis.bookBackground,
           worldRelevance: analysis.worldRelevance,
-          quizQuestions: analysis.quizQuestions
-        },
-        mind_map_data: analysis.mindmapData || {},
-        content_hash: contentHash,
-        analysis_version: '1.0',
-        ai_model_used: `${configuredOpenAI.provider}:${configuredOpenAI.model}`
-      }
+          quizQuestions: analysis.quizQuestions,
+        }),
+        JSON.stringify(analysis.mindmapData || {}),
+        contentHash,
+        `${configuredOpenAI.provider}:${configuredOpenAI.model}`,
+        now,
+        now,
+        now
+      )
+      .run()
 
-      // Use admin client to bypass RLS for cache insertion
-      const adminClient = createAdminClient()
-      const { data: cachedResult, error: cacheError } = await adminClient
-        .from('ai_book_analysis')
-        .insert(cacheData)
-        .select()
-        .single()
-
-      if (cacheError) {
-        console.error('Failed to cache analysis - Supabase error:', cacheError)
-        console.error('Cache data structure:', JSON.stringify(cacheData, null, 2))
-        // Continue anyway, just log the warning
-      } else {
-        console.log('✅ Analysis cached successfully with ID:', cachedResult.id)
-      }
-    } catch (cacheError) {
-      console.error('❌ Error caching analysis - Exception:', cacheError)
-      // Continue anyway
-    }
-
-    // Return the analysis
     return NextResponse.json({
       success: true,
       fromCache: false,
       analysis: {
         ...analysis,
-        authorBackground: analysis.authorBackground,
-        bookBackground: analysis.bookBackground,
-        worldRelevance: analysis.worldRelevance,
-        quizQuestions: analysis.quizQuestions
+        keyPoints: analysis.keyPoints || [],
+        keywords: analysis.keywords || [],
+        topics: analysis.topics || [],
       },
       bookInfo: {
         title: book.title,
         author: book.author,
-        cover_url: book.cover_url
-      }
+        cover_url: book.cover_url,
+      },
     })
-
   } catch (error) {
-    console.error('Error in AI analysis API:', error)
-    
-    // Provide specific error messages based on error type
-    let errorMessage = 'Failed to analyze book with AI'
-    let details = 'Unknown error'
-    
-    if (error instanceof Error) {
-      details = error.message
-      if (error.message.includes('API key')) {
-        errorMessage = 'OpenAI API configuration error'
-      } else if (error.message.includes('rate limit') || error.message.includes('quota')) {
-        errorMessage = 'OpenAI API rate limit exceeded'
-      } else if (error.message.includes('network') || error.message.includes('fetch')) {
-        errorMessage = 'Network error connecting to AI service'
-      } else if (error.message.includes('timeout')) {
-        errorMessage = 'AI service request timed out'
-      } else if (error.message.includes('JSON')) {
-        errorMessage = 'AI service returned invalid response'
-      }
-    }
-    
-    // Ensure we always return valid JSON
-    try {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: errorMessage,
-          details: details,
-          fallbackRecommended: true,
-          timestamp: new Date().toISOString()
-        }, 
-        { 
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      )
-    } catch (responseError) {
-      // Absolute fallback if NextResponse.json fails
-      console.error('Failed to create JSON response:', responseError)
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Internal server error',
-          details: 'Failed to process AI analysis request',
-          fallbackRecommended: true
-        }),
-        {
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      )
-    }
+    console.error("Error in AI analysis API:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to analyze book with AI",
+        details: error instanceof Error ? error.message : "Unknown error",
+        fallbackRecommended: true,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    )
   }
 }
 
-// Handle GET requests for cached analysis
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const db = requireD1Database()
     const resolvedParams = await params
-    const bookId = resolvedParams.id
-
-    // Create server-side Supabase client with auth
-    const supabase = await createServerSupabaseClient()
-
-    // Get current user (temporarily bypass for testing)
-    const { data: { user } } = await supabase.auth.getUser()
-    const testUserId = '2f88069f-0933-4036-a060-c136abf7dbf3' // Use test user ID for development
-    if (!user && process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
-    // Use actual user or test user
-    const currentUser = user || { id: testUserId }
-
-    // First, fetch the book to get its content for hash calculation
-    const { data: book, error: bookError } = await supabase
-      .from("Booklist")
-      .select("*")
-      .eq("id", bookId)
-      .single()
-
-    if (bookError || !book) {
-      return NextResponse.json({ error: 'Book not found' }, { status: 404 })
+    const bookId = parseId(resolvedParams.id)
+    if (!bookId) {
+      return NextResponse.json({ success: false, error: "Invalid book id" }, { status: 400 })
     }
 
-    // Calculate content hash for cache validation
-    const contentToHash = `${book.title}|${book.author}|${book.description}|${book.file_url}`
-    const contentHash = createHash('sha256').update(contentToHash).digest('hex')
-    
-    console.log('🔍 Looking for cached analysis:', {
-      bookId: parseInt(bookId),
-      userId: currentUser.id,
-      contentHash: contentHash.substring(0, 8) + '...'
-    })
+    const userId = resolveUserIdFromRequest(request)
+    const book = await getBookById(db, bookId)
+    if (!book) {
+      return NextResponse.json({ success: false, error: "Book not found" }, { status: 404 })
+    }
 
-    // Try to get cached analysis
-    const { data: cachedAnalysisArray, error: cacheError } = await supabase
-      .from('ai_book_analysis')
-      .select('*')
-      .eq('book_id', parseInt(bookId))
-      .eq('user_id', currentUser.id)
-      .eq('content_hash', contentHash)
-      .order('created_at', { ascending: false })
-      .limit(1)
-    
-    const cachedAnalysis = cachedAnalysisArray?.[0] || null
-    
-    console.log('📊 Cache lookup result:', {
-      found: !!cachedAnalysis,
-      error: cacheError?.message || 'none'
-    })
+    const contentHash = makeContentHash(book)
 
-    if (cachedAnalysis && !cacheError) {
-      // Update last accessed timestamp
-      await supabase.rpc('touch_ai_analysis_access', {
-        analysis_id: cachedAnalysis.id
-      })
+    let cached = (await db
+      .prepare(
+        `SELECT *
+         FROM ai_book_analysis
+         WHERE book_id = ? AND user_id = ? AND content_hash = ?
+         ORDER BY datetime(created_at) DESC
+         LIMIT 1`
+      )
+      .bind(bookId, userId, contentHash)
+      .first()) as AnalysisRow | null
 
-      console.log('Returning cached AI analysis for book:', bookId)
-      
+    if (!cached) {
+      cached = (await db
+        .prepare(
+          `SELECT *
+           FROM ai_book_analysis
+           WHERE book_id = ? AND content_hash = ?
+           ORDER BY datetime(created_at) DESC
+           LIMIT 1`
+        )
+        .bind(bookId, contentHash)
+        .first()) as AnalysisRow | null
+    }
+
+    if (cached) {
+      await db
+        .prepare("UPDATE ai_book_analysis SET last_accessed_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(cached.id)
+        .run()
+
       return NextResponse.json({
         success: true,
         fromCache: true,
-        analysis: {
-          summary: cachedAnalysis.summary,
-          keyPoints: cachedAnalysis.key_themes || [],
-          keywords: cachedAnalysis.main_characters || [],
-          topics: cachedAnalysis.genre_analysis?.split(', ') || [],
-          difficulty: cachedAnalysis.reading_level,
-          readingTime: cachedAnalysis.reading_time_minutes,
-          mindmapData: cachedAnalysis.mind_map_data,
-          confidence: cachedAnalysis.content_analysis?.confidence || 0.8,
-          authorBackground: cachedAnalysis.content_analysis?.authorBackground,
-          bookBackground: cachedAnalysis.content_analysis?.bookBackground,
-          worldRelevance: cachedAnalysis.content_analysis?.worldRelevance,
-          quizQuestions: cachedAnalysis.content_analysis?.quizQuestions
-        },
+        analysis: mapAnalysisRow(cached),
         bookInfo: {
           title: book.title,
           author: book.author,
-          cover_url: book.cover_url
+          cover_url: book.cover_url,
         },
         cacheInfo: {
-          createdAt: cachedAnalysis.created_at,
-          lastAccessedAt: cachedAnalysis.last_accessed_at,
-          analysisVersion: cachedAnalysis.analysis_version,
-          aiModel: cachedAnalysis.ai_model_used
-        }
+          createdAt: cached.created_at,
+          lastAccessedAt: cached.last_accessed_at,
+          analysisVersion: cached.analysis_version,
+          aiModel: cached.ai_model_used,
+        },
       })
     }
 
-    // No cached analysis found
     return NextResponse.json({
       success: false,
       fromCache: false,
-      message: 'No cached analysis found. Use POST method to generate new analysis.',
-      analysisEndpoint: `/api/books/${bookId}/ai-analysis`
+      message: "No cached analysis found. Use POST method to generate new analysis.",
+      analysisEndpoint: `/api/books/${bookId}/ai-analysis`,
     })
-
   } catch (error) {
-    console.error('Error in AI analysis GET:', error)
+    console.error("Error in AI analysis GET:", error)
     return NextResponse.json(
-      { error: 'Failed to retrieve analysis' },
+      { success: false, error: "Failed to retrieve analysis" },
       { status: 500 }
     )
   }

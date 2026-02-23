@@ -160,6 +160,12 @@ export function ModernBookReader({ book }: BookReaderProps) {
   const pageRef = useRef<HTMLDivElement>(null)
   const styles = getReadingModeStyles(readingMode)
 
+  const getCurrentUserId = async () => {
+    const response = await fetch('/api/auth/me', { cache: 'no-store' })
+    const result = await response.json().catch(() => null)
+    return result?.success && result?.user?.id ? String(result.user.id) : null
+  }
+
   useEffect(() => {
     loadBookData()
   }, [book.id])
@@ -183,15 +189,25 @@ export function ModernBookReader({ book }: BookReaderProps) {
       if (!numPages || !pageNumber || pageNumber < 1 || pageNumber > numPages) return
 
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        const userId = await getCurrentUserId()
+        if (!userId) return
 
-        await supabase.rpc('update_reading_progress', {
-          p_user_id: user.id,
-          p_book_id: book.id,
-          p_current_page: pageNumber,
-          p_total_pages: numPages
+        const response = await fetch('/api/book-tracking', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': userId,
+          },
+          body: JSON.stringify({
+            book_id: book.id,
+            current_page: pageNumber,
+            total_pages: numPages,
+          }),
         })
+        const result = await response.json().catch(() => null)
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.details || result?.error || 'Failed to update reading progress')
+        }
       } catch (err) {
         console.error('Failed to update reading progress:', err)
       }
@@ -203,28 +219,22 @@ export function ModernBookReader({ book }: BookReaderProps) {
 
   const loadBookData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const userId = await getCurrentUserId()
+      if (!userId) return
 
-      // Load highlights
-      const { data: highlightsData } = await supabase
-        .from('book_highlights')
-        .select('*')
-        .eq('book_id', book.id)
-        .eq('user_id', user.id)
-        .order('page_number', { ascending: true })
+      const response = await fetch(`/api/books/${book.id}/reader-data`, {
+        cache: 'no-store',
+        headers: {
+          'x-user-id': userId,
+        },
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || 'Failed to load reader data')
+      }
 
-      if (highlightsData) setHighlights(highlightsData)
-
-      // Load notes
-      const { data: notesData } = await supabase
-        .from('book_notes')
-        .select('*')
-        .eq('book_id', book.id)
-        .eq('user_id', user.id)
-        .order('page_number', { ascending: true })
-
-      if (notesData) setNotes(notesData)
+      setHighlights(Array.isArray(result.highlights) ? result.highlights : [])
+      setNotes(Array.isArray(result.notes) ? result.notes : [])
 
       // Load AI analysis
       loadAiAnalysis()
@@ -238,21 +248,15 @@ export function ModernBookReader({ book }: BookReaderProps) {
       setLoadingAiData(true)
       
       console.log('Loading AI analysis for book:', book.id)
-      
-      // Load AI book analysis from database - get the most recent one
-      const { data: aiDataArray, error } = await supabase
-        .from('ai_book_analysis')
-        .select('*')
-        .eq('book_id', book.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
 
-      if (error) {
-        console.error('Error fetching AI analysis:', error)
+      const response = await fetch(`/api/ai-book-analysis?bookId=${book.id}`, { cache: 'no-store' })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        console.error('Error fetching AI analysis:', result)
         return
       }
 
-      const aiData = aiDataArray && aiDataArray.length > 0 ? aiDataArray[0] : null
+      const aiData = result.analysis || null
 
       if (aiData) {
         console.log('AI analysis loaded:', { 

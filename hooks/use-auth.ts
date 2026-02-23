@@ -1,65 +1,62 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase"
-import type { User } from "@supabase/supabase-js"
+
+export type AuthUser = {
+  id: string
+  email: string | null
+  display_name: string | null
+}
 
 export function useAuth(requireAuth: boolean = false) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const supabase = createClient()
+
+  const refresh = useCallback(async () => {
+    try {
+      const response = await fetch("/api/auth/me", { cache: "no-store" })
+      const result = await response.json().catch(() => null)
+      const nextUser = result?.success ? ((result.user ?? null) as AuthUser | null) : null
+      setUser(nextUser)
+
+      if (requireAuth && !nextUser) {
+        router.push("/login")
+      }
+    } catch (error) {
+      console.error("Error getting session:", error)
+      setUser(null)
+      if (requireAuth) {
+        router.push("/login")
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [requireAuth, router])
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        setUser(session?.user || null)
-        
-        if (requireAuth && !session?.user) {
-          router.push('/login')
-          return
-        }
-      } catch (error) {
-        console.error('Error getting session:', error)
-        if (requireAuth) {
-          router.push('/login')
-        }
-      } finally {
-        setLoading(false)
-      }
+    void refresh()
+
+    const onAuthChanged = () => {
+      void refresh()
     }
-
-    getInitialSession()
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user || null)
-        
-        if (requireAuth && !session?.user && event !== 'INITIAL_SESSION') {
-          router.push('/login')
-        }
-        
-        if (event === 'SIGNED_OUT') {
-          setUser(null)
-        }
-      }
-    )
+    window.addEventListener("auth:changed", onAuthChanged)
 
     return () => {
-      subscription.unsubscribe()
+      window.removeEventListener("auth:changed", onAuthChanged)
     }
-  }, [supabase.auth, router, requireAuth])
+  }, [refresh])
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut()
-      router.push('/login')
+      await fetch("/api/auth/logout", { method: "POST" })
+      setUser(null)
+      window.dispatchEvent(new Event("auth:changed"))
+      router.push("/login")
+      router.refresh()
     } catch (error) {
-      console.error('Error signing out:', error)
+      console.error("Error signing out:", error)
     }
   }
 
@@ -67,6 +64,7 @@ export function useAuth(requireAuth: boolean = false) {
     user,
     loading,
     signOut,
-    isAuthenticated: !!user
+    refresh,
+    isAuthenticated: !!user,
   }
 }

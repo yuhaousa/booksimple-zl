@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/hooks/use-auth"
-import { createClient } from "@/lib/supabase"
 import { Eye, EyeOff, KeyRound, Loader2, RefreshCw, ShieldAlert } from "lucide-react"
 
 type AIProvider = "openai" | "minimax"
@@ -109,18 +108,31 @@ export default function AdminSettingsPage() {
       const response = await fetch("/api/admin/settings/ai-key")
       const result = await response.json()
 
+      if (response.status === 401) {
+        setIsAdmin(false)
+        router.push("/login")
+        return
+      }
+      if (response.status === 403) {
+        setIsAdmin(false)
+        router.push("/")
+        return
+      }
+
       if (!response.ok) {
         throw new Error(result?.details || result?.error || "Failed to load AI settings")
       }
 
       setSettings(result)
       hydrateForm(result)
+      setIsAdmin(true)
     } catch (error: any) {
       toast({
         title: "Failed to load settings",
         description: error?.message || "Unknown error",
         variant: "destructive",
       })
+      setIsAdmin(false)
     } finally {
       setLoadingSettings(false)
     }
@@ -131,27 +143,12 @@ export default function AdminSettingsPage() {
 
     let cancelled = false
 
-    const checkAdmin = async () => {
+    const checkAdminAndLoad = async () => {
       setCheckingAdmin(true)
       try {
-        const supabase = createClient()
-        const { data, error } = await supabase
-          .from("admin_users")
-          .select("user_id")
-          .eq("user_id", user.id)
-          .maybeSingle()
-
-        if (error || !data) {
-          router.push("/")
-          return
-        }
-
-        if (!cancelled) {
-          setIsAdmin(true)
-          await fetchSettings()
-        }
+        if (!cancelled) await fetchSettings()
       } catch {
-        router.push("/")
+        if (!cancelled) setIsAdmin(false)
       } finally {
         if (!cancelled) {
           setCheckingAdmin(false)
@@ -159,12 +156,12 @@ export default function AdminSettingsPage() {
       }
     }
 
-    checkAdmin()
+    void checkAdminAndLoad()
 
     return () => {
       cancelled = true
     }
-  }, [authLoading, user, router])
+  }, [authLoading, user])
 
   const saveSettings = async (payload: Record<string, string>) => {
     setSaving(true)
@@ -460,4 +457,3 @@ export default function AdminSettingsPage() {
     </div>
   )
 }
-

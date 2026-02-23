@@ -1,22 +1,115 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createConfiguredOpenAIClient } from "@/lib/server/openai-config"
+import { createHash } from "crypto"
+import { NextRequest, NextResponse } from "next/server"
 
-function getSupabaseAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!supabaseUrl || !serviceRoleKey) {
+import { createConfiguredOpenAIClient } from "@/lib/server/openai-config"
+import { requireD1Database } from "@/lib/server/cloudflare-bindings"
+import { resolveUserIdFromRequest } from "@/lib/server/request-user"
+
+function parsePositiveInt(value: unknown) {
+  const parsed = Number.parseInt(String(value ?? ""), 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return parsed
+}
+
+function parseJsonValue<T = any>(value: unknown): T | null {
+  if (!value) return null
+  if (typeof value !== "string") return value as T
+  try {
+    return JSON.parse(value) as T
+  } catch {
     return null
   }
-  return createClient(supabaseUrl, serviceRoleKey)
+}
+
+function asString(value: unknown) {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function makeId(prefix: string) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}_${crypto.randomUUID()}`
+  }
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const db = requireD1Database()
+    const body = (await request.json().catch(() => null)) as
+      | {
+          bookId?: unknown
+          userId?: unknown
+          forceRegenerate?: unknown
+        }
+      | null
+
+    const bookId = parsePositiveInt(body?.bookId)
+    if (!bookId) {
+      return NextResponse.json({ error: "Missing or invalid bookId" }, { status: 400 })
+    }
+
+    const userId = resolveUserIdFromRequest(request, body?.userId)
+    const forceRegenerate = Boolean(body?.forceRegenerate)
+
+    if (!forceRegenerate) {
+      const cached = (await db
+        .prepare(
+          `SELECT id, summary, mind_map_data
+           FROM ai_book_analysis
+           WHERE book_id = ?
+           ORDER BY datetime(last_accessed_at) DESC, datetime(created_at) DESC
+           LIMIT 1`
+        )
+        .bind(bookId)
+        .first()) as
+        | {
+            id: string
+            summary: string | null
+            mind_map_data: string | null
+          }
+        | null
+
+      if (cached?.mind_map_data) {
+        await db
+          .prepare("UPDATE ai_book_analysis SET last_accessed_at = CURRENT_TIMESTAMP WHERE id = ?")
+          .bind(cached.id)
+          .run()
+
+        return NextResponse.json({
+          success: true,
+          cached: true,
+          data: {
+            summary: cached.summary,
+            mindMapData: parseJsonValue(cached.mind_map_data),
+          },
+        })
+      }
+    }
+
+    const book = (await db
+      .prepare('SELECT id, title, author, description, file_url FROM "Booklist" WHERE id = ? LIMIT 1')
+      .bind(bookId)
+      .first()) as
+      | {
+          id: number
+          title: string
+          author: string | null
+          description: string | null
+          file_url: string | null
+        }
+      | null
+
+    if (!book) {
+      return NextResponse.json({ error: "Book not found" }, { status: 404 })
+    }
+
     const { client: openai, model, provider } = await createConfiguredOpenAIClient({
       openaiModel: "gpt-4o-mini",
       minimaxModel: "MiniMax-Text-01",
     })
+
     if (!openai) {
       return NextResponse.json(
         { error: "AI provider key is not configured. Set provider key in env vars or Admin Settings." },
@@ -24,212 +117,118 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = getSupabaseAdminClient()
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase server credentials are not configured' },
-        { status: 503 }
-      )
-    }
+    const prompt = [
+      `Create a mind map structure for the book titled "${book.title}".`,
+      book.author ? `Author: ${book.author}` : null,
+      book.description ? `Description: ${book.description}` : null,
+      "Return strictly valid JSON with this shape:",
+      '{"chapters":[{"title":"...","sections":["..."],"key_points":["..."]}],"key_concepts":["..."],"main_themes":["..."]}',
+      "Rules: 3-5 chapters, 2-4 sections per chapter, and 2-3 key points per chapter.",
+    ]
+      .filter(Boolean)
+      .join("\n")
 
-    const body = await request.json()
-    console.log('Generate mindmap request:', body)
-    
-    const { bookId, userId, forceRegenerate } = body
-
-    if (!bookId || !userId) {
-      console.error('Missing parameters:', { bookId, userId })
-      return NextResponse.json(
-        { error: 'Missing bookId or userId' },
-        { status: 400 }
-      )
-    }
-
-    // Check if analysis already exists (unless force regenerate)
-    if (!forceRegenerate) {
-      const { data: existingAnalysis } = await supabase
-        .from('ai_book_analysis')
-        .select('*')
-        .eq('book_id', bookId)
-        .single()
-
-      if (existingAnalysis && existingAnalysis.mind_map_data) {
-        return NextResponse.json({
-          success: true,
-          cached: true,
-          data: {
-            summary: existingAnalysis.summary,
-            mindMapData: existingAnalysis.mind_map_data
-          }
-        })
-      }
-    }
-
-    // Get book information
-    const { data: book, error: bookError } = await supabase
-      .from('Booklist')
-      .select('*')
-      .eq('id', bookId)
-      .single()
-
-    if (bookError || !book) {
-      console.error('Book not found:', bookError)
-      return NextResponse.json(
-        { error: 'Book not found: ' + (bookError?.message || 'Unknown error') },
-        { status: 404 }
-      )
-    }
-    
-    console.log('Found book:', book.title)
-
-    // Generate AI analysis for mind map
-    const prompt = `请为《${book.title}》${book.author ? `（作者：${book.author}）` : ''}这本书生成一个详细的思维导图结构。
-
-要求：
-1. 创建3-5个主要章节/主题
-2. 每个主题包含2-4个小节
-3. 每个小节包含2-3个关键要点
-4. 提取5-8个核心概念
-5. 总结3-5个主要主题
-
-请以JSON格式返回，结构如下：
-{
-  "chapters": [
-    {
-      "title": "章节标题",
-      "sections": ["小节1", "小节2", "小节3"],
-      "key_points": ["要点1", "要点2", "要点3"]
-    }
-  ],
-  "key_concepts": ["概念1", "概念2", ...],
-  "main_themes": ["主题1", "主题2", ...]
-}
-
-${book.description ? `书籍简介：${book.description}` : ''}
-
-请确保内容专业、准确、有深度。`
-
-    console.log('Calling OpenAI for mind map generation...')
-    const completion = await openai.chat.completions.create({
+    const mindMapCompletion = await openai.chat.completions.create({
       model,
       messages: [
         {
-          role: 'system',
-          content: '你是一位专业的图书分析专家，擅长提炼书籍的核心内容并创建结构化的思维导图。'
+          role: "system",
+          content:
+            "You are a professional book analyst. Return only valid JSON without markdown fences.",
         },
         {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      response_format: { type: 'json_object' }
-    })
-
-    const aiResponse = completion.choices[0].message.content
-    if (!aiResponse) {
-      throw new Error('No response from AI')
-    }
-
-    console.log('OpenAI response received, parsing...')
-    const mindMapData = JSON.parse(aiResponse)
-    console.log('Mind map data structure:', Object.keys(mindMapData))
-
-    // Generate summary
-    const summaryPrompt = `请为《${book.title}》写一段200字左右的导读，概括这本书的核心价值和阅读要点。`
-
-    const summaryCompletion = await openai.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: '你是一位专业的图书评论家，擅长撰写精炼的图书导读。'
+          role: "user",
+          content: prompt,
         },
-        {
-          role: 'user',
-          content: summaryPrompt
-        }
       ],
-      temperature: 0.7,
-      max_tokens: 500
+      temperature: 0.5,
+      response_format: { type: "json_object" },
     })
 
-    const summary = summaryCompletion.choices[0].message.content || `《${book.title}》是一本值得深入阅读的著作。`
-    console.log('Summary generated, length:', summary.length)
-
-    // Save to database - first check if record exists
-    console.log('Checking for existing record...')
-    const { data: existingRecord } = await supabase
-      .from('ai_book_analysis')
-      .select('id')
-      .eq('book_id', bookId)
-      .maybeSingle()
-
-    let savedData
-
-    if (existingRecord) {
-      // Update existing record
-      console.log('Updating existing record:', existingRecord.id)
-      const { data: updateData, error: updateError } = await supabase
-        .from('ai_book_analysis')
-        .update({
-          summary: summary,
-          content_analysis: mindMapData,
-          mind_map_data: mindMapData,
-          updated_at: new Date().toISOString(),
-          ai_model_used: `${provider}:${model}`,
-          analysis_version: '1.0',
-          last_accessed_at: new Date().toISOString()
-        })
-        .eq('book_id', bookId)
-        .select()
-        .single()
-
-      if (updateError) {
-        throw updateError
-      }
-      savedData = updateData
-      console.log('Record updated successfully')
-    } else {
-      // Insert new record
-      console.log('Inserting new record...')
-      const { data: insertData, error: insertError } = await supabase
-        .from('ai_book_analysis')
-        .insert({
-          book_id: bookId,
-          user_id: userId,
-          summary: summary,
-          content_analysis: mindMapData,
-          mind_map_data: mindMapData,
-          content_hash: 'ai_generated_' + Date.now(),
-          ai_model_used: `${provider}:${model}`,
-          analysis_version: '1.0'
-        })
-        .select()
-        .single()
-
-      if (insertError) {
-        console.error('Insert error:', insertError)
-        throw insertError
-      }
-      savedData = insertData
-      console.log('Record inserted successfully')
+    const rawMindMap = asString(mindMapCompletion.choices[0]?.message?.content)
+    if (!rawMindMap) {
+      throw new Error("No response from AI provider")
     }
 
-    console.log('Returning success response')
+    let mindMapData: Record<string, unknown>
+    try {
+      mindMapData = JSON.parse(rawMindMap)
+    } catch {
+      throw new Error("AI provider returned invalid JSON")
+    }
+
+    let summary = asString((mindMapData as any)?.summary)
+    if (!summary) {
+      const summaryCompletion = await openai.chat.completions.create({
+        model,
+        messages: [
+          {
+            role: "system",
+            content: "Write concise, useful reading guide summaries for books.",
+          },
+          {
+            role: "user",
+            content: `Write a 180-240 word reading guide summary for "${book.title}"${book.author ? ` by ${book.author}` : ""}.`,
+          },
+        ],
+        temperature: 0.6,
+        max_tokens: 400,
+      })
+
+      summary =
+        asString(summaryCompletion.choices[0]?.message?.content) ||
+        `A structured reading guide for "${book.title}".`
+    }
+
+    const contentHash = createHash("sha256")
+      .update(`${book.title}|${book.author || ""}|${book.description || ""}|${book.file_url || ""}`)
+      .digest("hex")
+
+    const rowId = makeId("ai")
+    const now = new Date().toISOString()
+
+    await db
+      .prepare(
+        `INSERT INTO ai_book_analysis
+          (id, book_id, user_id, summary, content_analysis, mind_map_data, content_hash, ai_model_used, analysis_version, created_at, updated_at, last_accessed_at)
+         VALUES
+          (?, ?, ?, ?, ?, ?, ?, ?, '1.0', ?, ?, ?)
+         ON CONFLICT(book_id, content_hash)
+         DO UPDATE SET
+          user_id = excluded.user_id,
+          summary = excluded.summary,
+          content_analysis = excluded.content_analysis,
+          mind_map_data = excluded.mind_map_data,
+          ai_model_used = excluded.ai_model_used,
+          updated_at = excluded.updated_at,
+          last_accessed_at = excluded.last_accessed_at`
+      )
+      .bind(
+        rowId,
+        bookId,
+        userId,
+        summary,
+        JSON.stringify({ mindMapOnly: true, generatedAt: now }),
+        JSON.stringify(mindMapData),
+        contentHash,
+        `${provider}:${model}`,
+        now,
+        now,
+        now
+      )
+      .run()
+
     return NextResponse.json({
       success: true,
       cached: false,
       data: {
         summary,
-        mindMapData
-      }
+        mindMapData,
+      },
     })
-
   } catch (error: any) {
-    console.error('Error generating mind map:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to generate mind map' },
+      { error: error?.message || "Failed to generate mind map" },
       { status: 500 }
     )
   }

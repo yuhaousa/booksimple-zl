@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen, Eye, EyeOff } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
-import { createClient } from "@/lib/supabase"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -47,33 +46,29 @@ export default function RegisterPage() {
     }
 
     try {
-      // Use custom registration API that bypasses Supabase rate limits
-      const response = await fetch('/api/custom-register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formData.email,
           password: formData.password,
-          name: formData.name
-        })
-      })
-      
-      const result = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Registration failed')
-      }
-      
-      // Success! Redirect to check-email page
-      toast({
-        title: "Registration successful! 📧",
-        description: "Redirecting to instructions...",
+          name: formData.name,
+        }),
       })
 
-      // Redirect to check-email page with email parameter
-      setTimeout(() => {
-        router.push(`/check-email?email=${encodeURIComponent(formData.email)}`)
-      }, 1000)
+      const result = await response.json().catch(() => null)
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || "Registration failed")
+      }
+
+      toast({
+        title: "Registration successful",
+        description: "Welcome to BookSimple.",
+      })
+
+      window.dispatchEvent(new Event("auth:changed"))
+      router.push("/")
     } catch (error: any) {
       toast({
         title: "Registration failed",

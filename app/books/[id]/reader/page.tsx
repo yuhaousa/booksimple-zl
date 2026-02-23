@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Layout } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
 const LoadingScreen = () => (
@@ -32,11 +32,6 @@ const BookReader = dynamic(() => import('@/components/book-reader').then(mod => 
   loading: LoadingScreen
 })
 
-const ModernBookReader = dynamic(() => import('@/components/book-reader-modern').then(mod => ({ default: mod.ModernBookReader })), {
-  ssr: false,
-  loading: LoadingScreen
-})
-
 interface Book {
   id: number
   title: string
@@ -56,24 +51,11 @@ export default function BookReaderPage() {
   const [book, setBook] = useState<Book | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [readerTheme, setReaderTheme] = useState<'classic' | 'modern'>('modern')
 
   useEffect(() => {
     console.log('Fetching book with ID:', bookId)
     fetchBook()
-    
-    // Load reader theme preference
-    const savedTheme = localStorage.getItem('reader-theme')
-    if (savedTheme === 'classic' || savedTheme === 'modern') {
-      setReaderTheme(savedTheme)
-    }
   }, [bookId])
-
-  const toggleReaderTheme = () => {
-    const newTheme = readerTheme === 'classic' ? 'modern' : 'classic'
-    setReaderTheme(newTheme)
-    localStorage.setItem('reader-theme', newTheme)
-  }
 
   const fetchBook = async () => {
     try {
@@ -177,25 +159,7 @@ export default function BookReaderPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Theme Switcher Button */}
-      <div className="fixed top-4 right-4 z-50">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={toggleReaderTheme}
-          className="shadow-lg"
-        >
-          <Layout className="w-4 h-4 mr-2" />
-          {readerTheme === 'classic' ? 'Modern' : 'Classic'} View
-        </Button>
-      </div>
-
-      {/* Render selected reader theme */}
-      {readerTheme === 'modern' ? (
-        <ModernBookReader book={book} />
-      ) : (
-        <BookReader book={book} />
-      )}
+      <BookReader book={book} />
     </div>
   )
 }

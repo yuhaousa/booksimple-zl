@@ -4,30 +4,13 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { BookOpen, Upload, Home, FileText, LogIn, LogOut, Settings, Menu, X } from "lucide-react"
-import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase"
-
-function useAuthUser() {
-  const [user, setUser] = useState(null)
-  useEffect(() => {
-    const supabase = createClient()
-    // Initial check
-    supabase.auth.getUser().then(({ data }) => setUser(data?.user ?? null))
-    // Listen for auth state changes
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
-    return () => {
-      listener?.subscription.unsubscribe()
-    }
-  }, [])
-  return user
-}
+import { useState } from "react"
+import { useAuth } from "@/hooks/use-auth"
 
 export function Navigation() {
   const pathname = usePathname()
   const router = useRouter()
-  const user = useAuthUser()
+  const { user, signOut } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const navItems = [
@@ -45,10 +28,9 @@ export function Navigation() {
   ]
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await signOut()
     setMobileMenuOpen(false)
-    router.refresh() // This will update the UI after logout
+    router.refresh()
   }
 
   const closeMobileMenu = () => {

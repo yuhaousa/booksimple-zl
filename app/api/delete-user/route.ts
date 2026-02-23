@@ -1,95 +1,78 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from "next/server"
+
+import { requireD1Database } from "@/lib/server/cloudflare-bindings"
+
+function normalizeEmail(value: unknown) {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim().toLowerCase()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+async function runAll(db: any, statements: any[]) {
+  if (typeof db.batch === "function") {
+    await db.batch(statements)
+    return
+  }
+
+  for (const statement of statements) {
+    await statement.run()
+  }
+}
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { email } = await request.json()
-    
+    const db = requireD1Database()
+    const body = (await request.json().catch(() => null)) as { email?: unknown } | null
+    const email = normalizeEmail(body?.email)
+
     if (!email) {
-      return NextResponse.json({
-        success: false,
-        error: 'Email is required'
-      }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Email is required" }, { status: 400 })
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    
-    if (!supabaseServiceKey) {
-      return NextResponse.json({
-        success: false,
-        error: 'Service role key not configured'
-      }, { status: 500 })
+    const user = (await db
+      .prepare(
+        `SELECT auth_user_id AS user_id, email
+         FROM user_list
+         WHERE lower(email) = ?
+         LIMIT 1`
+      )
+      .bind(email)
+      .first()) as { user_id: string | null; email: string | null } | null
+
+    if (!user?.user_id) {
+      return NextResponse.json({ success: false, error: "User not found with this email" }, { status: 404 })
     }
-    
-    // Create admin client with service role key
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
-    
-    console.log('🔍 Looking for user with email:', email)
-    
-    // Find the user by email
-    const { data: users, error: listError } = await supabase.auth.admin.listUsers()
-    
-    if (listError) {
-      console.error('❌ Error listing users:', listError)
-      return NextResponse.json({
-        success: false,
-        error: listError.message
-      }, { status: 500 })
-    }
-    
-    const user = users.users.find(u => u.email === email)
-    
-    if (!user) {
-      return NextResponse.json({
-        success: false,
-        error: 'User not found with this email'
-      }, { status: 404 })
-    }
-    
-    console.log('👤 Found user:', user.id, user.email)
-    
-    // Delete from user_list table first (if exists)
-    const { error: userListError } = await supabase
-      .from('user_list')
-      .delete()
-      .eq('auth_user_id', user.id)
-    
-    if (userListError) {
-      console.warn('⚠️ Could not delete from user_list:', userListError.message)
-    } else {
-      console.log('✅ Deleted from user_list')
-    }
-    
-    // Delete the user from auth
-    const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id)
-    
-    if (deleteError) {
-      console.error('❌ Error deleting user:', deleteError)
-      return NextResponse.json({
-        success: false,
-        error: deleteError.message
-      }, { status: 500 })
-    }
-    
-    console.log('✅ User deleted successfully')
-    
+
+    const userId = user.user_id
+    const statements = [
+      db.prepare("DELETE FROM auth_credentials WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM admin_users WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM reading_list_full WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM study_notes WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM book_notes WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM book_highlights WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM custom_outline WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM ai_book_analysis WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM book_tracking WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM book_clicks WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM login_tracking WHERE user_id = ?").bind(userId),
+      db.prepare("DELETE FROM user_list WHERE auth_user_id = ?").bind(userId),
+    ]
+
+    await runAll(db, statements)
+
     return NextResponse.json({
       success: true,
       message: `User ${email} deleted successfully`,
-      userId: user.id
+      userId,
     })
-    
   } catch (error) {
-    console.error('❌ Delete user error:', error)
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    )
   }
 }

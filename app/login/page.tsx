@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen, Eye, EyeOff, AlertCircle } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
-import { createClient } from "@/lib/supabase"
 import { recordUserLogin } from "@/lib/login-tracking"
 
 export default function LoginPage() {
@@ -32,6 +31,11 @@ export default function LoginPage() {
         title: "Email confirmed",
         description: "Your account has been successfully verified. You can now log in.",
       })
+    } else if (error === 'legacy_auth_callback') {
+      toast({
+        title: "Authentication updated",
+        description: "Sign in with your email and password using the new D1 auth flow.",
+      })
     } else if (error === 'confirmation_failed') {
       toast({
         title: "Confirmation failed",
@@ -47,42 +51,38 @@ export default function LoginPage() {
     setError("") // Clear any previous errors
 
     try {
-      const supabase = createClient()
-      
-      // Use Supabase's secure authentication (it handles password hashing securely)
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
       })
+      const result = await response.json().catch(() => null)
 
-      if (authError) {
-        console.error("Authentication error:", authError)
-        
-        // Handle specific auth error types with more detailed messages
+      if (!response.ok || !result?.success) {
         let errorMessage = "Please check your credentials and try again."
-        
-        if (authError.message.includes("Invalid login credentials")) {
-          errorMessage = `Invalid email or password. Please check your credentials. If you haven't registered yet, please create an account first.`
-        } else if (authError.message.includes("Email not confirmed")) {
-          errorMessage = "Please check your email and click the confirmation link before signing in."
-        } else if (authError.message.includes("Too many requests")) {
-          errorMessage = "Too many login attempts. Please wait a moment before trying again."
-        } else if (authError.message.includes("User not found")) {
-          errorMessage = "No account found with this email address. Please register first."
-        } else if (authError.message.includes("signup_disabled")) {
-          errorMessage = "Account registration is currently disabled."
-        } else {
-          // Show the actual error message for debugging
-          errorMessage = `Login failed: ${authError.message}`
+        const apiError = result?.error || result?.details
+        if (typeof apiError === "string" && apiError.trim()) {
+          if (apiError.toLowerCase().includes("invalid")) {
+            errorMessage =
+              "Invalid email or password. Please check your credentials. If you haven't registered yet, create an account first."
+          } else {
+            errorMessage = apiError
+          }
         }
-        
+
         throw new Error(errorMessage)
       }
 
       // Record login event for tracking
-      if (authData?.user?.id) {
-        await recordUserLogin(authData.user.id)
+      if (result?.user?.id) {
+        await recordUserLogin(result.user.id)
       }
+      window.dispatchEvent(new Event("auth:changed"))
 
       toast({
         title: "Login successful",

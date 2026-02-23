@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
 
 import { getD1Database } from "@/lib/server/cloudflare-bindings"
+import { resolveUserIdFromRequest } from "@/lib/server/request-user"
 import { AIProvider, getAIConfigurationStatus } from "@/lib/server/openai-config"
 
 const OPENAI_SETTING_KEY = "openai_api_key"
@@ -15,12 +14,6 @@ const DEFAULT_PROVIDER_KEY = "ai_default_provider"
 type AdminAccessResult =
   | { error: NextResponse; db: null; userId: null }
   | { error: null; db: any; userId: string }
-
-function getSupabaseEnv() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  return { supabaseUrl, supabaseAnonKey }
-}
 
 function normalizeValue(value: unknown) {
   if (typeof value !== "string") return null
@@ -38,47 +31,6 @@ function isMissingSettingsTableError(errorMessage: string) {
   return message.includes("admin_settings") && message.includes("no such table")
 }
 
-async function getUserIdFromSupabaseSession() {
-  const { supabaseUrl, supabaseAnonKey } = getSupabaseEnv()
-  if (!supabaseUrl || !supabaseAnonKey) return null
-
-  try {
-    const cookieStore = await cookies()
-    const userClient = createServerClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
-        },
-      },
-    })
-
-    const {
-      data: { user },
-      error,
-    } = await userClient.auth.getUser()
-
-    if (error || !user) return null
-    return user.id
-  } catch {
-    return null
-  }
-}
-
-function getUserIdFromHeaders(request: NextRequest) {
-  return normalizeValue(request.headers.get("x-user-id") || request.headers.get("x-admin-user-id"))
-}
-
-async function resolveUserId(request: NextRequest) {
-  const sessionUserId = await getUserIdFromSupabaseSession()
-  if (sessionUserId) return sessionUserId
-  return getUserIdFromHeaders(request)
-}
-
 async function requireAdminAccess(request: NextRequest): Promise<AdminAccessResult> {
   const db = getD1Database()
   if (!db) {
@@ -89,11 +41,11 @@ async function requireAdminAccess(request: NextRequest): Promise<AdminAccessResu
     }
   }
 
-  const userId = await resolveUserId(request)
-  if (!userId) {
+  const userId = normalizeValue(resolveUserIdFromRequest(request))
+  if (!userId || userId === "anonymous") {
     return {
       error: NextResponse.json(
-        { error: "Unauthorized. Login with Supabase session or send x-user-id header." },
+        { error: "Unauthorized. Login first or send x-user-id header." },
         { status: 401 }
       ),
       db: null,

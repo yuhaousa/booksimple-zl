@@ -1,43 +1,36 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from "next/server"
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
-    
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    
-    if (!supabaseUrl || !supabaseAnonKey || 
-        supabaseUrl.includes('placeholder') || supabaseAnonKey === 'placeholder-key') {
-      return NextResponse.json({
-        success: false,
-        error: 'Supabase configuration not available'
-      })
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey)
-    
-    // Try to register
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
+    const origin = new URL(request.url).origin
+    const body = await request.json().catch(() => ({}))
+
+    const response = await fetch(`${origin}/api/auth/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     })
-    
+
+    const result = await response.json().catch(() => null)
+
     return NextResponse.json({
-      success: !error,
-      error: error?.message,
-      message: error ? error.message : 'Registration successful! Check your email for confirmation.',
-      user: data?.user ? {
-        id: data.user.id,
-        email: data.user.email,
-        confirmed: !!data.user.email_confirmed_at
-      } : null
-    })
-  } catch (error: any) {
+      success: !!result?.success,
+      error: result?.error || null,
+      message: result?.success ? "Registration successful" : result?.error || "Registration failed",
+      user: result?.user
+        ? {
+            id: result.user.id,
+            email: result.user.email,
+            confirmed: true,
+          }
+        : null,
+    }, { status: response.status })
+  } catch (error) {
     return NextResponse.json({
       success: false,
-      error: error.message
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    }, { status: 500 })
   }
 }
