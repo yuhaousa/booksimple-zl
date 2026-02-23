@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { ensureAuthTables, normalizeEmail, normalizeValue } from "@/lib/server/auth-db"
 import { requireD1Database } from "@/lib/server/cloudflare-bindings"
-import { verifyPassword } from "@/lib/server/password"
+import { hashPassword, verifyPassword } from "@/lib/server/password"
 import { createSessionToken, setSessionCookie } from "@/lib/server/session"
 
 type LoginRow = {
@@ -12,10 +12,72 @@ type LoginRow = {
   password_hash: string | null
 }
 
+const DEFAULT_USER_ID = process.env.DEFAULT_AUTH_USER_ID?.trim() || "00000000-0000-0000-0000-000000000001"
+const DEFAULT_EMAIL = normalizeEmail(process.env.DEFAULT_AUTH_EMAIL) || "admin@booksimple.local"
+const DEFAULT_PASSWORD = normalizeValue(process.env.DEFAULT_AUTH_PASSWORD) || "Admin123456!"
+const DEFAULT_DISPLAY_NAME = normalizeValue(process.env.DEFAULT_AUTH_DISPLAY_NAME) || "Default Admin"
+
+async function ensureBootstrapUser(db: any) {
+  const existing = (await db
+    .prepare(`SELECT auth_user_id FROM user_list WHERE lower(email) = ? LIMIT 1`)
+    .bind(DEFAULT_EMAIL)
+    .first()) as { auth_user_id: string | null } | null
+
+  let userId = existing?.auth_user_id || DEFAULT_USER_ID
+
+  if (!existing) {
+    await db
+      .prepare(
+        `INSERT INTO user_list (auth_user_id, email, display_name, created_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
+      )
+      .bind(userId, DEFAULT_EMAIL, DEFAULT_DISPLAY_NAME)
+      .run()
+  } else if (!existing.auth_user_id) {
+    await db
+      .prepare("UPDATE user_list SET auth_user_id = ? WHERE lower(email) = ?")
+      .bind(userId, DEFAULT_EMAIL)
+      .run()
+  }
+
+  const existingCredential = (await db
+    .prepare("SELECT user_id FROM auth_credentials WHERE user_id = ? LIMIT 1")
+    .bind(userId)
+    .first()) as { user_id: string } | null
+
+  if (!existingCredential) {
+    const passwordHash = await hashPassword(DEFAULT_PASSWORD)
+    await db
+      .prepare(
+        `INSERT INTO auth_credentials (user_id, password_hash, created_at, updated_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+      )
+      .bind(userId, passwordHash)
+      .run()
+  }
+
+  try {
+    const existingAdmin = (await db
+      .prepare("SELECT user_id FROM admin_users WHERE user_id = ? LIMIT 1")
+      .bind(userId)
+      .first()) as { user_id: string } | null
+
+    if (!existingAdmin) {
+      await db
+        .prepare("INSERT INTO admin_users (user_id, created_at) VALUES (?, CURRENT_TIMESTAMP)")
+        .bind(userId)
+        .run()
+    }
+  } catch {
+    // Ignore when admin table is not present in some environments.
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const db = requireD1Database()
     await ensureAuthTables(db)
+    await ensureBootstrapUser(db)
 
     const body = (await request.json().catch(() => null)) as
       | {
