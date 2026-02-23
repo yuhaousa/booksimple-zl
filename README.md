@@ -22,6 +22,18 @@ Continue building your app on:
 
 **[https://v0.app/chat/projects/bzVtVLgzODt](https://v0.app/chat/projects/bzVtVLgzODt)**
 
+## GitHub Actions Deploy
+
+This repo now includes `.github/workflows/deploy-cloudflare.yml` to deploy on every push to `main`.
+
+Set these GitHub repository secrets before using the workflow:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `NEXT_PUBLIC_SUPABASE_URL` (if still using Supabase auth/client)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (if still using Supabase auth/client)
+- `SUPABASE_SERVICE_ROLE_KEY` (for server/admin Supabase routes)
+
 ## How It Works
 
 1. Create and modify your project using [v0.app](https://v0.app)
