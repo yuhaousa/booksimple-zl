@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { BOOK_SELECT_SQL, BookRow, normalizeBookForResponse, parsePositiveInt } from "@/lib/server/books-db"
 import { requireD1Database } from "@/lib/server/cloudflare-bindings"
+import { resolveUserIdFromRequest } from "@/lib/server/request-user"
 import { extractAssetKey } from "@/lib/server/storage"
 
 const DEFAULT_PAGE_SIZE = 12
@@ -53,6 +54,15 @@ function normalizeStoredAssetValue(
 function clampPageSize(value: number) {
   if (value < 1) return DEFAULT_PAGE_SIZE
   return Math.min(value, MAX_PAGE_SIZE)
+}
+
+function resolveBookOwnerUserId(request: NextRequest, explicitUserId: unknown) {
+  const explicit = asNullableString(explicitUserId)
+  if (explicit) return explicit
+
+  const resolved = resolveUserIdFromRequest(request)
+  // Keep historical behavior for anonymous uploads.
+  return resolved === "anonymous" ? null : resolved
 }
 
 export async function GET(request: NextRequest) {
@@ -116,7 +126,7 @@ export async function POST(request: NextRequest) {
     const year = asNullableYear(body.year)
     const coverUrl = normalizeStoredAssetValue(asNullableString(body.cover_url), "book-cover")
     const fileUrl = normalizeStoredAssetValue(asNullableString(body.file_url), "book-file")
-    const userId = asNullableString(body.user_id)
+    const userId = resolveBookOwnerUserId(request, body.user_id)
     const videoUrl = asNullableString(body.video_url)
     const videoFileUrl = normalizeStoredAssetValue(asNullableString(body.video_file_url), "video-file")
     const videoTitle = asNullableString(body.video_title)
