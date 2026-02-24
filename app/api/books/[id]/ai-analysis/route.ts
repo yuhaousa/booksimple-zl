@@ -53,6 +53,52 @@ type BookRow = {
 
 const PDF_TEXT_FOR_AI_MAX_CHARS = 3500
 
+function extractSummaryFromJsonLike(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  const tryParseObject = (raw: string): string | null => {
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      if (!parsed || typeof parsed !== "object") return null
+      const summary = (parsed as { summary?: unknown }).summary
+      if (typeof summary !== "string") return null
+      const summaryTrimmed = summary.trim()
+      if (!summaryTrimmed || summaryTrimmed === trimmed) return null
+      return extractSummaryFromJsonLike(summaryTrimmed) || summaryTrimmed
+    } catch {
+      return null
+    }
+  }
+
+  const fromWhole = tryParseObject(trimmed)
+  if (fromWhole) return fromWhole
+
+  const start = trimmed.indexOf("{")
+  const end = trimmed.lastIndexOf("}")
+  if (start >= 0 && end > start) {
+    const fromSlice = tryParseObject(trimmed.slice(start, end + 1))
+    if (fromSlice) return fromSlice
+  }
+
+  if (trimmed.includes('"summary"')) {
+    const match = trimmed.match(/"summary"\s*:\s*("(?:\\.|[^"\\])*")/)
+    if (match?.[1]) {
+      try {
+        const extracted = JSON.parse(match[1]) as unknown
+        if (typeof extracted === "string" && extracted.trim()) {
+          return extracted.trim()
+        }
+      } catch {
+        // ignore and fallback
+      }
+    }
+  }
+
+  return trimmed
+}
+
 function parseId(raw: string) {
   const id = Number.parseInt(raw, 10)
   if (!Number.isFinite(id) || id <= 0) return null
@@ -110,9 +156,10 @@ function mapAnalysisRow(row: AnalysisRow) {
   const mindMapData = parseJson<Record<string, any>>(row.mind_map_data)
   const keyThemes = asArrayOfStrings(parseJson(row.key_themes) ?? row.key_themes)
   const mainCharacters = asArrayOfStrings(parseJson(row.main_characters) ?? row.main_characters)
+  const normalizedSummary = extractSummaryFromJsonLike(row.summary) || row.summary
 
   return {
-    summary: row.summary,
+    summary: normalizedSummary,
     detailedSummary: contentAnalysis?.detailedSummary,
     keyPoints: keyThemes,
     keywords: mainCharacters,
@@ -261,6 +308,7 @@ export async function POST(
     const analysis = await Promise.race([analysisPromise, timeoutPromise])
 
     const now = new Date().toISOString()
+    const normalizedSummary = extractSummaryFromJsonLike(analysis.summary) || analysis.summary
     const readingTime =
       typeof analysis.readingTime === "number" && Number.isFinite(analysis.readingTime) && analysis.readingTime > 0
         ? Math.round(analysis.readingTime)
@@ -296,7 +344,7 @@ export async function POST(
         makeId("ai"),
         bookId,
         userId,
-        analysis.summary,
+        normalizedSummary,
         JSON.stringify(analysis.keyPoints || []),
         JSON.stringify(analysis.keywords || []),
         (analysis.topics || []).join(", "),
