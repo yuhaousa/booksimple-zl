@@ -92,6 +92,130 @@ function safeJsonParse<T>(value: string): T | null {
   }
 }
 
+function extractBalancedJsonObject(value: string): string | null {
+  const start = value.indexOf("{")
+  if (start < 0) return null
+
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let i = start; i < value.length; i += 1) {
+    const char = value[i]
+
+    if (inString) {
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (char === "\\") {
+        escaped = true
+        continue
+      }
+      if (char === '"') {
+        inString = false
+      }
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+      continue
+    }
+    if (char === "{") {
+      depth += 1
+      continue
+    }
+    if (char === "}") {
+      depth -= 1
+      if (depth === 0) {
+        return value.slice(start, i + 1)
+      }
+    }
+  }
+
+  return null
+}
+
+function extractJsonStringField(value: string, key: string): string | null {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const regex = new RegExp(`"${escapedKey}"\\s*:\\s*("(?:\\\\.|[^"\\\\])*")`)
+  const match = value.match(regex)
+  if (!match?.[1]) return null
+  try {
+    const parsed = JSON.parse(match[1])
+    return typeof parsed === "string" ? parsed.trim() : null
+  } catch {
+    return null
+  }
+}
+
+function extractStringArrayField(value: string, key: string, max: number): string[] {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const regex = new RegExp(`"${escapedKey}"\\s*:\\s*\\[(.*?)\\]`)
+  const match = value.match(regex)
+  if (!match?.[1]) return []
+
+  const quotedStrings = match[1].match(/"(?:\\.|[^"\\])*"/g)
+  if (!quotedStrings?.length) return []
+
+  const result: string[] = []
+  for (const token of quotedStrings) {
+    try {
+      const parsed = JSON.parse(token)
+      if (typeof parsed === "string" && parsed.trim()) {
+        result.push(parsed.trim())
+      }
+    } catch {
+      // skip bad token
+    }
+    if (result.length >= max) break
+  }
+  return result
+}
+
+function parseJsonLikeAnalysis(value: string): ParsedAnalysis | null {
+  const direct = safeJsonParse<ParsedAnalysis>(value)
+  if (direct) return direct
+
+  const balancedObject = extractBalancedJsonObject(value)
+  if (balancedObject) {
+    const parsedBalanced = safeJsonParse<ParsedAnalysis>(balancedObject)
+    if (parsedBalanced) return parsedBalanced
+  }
+
+  const summary = extractJsonStringField(value, "summary")
+  if (!summary) return null
+
+  return {
+    summary,
+    detailedSummary: extractJsonStringField(value, "detailedSummary") || undefined,
+    difficulty: extractJsonStringField(value, "difficulty") || undefined,
+    authorBackground: extractJsonStringField(value, "authorBackground") || undefined,
+    bookBackground: extractJsonStringField(value, "bookBackground") || undefined,
+    worldRelevance: extractJsonStringField(value, "worldRelevance") || undefined,
+    keyPoints: extractStringArrayField(value, "keyPoints", 6),
+    keywords: extractStringArrayField(value, "keywords", 12),
+    topics: extractStringArrayField(value, "topics", 6),
+  }
+}
+
+function sanitizeSummaryValue(value: string | null): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  if ((trimmed.startsWith("{") || trimmed.includes('"summary"')) && trimmed.length < 15000) {
+    const nested = parseJsonLikeAnalysis(trimmed)
+    const nestedSummary = toTrimmedString(nested?.summary)
+    if (nestedSummary && nestedSummary !== trimmed) {
+      return nestedSummary
+    }
+  }
+
+  return trimmed
+}
+
 function stripThinkAndFences(value: string): string {
   return value
     .replace(/<think>[\s\S]*?<\/think>/gi, " ")
@@ -196,6 +320,11 @@ function buildTextResponseAnalysis(rawText: string, bookContent: BookContent, re
   const cleaned = stripThinkAndFences(rawText).replace(/\s+/g, " ").trim()
   if (!cleaned) return fallback
 
+  const jsonLike = parseJsonLikeAnalysis(cleaned)
+  if (jsonLike) {
+    return normalizeParsedResult(jsonLike, bookContent, readingTime)
+  }
+
   return {
     ...fallback,
     summary: cleaned.slice(0, 6000),
@@ -214,7 +343,8 @@ function normalizeParsedResult(
 
   const fallback = buildFallbackAnalysis(bookContent, readingTime)
 
-  const summary = toTrimmedString(parsed.summary) || fallback.summary
+  const summary =
+    sanitizeSummaryValue(toTrimmedString(parsed.summary)) || sanitizeSummaryValue(fallback.summary) || fallback.summary
   const detailedSummary = toTrimmedString(parsed.detailedSummary) || undefined
   const keyPoints = normalizeStringArray(parsed.keyPoints, 6)
   const keywords = normalizeStringArray(parsed.keywords, 12)
