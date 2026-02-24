@@ -19,6 +19,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Lightbulb,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/use-auth"
@@ -228,9 +229,17 @@ export default function ReadingListPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-primary text-balance">My Reading List</h1>
-          <p className="text-lg text-muted-foreground mt-2">Track your reading progress and discover what's next</p>
+        <div className="container mx-auto px-4 py-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-primary text-balance">My Reading List</h1>
+            <p className="text-lg text-muted-foreground mt-2">Track your reading progress and discover what's next</p>
+          </div>
+          <Button variant="outline" asChild>
+            <Link href="/reading-list/suggested">
+              <Lightbulb className="w-4 h-4 mr-2" />
+              Suggested Reading
+            </Link>
+          </Button>
         </div>
       </header>
 

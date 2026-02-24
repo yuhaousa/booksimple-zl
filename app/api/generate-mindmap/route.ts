@@ -159,16 +159,25 @@ export async function POST(request: NextRequest) {
 
     let summary = asString((mindMapData as any)?.summary)
     if (!summary) {
+      const summaryInput = [
+        `Title: ${book.title}`,
+        book.author ? `Author: ${book.author}` : null,
+        book.description ? `Description: ${book.description}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+
       const summaryCompletion = await openai.chat.completions.create({
         model,
         messages: [
           {
             role: "system",
-            content: "Write concise, useful reading guide summaries for books.",
+            content:
+              "Write concise, useful reading guide summaries for books. Use only provided facts. If details are missing, state uncertainty instead of inventing.",
           },
           {
             role: "user",
-            content: `Write a 180-240 word reading guide summary for "${book.title}"${book.author ? ` by ${book.author}` : ""}.`,
+            content: `Write a 180-240 word reading guide summary in the same language as the source details.\n\n${summaryInput}`,
           },
         ],
         temperature: 0.6,

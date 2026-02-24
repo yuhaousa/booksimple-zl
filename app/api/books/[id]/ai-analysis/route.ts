@@ -91,6 +91,16 @@ function makeContentHash(book: BookRow) {
   return createHash("sha256").update(contentToHash).digest("hex")
 }
 
+function isLegacyGenericSummary(summary: string | null | undefined) {
+  if (!summary) return false
+  const lower = summary.toLowerCase()
+  if (lower.includes("stands as a comprehensive and authoritative exploration of its subject domain")) return true
+  if (lower.includes("comprehensive and authoritative exploration of its subject domain")) return true
+  if (summary.includes("具有重要价值的综合性著作")) return true
+  if (summary.includes("其影响力远超其直接涉及的主题范围")) return true
+  return false
+}
+
 function mapAnalysisRow(row: AnalysisRow) {
   const contentAnalysis = parseJson<Record<string, any>>(row.content_analysis)
   const mindMapData = parseJson<Record<string, any>>(row.mind_map_data)
@@ -165,7 +175,7 @@ export async function POST(
         .bind(bookId, contentHash)
         .first()) as AnalysisRow | null
 
-      if (cached) {
+      if (cached && !isLegacyGenericSummary(cached.summary)) {
         await db
           .prepare("UPDATE ai_book_analysis SET last_accessed_at = CURRENT_TIMESTAMP WHERE id = ?")
           .bind(cached.id)
@@ -381,6 +391,15 @@ export async function GET(
     }
 
     if (cached) {
+      if (isLegacyGenericSummary(cached.summary)) {
+        return NextResponse.json({
+          success: false,
+          fromCache: false,
+          message: "Cached analysis is stale and will be regenerated.",
+          analysisEndpoint: `/api/books/${bookId}/ai-analysis`,
+        })
+      }
+
       await db
         .prepare("UPDATE ai_book_analysis SET last_accessed_at = CURRENT_TIMESTAMP WHERE id = ?")
         .bind(cached.id)
