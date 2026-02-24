@@ -123,6 +123,8 @@ export default function AdminUsers() {
     fetchUsers()
   }, [authLoading, user?.id])
 
+  const adminUserIds = new Set(adminList.map((item) => item.user_id))
+
   const filteredUsers = users.filter((item) => {
     const target = searchTerm.toLowerCase()
     return (
@@ -264,6 +266,11 @@ export default function AdminUsers() {
                     >
                       <td className="p-4">
                         <div className="font-medium text-foreground">{entry.username || "N/A"}</div>
+                        {adminUserIds.has(entry.id) && (
+                          <Badge className="mt-1" variant="default">
+                            Admin
+                          </Badge>
+                        )}
                         <div className="text-sm text-muted-foreground">ID: {entry.id.slice(0, 8)}...</div>
                       </td>
                       <td className="p-4">

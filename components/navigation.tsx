@@ -12,6 +12,11 @@ export function Navigation() {
   const router = useRouter()
   const { user, signOut } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const userDisplayName = user?.display_name?.trim() || null
+  const userEmail = user?.email?.trim() || null
+  const userPrimaryLabel = userDisplayName || userEmail || "Logged in"
+  const userSecondaryLabel =
+    userDisplayName && userEmail && userDisplayName.toLowerCase() !== userEmail.toLowerCase() ? userEmail : null
 
   const navItems = [
     { href: "/", label: "Home", icon: Home },
@@ -69,10 +74,16 @@ export function Navigation() {
             })}
 
             {user ? (
-              <Button variant="ghost" size="sm" className="flex items-center space-x-2" onClick={handleLogout}>
-                <LogOut className="h-4 w-4" />
-                <span>Logout</span>
-              </Button>
+              <>
+                <div className="px-2 text-right leading-tight">
+                  <div className="text-xs font-medium text-foreground">{userPrimaryLabel}</div>
+                  {userSecondaryLabel && <div className="text-[11px] text-muted-foreground">{userSecondaryLabel}</div>}
+                </div>
+                <Button variant="ghost" size="sm" className="flex items-center space-x-2" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4" />
+                  <span>Logout</span>
+                </Button>
+              </>
             ) : (
               <Button asChild variant="ghost" size="sm" className="flex items-center space-x-2">
                 <Link href="/login">
@@ -100,6 +111,14 @@ export function Navigation() {
         {mobileMenuOpen && (
           <div className="md:hidden border-t py-4">
             <div className="flex flex-col space-y-2">
+              {user && (
+                <div className="mx-1 mb-2 rounded-md border border-border px-3 py-2">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Logged in as</div>
+                  <div className="text-sm font-medium text-foreground break-all">{userPrimaryLabel}</div>
+                  {userSecondaryLabel && <div className="text-xs text-muted-foreground break-all">{userSecondaryLabel}</div>}
+                </div>
+              )}
+
               {navItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href
