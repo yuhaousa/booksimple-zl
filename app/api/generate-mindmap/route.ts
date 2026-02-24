@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     const { client: openai, model, provider } = await createConfiguredOpenAIClient({
       openaiModel: "gpt-4o-mini",
-      minimaxModel: "MiniMax-Text-01",
+      minimaxModel: "MiniMax-M2.5",
     })
 
     if (!openai) {

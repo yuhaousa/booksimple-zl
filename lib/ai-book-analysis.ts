@@ -244,7 +244,7 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
   try {
     const { client: openai, model } = await createConfiguredOpenAIClient({
       openaiModel: "gpt-4o-mini",
-      minimaxModel: "MiniMax-Text-01",
+      minimaxModel: "MiniMax-M2.5",
       googleModel: "gemini-2.0-flash",
     })
 
@@ -287,7 +287,7 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
           content: `Fix this into strict JSON preserving meaning:\n${raw || "EMPTY_RESPONSE"}`,
         },
       ],
-      temperature: 0,
+      temperature: 0.1,
       max_tokens: 2000,
     })
 
@@ -309,4 +309,3 @@ export async function analyzeBookFromPDF(
     textContent: pdfTextContent,
   })
 }
-

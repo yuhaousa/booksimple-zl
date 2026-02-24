@@ -16,7 +16,7 @@ export async function GET() {
     // Test the API key with a simple request
     const { client: openai, model, provider } = await createConfiguredOpenAIClient({
       openaiModel: "gpt-4o-mini",
-      minimaxModel: "MiniMax-Text-01",
+      minimaxModel: "MiniMax-M2.5",
     })
     if (!openai) {
       return NextResponse.json({

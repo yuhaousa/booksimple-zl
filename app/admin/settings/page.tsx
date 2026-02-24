@@ -74,11 +74,11 @@ const DEFAULT_SETTINGS: AISettingsResponse = {
     environmentKeyConfigured: false,
     databaseKeyConfigured: false,
     databaseKeyPreview: null,
-    model: "MiniMax-Text-01",
+    model: "MiniMax-M2.5",
     modelSource: "default",
     environmentOverridesDatabase: false,
     keyUpdatedAt: null,
-    baseURL: "https://api.minimax.chat/v1",
+    baseURL: "https://api.minimax.io/v1",
     baseURLSource: "default",
   },
   google: {
@@ -121,8 +121,8 @@ export default function AdminSettingsPage() {
   const [openaiModel, setOpenaiModel] = useState("gpt-4o-mini")
 
   const [minimaxApiKey, setMinimaxApiKey] = useState("")
-  const [minimaxModel, setMinimaxModel] = useState("MiniMax-Text-01")
-  const [minimaxBaseUrl, setMinimaxBaseUrl] = useState("https://api.minimax.chat/v1")
+  const [minimaxModel, setMinimaxModel] = useState("MiniMax-M2.5")
+  const [minimaxBaseUrl, setMinimaxBaseUrl] = useState("https://api.minimax.io/v1")
   const [googleApiKey, setGoogleApiKey] = useState("")
   const [googleModel, setGoogleModel] = useState("gemini-2.0-flash")
   const [googleBaseUrl, setGoogleBaseUrl] = useState("https://generativelanguage.googleapis.com/v1beta/openai/")
@@ -133,8 +133,8 @@ export default function AdminSettingsPage() {
 
   const hydrateForm = (result: AISettingsResponse) => {
     setOpenaiModel(result.openai.model || "gpt-4o-mini")
-    setMinimaxModel(result.minimax.model || "MiniMax-Text-01")
-    setMinimaxBaseUrl(result.minimax.baseURL || "https://api.minimax.chat/v1")
+    setMinimaxModel(result.minimax.model || "MiniMax-M2.5")
+    setMinimaxBaseUrl(result.minimax.baseURL || "https://api.minimax.io/v1")
     setGoogleModel(result.google.model || "gemini-2.0-flash")
     setGoogleBaseUrl(result.google.baseURL || "https://generativelanguage.googleapis.com/v1beta/openai/")
     setDefaultProvider(result.defaultProvider || "openai")
@@ -607,7 +607,7 @@ export default function AdminSettingsPage() {
                 id="minimax-model"
                 value={minimaxModel}
                 onChange={(e) => setMinimaxModel(e.target.value)}
-                placeholder="MiniMax-Text-01"
+                placeholder="MiniMax-M2.5"
               />
             </div>
             <div className="space-y-2">
@@ -616,7 +616,7 @@ export default function AdminSettingsPage() {
                 id="minimax-baseurl"
                 value={minimaxBaseUrl}
                 onChange={(e) => setMinimaxBaseUrl(e.target.value)}
-                placeholder="https://api.minimax.chat/v1"
+                placeholder="https://api.minimax.io/v1"
               />
             </div>
             <div className="flex flex-wrap gap-2">

@@ -18,8 +18,8 @@ const GOOGLE_BASE_URL_KEY = "google_base_url"
 const DEFAULT_PROVIDER_KEY = "ai_default_provider"
 
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
-const DEFAULT_MINIMAX_MODEL = "MiniMax-Text-01"
-const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.chat/v1"
+const DEFAULT_MINIMAX_MODEL = "MiniMax-M2.5"
+const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1"
 const DEFAULT_GOOGLE_MODEL = "gemini-2.0-flash"
 const DEFAULT_GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 const ALL_PROVIDERS: AIProvider[] = ["openai", "minimax", "google"]
