@@ -1,11 +1,5 @@
-/**
- * PDF Text Extraction Service
- * This service provides basic PDF text extraction capabilities
- * In production, you would enhance this with more sophisticated PDF parsing
- */
-
-import { requireD1Database } from "@/lib/server/cloudflare-bindings"
-import { toAssetUrl } from "@/lib/server/storage"
+import { getR2Bucket, requireD1Database } from "@/lib/server/cloudflare-bindings"
+import { extractAssetKey, toAssetUrl } from "@/lib/server/storage"
 
 export interface PDFExtractionResult {
   text: string
@@ -18,48 +12,98 @@ export interface PDFExtractionResult {
   }
 }
 
-/**
- * Extract text from a PDF file URL
- * Currently returns minimal extraction - in production, use libraries like:
- * - pdf-parse (Node.js)
- * - PDF.js (client-side)
- * - External APIs (Adobe PDF Services, etc.)
- */
-export async function extractTextFromPDF(fileUrl: string): Promise<PDFExtractionResult> {
-  try {
-    console.log('Starting PDF text extraction for:', fileUrl)
-    
-    // For now, return a basic structure
-    // In production, you would:
-    // 1. Fetch the PDF file
-    // 2. Parse it using a PDF library
-    // 3. Extract text content and metadata
-    
-    // Placeholder implementation
-    const result: PDFExtractionResult = {
-      text: '', // Would contain extracted text
-      pageCount: 0, // Would contain actual page count
-      metadata: {
-        title: undefined,
-        author: undefined,
-        subject: undefined,
-        keywords: undefined
-      }
-    }
-    
-    // TODO: Implement actual PDF parsing
-    console.warn('PDF text extraction not fully implemented - using placeholder')
-    
-    return result
-    
-  } catch (error) {
-    console.error('Error extracting text from PDF:', error)
-    throw new Error('Failed to extract text from PDF')
+function extractLikelyPdfText(pdfBytes: Uint8Array): string {
+  const raw = new TextDecoder("latin1").decode(pdfBytes)
+
+  const directTextMatches = Array.from(raw.matchAll(/\(([^()\\]|\\.){2,500}\)\s*Tj/g))
+    .map((match) => match[0])
+    .join(" ")
+
+  const arrayTextMatches = Array.from(raw.matchAll(/\[([\s\S]*?)\]\s*TJ/g))
+    .map((match) => match[1])
+    .join(" ")
+
+  const inlineLiterals = `${directTextMatches} ${arrayTextMatches}`
+    .replace(/[()[\]]/g, " ")
+    .replace(/\\[nrtbf()\\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  if (inlineLiterals.length > 200) {
+    return inlineLiterals
+  }
+
+  return raw
+    .replace(/[^\x20-\x7E\u00A0-\u00FF\u4E00-\u9FFF\r\n]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function estimatePageCount(pdfBytes: Uint8Array): number {
+  const raw = new TextDecoder("latin1").decode(pdfBytes)
+  const pageMatches = raw.match(/\/Type\s*\/Page\b/g) || raw.match(/\/Page\b/g) || []
+  return pageMatches.length > 0 ? pageMatches.length : 0
+}
+
+function getCandidateKeys(rawKey: string) {
+  if (rawKey.includes("/")) return [rawKey]
+
+  const lower = rawKey.toLowerCase()
+  if (lower.endsWith(".pdf")) {
+    return [rawKey, `book-file/${rawKey}`, `video-file/${rawKey}`]
+  }
+
+  return [rawKey, `book-file/${rawKey}`, `video-file/${rawKey}`]
+}
+
+function parsePdfBytes(pdfBytes: Uint8Array): PDFExtractionResult {
+  return {
+    text: extractLikelyPdfText(pdfBytes),
+    pageCount: estimatePageCount(pdfBytes),
+    metadata: {},
   }
 }
 
+async function readBytesFromR2(storedValue: string | null | undefined): Promise<Uint8Array | null> {
+  const bucket = getR2Bucket()
+  if (!bucket) return null
+
+  const extractedKey = extractAssetKey(storedValue)
+  if (!extractedKey) return null
+
+  for (const candidateKey of getCandidateKeys(extractedKey)) {
+    const object = await bucket.get(candidateKey)
+    if (!object) continue
+    const arrayBuffer = await object.arrayBuffer()
+    return new Uint8Array(arrayBuffer)
+  }
+
+  return null
+}
+
+async function readBytesFromAbsoluteUrl(fileUrl: string | null): Promise<Uint8Array | null> {
+  if (!fileUrl || !/^https?:\/\//i.test(fileUrl)) return null
+
+  const response = await fetch(fileUrl)
+  if (!response.ok) return null
+
+  const arrayBuffer = await response.arrayBuffer()
+  return new Uint8Array(arrayBuffer)
+}
+
 /**
- * Extract text from a book's PDF file using D1 + R2-backed file URLs
+ * Extract text from a publicly reachable PDF URL.
+ */
+export async function extractTextFromPDF(fileUrl: string): Promise<PDFExtractionResult> {
+  const pdfBytes = await readBytesFromAbsoluteUrl(fileUrl)
+  if (!pdfBytes) {
+    throw new Error("Failed to fetch PDF bytes from URL")
+  }
+  return parsePdfBytes(pdfBytes)
+}
+
+/**
+ * Extract text from a book's stored PDF (R2 key in D1).
  */
 export async function extractTextFromBookPDF(bookId: number): Promise<PDFExtractionResult | null> {
   try {
@@ -69,108 +113,64 @@ export async function extractTextFromBookPDF(bookId: number): Promise<PDFExtract
       .bind(bookId)
       .first()) as { file_url: string | null; title: string | null; author: string | null } | null
 
-    const fileUrl = toAssetUrl(book?.file_url)
-    if (!book || !fileUrl) {
-      console.log('No PDF file found for book:', bookId)
-      return null
-    }
+    if (!book?.file_url) return null
 
-    // Extract text from the PDF
-    const extractionResult = await extractTextFromPDF(fileUrl)
-    
-    // Enhance with book metadata if extraction didn't get it
-    if (!extractionResult.metadata.title && book.title) {
-      extractionResult.metadata.title = book.title
+    let pdfBytes = await readBytesFromR2(book.file_url)
+    if (!pdfBytes) {
+      const maybeUrl = toAssetUrl(book.file_url)
+      pdfBytes = await readBytesFromAbsoluteUrl(maybeUrl)
     }
-    if (!extractionResult.metadata.author && book.author) {
-      extractionResult.metadata.author = book.author
-    }
-    
-    return extractionResult
-    
+    if (!pdfBytes) return null
+
+    const result = parsePdfBytes(pdfBytes)
+    if (!result.metadata.title && book.title) result.metadata.title = book.title
+    if (!result.metadata.author && book.author) result.metadata.author = book.author
+    return result
   } catch (error) {
-    console.error('Error in extractTextFromBookPDF:', error)
+    console.error("Error in extractTextFromBookPDF:", error)
     return null
   }
 }
 
 /**
- * Enhanced PDF text extraction using PDF.js (client-side)
- * This would be used in a browser environment
+ * Client-side extraction stub (not used in server routes).
  */
-export async function extractTextFromPDFClient(pdfUrl: string): Promise<PDFExtractionResult> {
-  try {
-    // This would use PDF.js to extract text on the client side
-    // Example implementation would be:
-    /*
-    const pdfjsLib = require('pdfjs-dist')
-    const pdf = await pdfjsLib.getDocument(pdfUrl).promise
-    
-    let fullText = ''
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i)
-      const textContent = await page.getTextContent()
-      const pageText = textContent.items.map(item => item.str).join(' ')
-      fullText += pageText + '\n'
-    }
-    
-    return {
-      text: fullText,
-      pageCount: pdf.numPages,
-      metadata: pdf.metadata || {}
-    }
-    */
-    
-    throw new Error('Client-side PDF extraction not implemented')
-    
-  } catch (error) {
-    console.error('Error in client-side PDF extraction:', error)
-    throw error
-  }
+export async function extractTextFromPDFClient(_pdfUrl: string): Promise<PDFExtractionResult> {
+  throw new Error("Client-side PDF extraction is not implemented")
 }
 
-/**
- * Utility function to chunk text for AI processing
- * AI APIs have token limits, so large texts need to be chunked
- */
-export function chunkTextForAI(text: string, maxChunkSize: number = 4000): string[] {
+export function chunkTextForAI(text: string, maxChunkSize = 4000): string[] {
   const sentences = text.split(/[.!?]+/)
   const chunks: string[] = []
-  let currentChunk = ''
-  
+  let currentChunk = ""
+
   for (const sentence of sentences) {
     const trimmedSentence = sentence.trim()
     if (!trimmedSentence) continue
-    
+
     if (currentChunk.length + trimmedSentence.length > maxChunkSize) {
       if (currentChunk) {
         chunks.push(currentChunk.trim())
-        currentChunk = ''
+        currentChunk = ""
       }
     }
-    
-    currentChunk += trimmedSentence + '. '
+
+    currentChunk += `${trimmedSentence}. `
   }
-  
+
   if (currentChunk.trim()) {
     chunks.push(currentChunk.trim())
   }
-  
+
   return chunks
 }
 
-/**
- * Extract key passages from PDF text for AI analysis
- * This helps focus AI analysis on the most important content
- */
-export function extractKeyPassages(text: string, maxPassages: number = 5): string[] {
+export function extractKeyPassages(text: string, maxPassages = 5): string[] {
   const paragraphs = text.split(/\n\s*\n/)
-  
-  // Simple heuristic: longer paragraphs are often more important
-  const sortedParagraphs = paragraphs
-    .filter(p => p.trim().length > 100) // Filter short paragraphs
-    .sort((a, b) => b.length - a.length) // Sort by length
-    .slice(0, maxPassages) // Take top passages
-  
-  return sortedParagraphs
+
+  return paragraphs
+    .filter((p) => p.trim().length > 100)
+    .sort((a, b) => b.length - a.length)
+    .slice(0, maxPassages)
 }
+

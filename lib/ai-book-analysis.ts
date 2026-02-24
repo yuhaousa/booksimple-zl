@@ -113,7 +113,8 @@ function extractBookText(bookContent: BookContent): string {
 function buildPrompt(sourceText: string) {
   return [
     "Analyze this book based ONLY on the provided content.",
-    "Do not invent facts. If information is missing, say 'insufficient information'.",
+    "Do not invent facts.",
+    "If information is missing, produce a best-effort metadata-based summary and clearly mark uncertainty/assumptions.",
     "Use the same language as the source text.",
     "",
     sourceText,
