@@ -287,8 +287,7 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
         { role: "user", content: prompt },
       ],
       temperature: provider === "minimax" ? 1 : 0.2,
-      max_tokens: 2500,
-      ...(provider === "minimax" ? { extra_body: { reasoning_split: true } } : {}),
+      max_tokens: 1600,
     })
 
     const rawResponse = toTrimmedString(completion.choices?.[0]?.message?.content)
@@ -296,6 +295,12 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
     const parsed = raw ? safeJsonParse<ParsedAnalysis>(raw) : null
     if (parsed) {
       return normalizeParsedResult(parsed, bookContent, readingTime)
+    }
+
+    // MiniMax responses can include non-JSON prose; avoid a second large completion to keep worker CPU/time stable.
+    if (provider === "minimax") {
+      if (raw) return buildTextResponseAnalysis(raw, bookContent, readingTime)
+      return buildFallbackAnalysis(bookContent, readingTime, "invalid AI JSON")
     }
 
     const repair = await openai.chat.completions.create({
@@ -310,9 +315,8 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
           content: `Fix this into strict JSON preserving meaning:\n${raw || "EMPTY_RESPONSE"}`,
         },
       ],
-      temperature: provider === "minimax" ? 1 : 0.1,
+      temperature: 0.1,
       max_tokens: 2000,
-      ...(provider === "minimax" ? { extra_body: { reasoning_split: true } } : {}),
     })
 
     const repairedRawResponse = toTrimmedString(repair.choices?.[0]?.message?.content)

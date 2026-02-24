@@ -12,49 +12,89 @@ export interface PDFExtractionResult {
   }
 }
 
-const MAX_PDF_BYTES = 1_500_000
-const MAX_DECODE_CHARS = 600_000
-const MAX_TEXT_MATCHES = 1200
+const MAX_PDF_BYTES = 650_000
+const MAX_DECODE_CHARS = 180_000
+const MAX_LITERAL_SNIPPETS = 240
+const MAX_RESULT_CHARS = 12_000
+
+function extractTextLiterals(raw: string): string {
+  const snippets: string[] = []
+  let index = 0
+
+  while (index < raw.length && snippets.length < MAX_LITERAL_SNIPPETS) {
+    if (raw[index] !== "(") {
+      index += 1
+      continue
+    }
+
+    index += 1
+    let escaped = false
+    let depth = 1
+    let buffer = ""
+
+    while (index < raw.length && depth > 0) {
+      const char = raw[index]
+
+      if (escaped) {
+        if (depth === 1 && buffer.length < 260) buffer += char
+        escaped = false
+        index += 1
+        continue
+      }
+
+      if (char === "\\") {
+        escaped = true
+        index += 1
+        continue
+      }
+
+      if (char === "(") {
+        depth += 1
+        index += 1
+        continue
+      }
+
+      if (char === ")") {
+        depth -= 1
+        index += 1
+        continue
+      }
+
+      if (depth === 1 && buffer.length < 260) buffer += char
+      index += 1
+    }
+
+    if (buffer.length < 3) continue
+
+    const drawWindow = raw.slice(index, Math.min(index + 10, raw.length))
+    if (!drawWindow.includes("Tj") && !drawWindow.includes("TJ")) continue
+
+    const normalized = buffer
+      .replace(/\\[nrtbf]/g, " ")
+      .replace(/\\([()\\])/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim()
+
+    if (normalized.length < 3) continue
+    if (!/[A-Za-z0-9\u4E00-\u9FFF]/.test(normalized)) continue
+    snippets.push(normalized)
+  }
+
+  return snippets.join(" ").slice(0, MAX_RESULT_CHARS)
+}
 
 function extractLikelyPdfText(pdfBytes: Uint8Array): string {
   const raw = new TextDecoder("latin1").decode(pdfBytes).slice(0, MAX_DECODE_CHARS)
-
-  let directText = ""
-  {
-    const re = /\(([^()\\]|\\.){2,500}\)\s*Tj/g
-    let count = 0
-    let match: RegExpExecArray | null = null
-    while ((match = re.exec(raw)) && count < MAX_TEXT_MATCHES) {
-      directText += `${match[0]} `
-      count += 1
-    }
-  }
-
-  let arrayText = ""
-  {
-    const re = /\[([\s\S]{1,2000}?)\]\s*TJ/g
-    let count = 0
-    let match: RegExpExecArray | null = null
-    while ((match = re.exec(raw)) && count < MAX_TEXT_MATCHES) {
-      arrayText += `${match[1]} `
-      count += 1
-    }
-  }
-
-  const inlineLiterals = `${directText} ${arrayText}`
-    .replace(/[()[\]]/g, " ")
-    .replace(/\\[nrtbf()\\]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-
-  if (inlineLiterals.length > 200) {
-    return inlineLiterals
+  const literalText = extractTextLiterals(raw)
+  if (literalText.length > 200) {
+    return literalText
   }
 
   return raw
     .replace(/[^\x20-\x7E\u00A0-\u00FF\u4E00-\u9FFF\r\n]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
+    .slice(0, MAX_RESULT_CHARS)
 }
 
 function estimatePageCount(pdfBytes: Uint8Array): number {

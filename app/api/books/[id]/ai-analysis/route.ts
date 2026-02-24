@@ -51,6 +51,8 @@ type BookRow = {
   tags: string | null
 }
 
+const PDF_TEXT_FOR_AI_MAX_CHARS = 3500
+
 function parseId(raw: string) {
   const id = Number.parseInt(raw, 10)
   if (!Number.isFinite(id) || id <= 0) return null
@@ -232,7 +234,10 @@ export async function POST(
       try {
         const pdfExtraction = await pdfModule.extractTextFromBookPDF(bookId)
         if (pdfExtraction?.text) {
-          pdfText = pdfExtraction.text.slice(0, 8000)
+          const normalizedPdfText = pdfExtraction.text.replace(/\s+/g, " ").trim()
+          if (normalizedPdfText.length >= 80) {
+            pdfText = normalizedPdfText.slice(0, PDF_TEXT_FOR_AI_MAX_CHARS)
+          }
           pageCount = pdfExtraction.pageCount
         }
       } catch (error) {

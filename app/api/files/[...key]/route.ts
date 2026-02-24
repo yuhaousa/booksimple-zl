@@ -21,6 +21,10 @@ function getCandidateKeys(rawKey: string) {
   return [rawKey, `book-file/${rawKey}`, `book-cover/${rawKey}`, `video-file/${rawKey}`, `site-logo/${rawKey}`, `site-banner/${rawKey}`]
 }
 
+function isImageKey(rawKey: string) {
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(rawKey)
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ key: string[] }> }
@@ -44,6 +48,12 @@ export async function GET(
     }
 
     if (!object) {
+      const lowerKey = key.toLowerCase()
+      const isDefaultCover = lowerKey.endsWith("abstract-book-cover.png")
+      const isBookCover = lowerKey.includes("book-cover/")
+      if (isDefaultCover || (isBookCover && isImageKey(lowerKey))) {
+        return NextResponse.redirect(new URL("/abstract-book-cover.png", request.url), 307)
+      }
       return NextResponse.json({ success: false, error: "File not found" }, { status: 404 })
     }
 
