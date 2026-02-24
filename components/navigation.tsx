@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { BookOpen, Upload, Home, FileText, LogIn, LogOut, Settings, Menu, X } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
 
 export function Navigation() {
@@ -12,11 +12,39 @@ export function Navigation() {
   const router = useRouter()
   const { user, signOut } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const userDisplayName = user?.display_name?.trim() || null
   const userEmail = user?.email?.trim() || null
   const userPrimaryLabel = userDisplayName || userEmail || "Logged in"
   const userSecondaryLabel =
     userDisplayName && userEmail && userDisplayName.toLowerCase() !== userEmail.toLowerCase() ? userEmail : null
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadAdminAccess = async () => {
+      if (!user?.id) {
+        if (!cancelled) setIsAdmin(false)
+        return
+      }
+
+      try {
+        const response = await fetch("/api/admin/access", { cache: "no-store" })
+        const result = await response.json().catch(() => null)
+        if (!cancelled) {
+          setIsAdmin(Boolean(response.ok && result?.success && result?.isAdmin))
+        }
+      } catch {
+        if (!cancelled) setIsAdmin(false)
+      }
+    }
+
+    void loadAdminAccess()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
 
   const navItems = [
     { href: "/", label: "Home", icon: Home },
@@ -27,7 +55,7 @@ export function Navigation() {
           { href: "/upload", label: "Upload", icon: Upload },
           { href: "/reading-list", label: "Reading List", icon: BookOpen },
           { href: "/notes", label: "Study Notes", icon: FileText },
-          { href: "/admin", label: "Admin", icon: Settings },
+          ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Settings }] : []),
         ]
       : []),
   ]
