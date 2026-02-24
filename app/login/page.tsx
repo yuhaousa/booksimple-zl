@@ -127,7 +127,9 @@ export default function LoginPage() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => {
@@ -143,7 +145,9 @@ export default function LoginPage() {
               <div className="relative">
                 <Input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => {

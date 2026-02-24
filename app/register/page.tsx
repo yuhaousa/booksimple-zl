@@ -59,7 +59,7 @@ export default function RegisterPage() {
       const result = await response.json().catch(() => null)
 
       if (!response.ok || !result?.success) {
-        throw new Error(result?.error || "Registration failed")
+        throw new Error(result?.details || result?.error || "Registration failed")
       }
 
       toast({
@@ -99,6 +99,7 @@ export default function RegisterPage() {
                 id="name"
                 name="name"
                 type="text"
+                autoComplete="name"
                 placeholder="Enter your full name"
                 value={formData.name}
                 onChange={handleChange}
@@ -112,6 +113,7 @@ export default function RegisterPage() {
                 id="email"
                 name="email"
                 type="email"
+                autoComplete="email"
                 placeholder="Enter your email"
                 value={formData.email}
                 onChange={handleChange}
@@ -126,6 +128,8 @@ export default function RegisterPage() {
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  minLength={8}
                   placeholder="Create a password"
                   value={formData.password}
                   onChange={handleChange}
@@ -150,6 +154,8 @@ export default function RegisterPage() {
                   id="confirmPassword"
                   name="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  minLength={8}
                   placeholder="Confirm your password"
                   value={formData.confirmPassword}
                   onChange={handleChange}
