@@ -125,9 +125,23 @@ export async function GET(request: NextRequest) {
         .all() as Promise<{ results?: BookStatsRow[] }>,
       db
         .prepare(
-          `SELECT user_id, COUNT(*) AS note_count, MAX(created_at) AS last_note_at
-           FROM study_notes
-           WHERE user_id IS NOT NULL AND TRIM(user_id) <> ''
+          `SELECT user_id, SUM(note_count) AS note_count, MAX(last_note_at) AS last_note_at
+           FROM (
+             SELECT user_id, COUNT(*) AS note_count, MAX(created_at) AS last_note_at
+             FROM study_notes
+             WHERE user_id IS NOT NULL AND TRIM(user_id) <> ''
+             GROUP BY user_id
+             UNION ALL
+             SELECT user_id, COUNT(*) AS note_count, MAX(created_at) AS last_note_at
+             FROM book_notes
+             WHERE user_id IS NOT NULL AND TRIM(user_id) <> ''
+             GROUP BY user_id
+             UNION ALL
+             SELECT user_id, COUNT(*) AS note_count, MAX(created_at) AS last_note_at
+             FROM book_highlights
+             WHERE user_id IS NOT NULL AND TRIM(user_id) <> ''
+             GROUP BY user_id
+           ) AS note_sources
            GROUP BY user_id`
         )
         .all() as Promise<{ results?: NoteStatsRow[] }>,
