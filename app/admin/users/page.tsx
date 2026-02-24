@@ -60,13 +60,10 @@ export default function AdminUsers() {
   const [showingPlaceholderData, setShowingPlaceholderData] = useState(false)
   const [adminList, setAdminList] = useState<AdminUserRow[]>([])
 
-  const fetchUsers = async (currentUserId: string) => {
+  const fetchUsers = async () => {
     try {
       const response = await fetch("/api/admin/users", {
         cache: "no-store",
-        headers: {
-          "x-user-id": currentUserId,
-        },
       })
       const result = (await response.json().catch(() => null)) as AdminUsersApiResponse | null
 
@@ -104,7 +101,6 @@ export default function AdminUsers() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": user.id,
         },
         body: JSON.stringify({ userId: targetUserId }),
       })
@@ -115,7 +111,7 @@ export default function AdminUsers() {
       }
 
       toast.success("User added as admin")
-      await fetchUsers(user.id)
+      await fetchUsers()
     } catch (error: any) {
       toast.error(error?.message || "Failed to add admin user")
     }
@@ -124,7 +120,7 @@ export default function AdminUsers() {
   useEffect(() => {
     if (authLoading) return
     if (!user?.id) return
-    fetchUsers(user.id)
+    fetchUsers()
   }, [authLoading, user?.id])
 
   const filteredUsers = users.filter((item) => {
@@ -347,4 +343,3 @@ export default function AdminUsers() {
     </div>
   )
 }
-

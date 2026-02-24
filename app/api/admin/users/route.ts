@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { requireD1Database } from "@/lib/server/cloudflare-bindings"
+import { resolveSessionUserIdFromRequest } from "@/lib/server/session"
 
 type AdminUserRow = {
   user_id: string
@@ -79,27 +80,11 @@ function usernameFromEmail(email: string) {
   return email.slice(0, at)
 }
 
-async function resolveUserId(request: NextRequest) {
-  return (
-    asNonEmptyString(request.headers.get("x-user-id")) ??
-    asNonEmptyString(request.headers.get("x-admin-user-id")) ??
-    asNonEmptyString(new URL(request.url).searchParams.get("userId"))
-  )
+function resolveAuthenticatedUserId(request: NextRequest) {
+  return asNonEmptyString(resolveSessionUserIdFromRequest(request))
 }
 
-async function ensureAdmin(db: any, requesterUserId: string) {
-  const totalRow = (await db.prepare("SELECT COUNT(*) AS count FROM admin_users").first()) as
-    | { count: number | string }
-    | null
-  const totalAdmins = asNumber(totalRow?.count)
-
-  if (totalAdmins === 0) {
-    await db
-      .prepare("INSERT INTO admin_users (user_id, created_at) VALUES (?, CURRENT_TIMESTAMP)")
-      .bind(requesterUserId)
-      .run()
-  }
-
+async function isAdminUser(db: any, requesterUserId: string) {
   const row = (await db
     .prepare("SELECT user_id FROM admin_users WHERE user_id = ? LIMIT 1")
     .bind(requesterUserId)
@@ -111,12 +96,12 @@ async function ensureAdmin(db: any, requesterUserId: string) {
 export async function GET(request: NextRequest) {
   try {
     const db = requireD1Database()
-    const requesterUserId = await resolveUserId(request)
+    const requesterUserId = resolveAuthenticatedUserId(request)
     if (!requesterUserId) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    const isAdmin = await ensureAdmin(db, requesterUserId)
+    const isAdmin = await isAdminUser(db, requesterUserId)
     if (!isAdmin) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 })
     }
@@ -288,12 +273,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const db = requireD1Database()
-    const requesterUserId = await resolveUserId(request)
+    const requesterUserId = resolveAuthenticatedUserId(request)
     if (!requesterUserId) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    const isAdmin = await ensureAdmin(db, requesterUserId)
+    const isAdmin = await isAdminUser(db, requesterUserId)
     if (!isAdmin) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 })
     }

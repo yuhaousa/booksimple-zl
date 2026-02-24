@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { getD1Database } from "@/lib/server/cloudflare-bindings"
-import { resolveUserIdFromRequest } from "@/lib/server/request-user"
 import { AIProvider, getAIConfigurationStatus } from "@/lib/server/openai-config"
+import { resolveSessionUserIdFromRequest } from "@/lib/server/session"
 
 const OPENAI_SETTING_KEY = "openai_api_key"
 const OPENAI_MODEL_KEY = "openai_model"
@@ -41,13 +41,10 @@ async function requireAdminAccess(request: NextRequest): Promise<AdminAccessResu
     }
   }
 
-  const userId = normalizeValue(resolveUserIdFromRequest(request))
-  if (!userId || userId === "anonymous") {
+  const userId = normalizeValue(resolveSessionUserIdFromRequest(request))
+  if (!userId) {
     return {
-      error: NextResponse.json(
-        { error: "Unauthorized. Login first or send x-user-id header." },
-        { status: 401 }
-      ),
+      error: NextResponse.json({ error: "Unauthorized. Login first." }, { status: 401 }),
       db: null,
       userId: null,
     }
