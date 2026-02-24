@@ -12,18 +12,36 @@ export interface PDFExtractionResult {
   }
 }
 
+const MAX_PDF_BYTES = 1_500_000
+const MAX_DECODE_CHARS = 600_000
+const MAX_TEXT_MATCHES = 1200
+
 function extractLikelyPdfText(pdfBytes: Uint8Array): string {
-  const raw = new TextDecoder("latin1").decode(pdfBytes)
+  const raw = new TextDecoder("latin1").decode(pdfBytes).slice(0, MAX_DECODE_CHARS)
 
-  const directTextMatches = Array.from(raw.matchAll(/\(([^()\\]|\\.){2,500}\)\s*Tj/g))
-    .map((match) => match[0])
-    .join(" ")
+  let directText = ""
+  {
+    const re = /\(([^()\\]|\\.){2,500}\)\s*Tj/g
+    let count = 0
+    let match: RegExpExecArray | null = null
+    while ((match = re.exec(raw)) && count < MAX_TEXT_MATCHES) {
+      directText += `${match[0]} `
+      count += 1
+    }
+  }
 
-  const arrayTextMatches = Array.from(raw.matchAll(/\[([\s\S]*?)\]\s*TJ/g))
-    .map((match) => match[1])
-    .join(" ")
+  let arrayText = ""
+  {
+    const re = /\[([\s\S]{1,2000}?)\]\s*TJ/g
+    let count = 0
+    let match: RegExpExecArray | null = null
+    while ((match = re.exec(raw)) && count < MAX_TEXT_MATCHES) {
+      arrayText += `${match[1]} `
+      count += 1
+    }
+  }
 
-  const inlineLiterals = `${directTextMatches} ${arrayTextMatches}`
+  const inlineLiterals = `${directText} ${arrayText}`
     .replace(/[()[\]]/g, " ")
     .replace(/\\[nrtbf()\\]/g, " ")
     .replace(/\s+/g, " ")
@@ -40,7 +58,7 @@ function extractLikelyPdfText(pdfBytes: Uint8Array): string {
 }
 
 function estimatePageCount(pdfBytes: Uint8Array): number {
-  const raw = new TextDecoder("latin1").decode(pdfBytes)
+  const raw = new TextDecoder("latin1").decode(pdfBytes).slice(0, MAX_DECODE_CHARS)
   const pageMatches = raw.match(/\/Type\s*\/Page\b/g) || raw.match(/\/Page\b/g) || []
   return pageMatches.length > 0 ? pageMatches.length : 0
 }
@@ -72,7 +90,7 @@ async function readBytesFromR2(storedValue: string | null | undefined): Promise<
   if (!extractedKey) return null
 
   for (const candidateKey of getCandidateKeys(extractedKey)) {
-    const object = await bucket.get(candidateKey)
+    const object = await bucket.get(candidateKey, { range: { offset: 0, length: MAX_PDF_BYTES } })
     if (!object) continue
     const arrayBuffer = await object.arrayBuffer()
     return new Uint8Array(arrayBuffer)
@@ -84,7 +102,11 @@ async function readBytesFromR2(storedValue: string | null | undefined): Promise<
 async function readBytesFromAbsoluteUrl(fileUrl: string | null): Promise<Uint8Array | null> {
   if (!fileUrl || !/^https?:\/\//i.test(fileUrl)) return null
 
-  const response = await fetch(fileUrl)
+  const response = await fetch(fileUrl, {
+    headers: {
+      Range: `bytes=0-${MAX_PDF_BYTES - 1}`,
+    },
+  })
   if (!response.ok) return null
 
   const arrayBuffer = await response.arrayBuffer()
@@ -173,4 +195,3 @@ export function extractKeyPassages(text: string, maxPassages = 5): string[] {
     .sort((a, b) => b.length - a.length)
     .slice(0, maxPassages)
 }
-
