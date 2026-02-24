@@ -96,8 +96,10 @@ function isLegacyGenericSummary(summary: string | null | undefined) {
   const lower = summary.toLowerCase()
   if (lower.includes("stands as a comprehensive and authoritative exploration of its subject domain")) return true
   if (lower.includes("comprehensive and authoritative exploration of its subject domain")) return true
-  if (summary.includes("具有重要价值的综合性著作")) return true
-  if (summary.includes("其影响力远超其直接涉及的主题范围")) return true
+  if (lower.includes("insufficient information")) return true
+  if (lower.includes("metadata-grounded")) return true
+  if (lower.includes("analysis was not fully successful")) return true
+  if (lower.includes("invalid ai json")) return true
   return false
 }
 
@@ -437,3 +439,4 @@ export async function GET(
     )
   }
 }
+
