@@ -92,6 +92,14 @@ function safeJsonParse<T>(value: string): T | null {
   }
 }
 
+function stripThinkAndFences(value: string): string {
+  return value
+    .replace(/<think>[\s\S]*?<\/think>/gi, " ")
+    .replace(/```json/gi, "```")
+    .replace(/```/g, " ")
+    .trim()
+}
+
 function extractBookText(bookContent: BookContent): string {
   const parts: string[] = []
   if (bookContent.title) parts.push(`Title: ${bookContent.title}`)
@@ -182,13 +190,25 @@ function buildFallbackAnalysis(bookContent: BookContent, readingTime: number, re
   }
 }
 
+function buildTextResponseAnalysis(rawText: string, bookContent: BookContent, readingTime: number): AIBookAnalysis {
+  const fallback = buildFallbackAnalysis(bookContent, readingTime)
+  const cleaned = stripThinkAndFences(rawText).replace(/\s+/g, " ").trim()
+  if (!cleaned) return fallback
+
+  return {
+    ...fallback,
+    summary: cleaned.slice(0, 6000),
+    confidence: 0.5,
+  }
+}
+
 function normalizeParsedResult(
   parsed: ParsedAnalysis | null,
   bookContent: BookContent,
   readingTime: number
 ): AIBookAnalysis {
   if (!parsed) {
-    return buildFallbackAnalysis(bookContent, readingTime, "invalid AI JSON")
+    return buildFallbackAnalysis(bookContent, readingTime)
   }
 
   const fallback = buildFallbackAnalysis(bookContent, readingTime)
@@ -242,7 +262,7 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
   const readingTime = Math.max(1, Math.floor(estimatedWords / 200))
 
   try {
-    const { client: openai, model } = await createConfiguredOpenAIClient({
+    const { client: openai, model, provider } = await createConfiguredOpenAIClient({
       openaiModel: "gpt-4o-mini",
       minimaxModel: "MiniMax-M2.5",
       googleModel: "gemini-2.0-flash",
@@ -265,11 +285,13 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
         },
         { role: "user", content: prompt },
       ],
-      temperature: 0.2,
+      temperature: provider === "minimax" ? 1 : 0.2,
       max_tokens: 2500,
+      ...(provider === "minimax" ? { extra_body: { reasoning_split: true } } : {}),
     })
 
-    const raw = toTrimmedString(completion.choices?.[0]?.message?.content)
+    const rawResponse = toTrimmedString(completion.choices?.[0]?.message?.content)
+    const raw = rawResponse ? stripThinkAndFences(rawResponse) : null
     const parsed = raw ? safeJsonParse<ParsedAnalysis>(raw) : null
     if (parsed) {
       return normalizeParsedResult(parsed, bookContent, readingTime)
@@ -287,13 +309,21 @@ export async function analyzeBookWithAI(bookContent: BookContent): Promise<AIBoo
           content: `Fix this into strict JSON preserving meaning:\n${raw || "EMPTY_RESPONSE"}`,
         },
       ],
-      temperature: 0.1,
+      temperature: provider === "minimax" ? 1 : 0.1,
       max_tokens: 2000,
+      ...(provider === "minimax" ? { extra_body: { reasoning_split: true } } : {}),
     })
 
-    const repairedRaw = toTrimmedString(repair.choices?.[0]?.message?.content)
+    const repairedRawResponse = toTrimmedString(repair.choices?.[0]?.message?.content)
+    const repairedRaw = repairedRawResponse ? stripThinkAndFences(repairedRawResponse) : null
     const repairedParsed = repairedRaw ? safeJsonParse<ParsedAnalysis>(repairedRaw) : null
-    return normalizeParsedResult(repairedParsed, bookContent, readingTime)
+    if (repairedParsed) {
+      return normalizeParsedResult(repairedParsed, bookContent, readingTime)
+    }
+
+    if (repairedRaw) return buildTextResponseAnalysis(repairedRaw, bookContent, readingTime)
+    if (raw) return buildTextResponseAnalysis(raw, bookContent, readingTime)
+    return buildFallbackAnalysis(bookContent, readingTime, "empty AI response")
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown AI error"
     return buildFallbackAnalysis(bookContent, readingTime, message)
