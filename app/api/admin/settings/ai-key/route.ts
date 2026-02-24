@@ -9,6 +9,9 @@ const OPENAI_MODEL_KEY = "openai_model"
 const MINIMAX_SETTING_KEY = "minimax_api_key"
 const MINIMAX_MODEL_KEY = "minimax_model"
 const MINIMAX_BASE_URL_KEY = "minimax_base_url"
+const GOOGLE_SETTING_KEY = "google_api_key"
+const GOOGLE_MODEL_KEY = "google_model"
+const GOOGLE_BASE_URL_KEY = "google_base_url"
 const DEFAULT_PROVIDER_KEY = "ai_default_provider"
 
 type AdminAccessResult =
@@ -22,7 +25,7 @@ function normalizeValue(value: unknown) {
 }
 
 function asProvider(value: unknown): AIProvider | null {
-  if (value === "openai" || value === "minimax") return value
+  if (value === "openai" || value === "minimax" || value === "google") return value
   return null
 }
 
@@ -181,10 +184,46 @@ export async function PUT(request: NextRequest) {
     })
   }
 
+  const googleApiKey = normalizeValue(body?.googleApiKey)
+  if (googleApiKey) {
+    updates.push({
+      setting_key: GOOGLE_SETTING_KEY,
+      setting_value: googleApiKey,
+      updated_at: now,
+      updated_by: userId,
+    })
+  }
+
+  const googleModel = normalizeValue(body?.googleModel)
+  if (googleModel) {
+    updates.push({
+      setting_key: GOOGLE_MODEL_KEY,
+      setting_value: googleModel,
+      updated_at: now,
+      updated_by: userId,
+    })
+  }
+
+  const googleBaseUrl = normalizeValue(body?.googleBaseUrl)
+  if (googleBaseUrl) {
+    try {
+      new URL(googleBaseUrl)
+    } catch {
+      return NextResponse.json({ error: "Invalid Google base URL" }, { status: 400 })
+    }
+
+    updates.push({
+      setting_key: GOOGLE_BASE_URL_KEY,
+      setting_value: googleBaseUrl,
+      updated_at: now,
+      updated_by: userId,
+    })
+  }
+
   const defaultProvider = asProvider(body?.defaultProvider)
   if (body?.defaultProvider !== undefined) {
     if (!defaultProvider) {
-      return NextResponse.json({ error: "defaultProvider must be openai or minimax" }, { status: 400 })
+      return NextResponse.json({ error: "defaultProvider must be openai, minimax, or google" }, { status: 400 })
     }
     updates.push({
       setting_key: DEFAULT_PROVIDER_KEY,
@@ -239,12 +278,15 @@ export async function DELETE(request: NextRequest) {
   if (providerParam === "minimax") {
     keysToDelete = [MINIMAX_SETTING_KEY]
   }
+  if (providerParam === "google") {
+    keysToDelete = [GOOGLE_SETTING_KEY]
+  }
   if (providerParam === "all") {
-    keysToDelete = [OPENAI_SETTING_KEY, MINIMAX_SETTING_KEY]
+    keysToDelete = [OPENAI_SETTING_KEY, MINIMAX_SETTING_KEY, GOOGLE_SETTING_KEY]
   }
 
   if (keysToDelete.length === 0) {
-    return NextResponse.json({ error: "provider must be openai, minimax, or all" }, { status: 400 })
+    return NextResponse.json({ error: "provider must be openai, minimax, google, or all" }, { status: 400 })
   }
 
   const placeholders = keysToDelete.map(() => "?").join(", ")

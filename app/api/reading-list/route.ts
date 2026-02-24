@@ -60,6 +60,33 @@ function mapReadingListRow(row: ReadingListJoinRow) {
   }
 }
 
+async function backfillReadingListFromTracking(db: any, userId: string) {
+  try {
+    await db
+      .prepare(
+        `INSERT INTO reading_list_full (user_id, book_id, status, added_at, updated_at)
+         SELECT
+           bt.user_id,
+           bt.book_id,
+           CASE WHEN COALESCE(bt.progress_percentage, 0) >= 100 THEN 'completed' ELSE 'reading' END,
+           COALESCE(bt.created_at, CURRENT_TIMESTAMP),
+           COALESCE(bt.updated_at, CURRENT_TIMESTAMP)
+         FROM book_tracking bt
+         WHERE bt.user_id = ?
+           AND NOT EXISTS (
+             SELECT 1
+             FROM reading_list_full rl
+             WHERE rl.user_id = bt.user_id
+               AND rl.book_id = bt.book_id
+           )`
+      )
+      .bind(userId)
+      .run()
+  } catch {
+    // Ignore backfill errors to avoid breaking reading-list reads on partial schemas.
+  }
+}
+
 async function fetchReadingListItem(db: any, itemId: number, userId: string) {
   const row = (await db
     .prepare(
@@ -122,6 +149,7 @@ export async function GET(request: NextRequest) {
   try {
     const db = requireD1Database()
     const userId = resolveUserIdFromRequest(request)
+    await backfillReadingListFromTracking(db, userId)
     const url = new URL(request.url)
 
     const bookId = parsePositiveInt(url.searchParams.get("bookId"))
@@ -341,4 +369,3 @@ export async function DELETE(request: NextRequest) {
     )
   }
 }
-

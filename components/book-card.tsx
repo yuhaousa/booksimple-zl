@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { BookOpen, Edit, Trash2 } from "lucide-react"
+import { ensureBookInReadingList } from "@/lib/book-tracking"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -50,6 +51,7 @@ export function BookCard({
 
   const handleReadBook = async () => {
     if (book.file_url) {
+      void ensureBookInReadingList(book.id, undefined, "reading")
       window.open(book.file_url, "_blank")
     }
   }

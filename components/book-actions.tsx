@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { BookOpen, Eye, Edit, Brain, GraduationCap } from "lucide-react"
 import Link from "next/link"
-import { recordBookClick } from "@/lib/book-tracking"
+import { ensureBookInReadingList, recordBookClick } from "@/lib/book-tracking"
 import { useAuth } from "@/hooks/use-auth"
 
 interface BookActionsProps {
@@ -16,6 +16,8 @@ export function BookActions({ bookId, fileUrl }: BookActionsProps) {
   
   const handleReadBook = async () => {
     if (fileUrl) {
+      void ensureBookInReadingList(parseInt(bookId), user?.id, "reading")
+
       // Record the click before opening the file
       try {
         console.log('Recording book click for book ID:', bookId, 'user:', user?.id)

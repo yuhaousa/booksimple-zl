@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { BookOpen, Upload, Home, FileText, LogIn, LogOut, Settings, Menu, X } from "lucide-react"
@@ -13,6 +14,7 @@ export function Navigation() {
   const { user, signOut } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [siteLogoUrl, setSiteLogoUrl] = useState<string | null>(null)
   const userDisplayName = user?.display_name?.trim() || null
   const userEmail = user?.email?.trim() || null
   const userPrimaryLabel = userDisplayName || userEmail || "Logged in"
@@ -46,6 +48,29 @@ export function Navigation() {
     }
   }, [user?.id])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const loadSiteSettings = async () => {
+      try {
+        const response = await fetch("/api/site-settings", { cache: "no-store" })
+        const result = await response.json().catch(() => null)
+        if (!cancelled) {
+          const logoUrl = typeof result?.logoUrl === "string" && result.logoUrl.trim().length > 0 ? result.logoUrl : null
+          setSiteLogoUrl(logoUrl)
+        }
+      } catch {
+        if (!cancelled) setSiteLogoUrl(null)
+      }
+    }
+
+    void loadSiteSettings()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const navItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/books", label: "Books", icon: BookOpen },
@@ -74,10 +99,14 @@ export function Navigation() {
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <BookOpen className="h-6 w-6 text-primary" />
+          <Link href="/" className="flex items-center space-x-2">
+            {siteLogoUrl ? (
+              <Image src={siteLogoUrl} alt="Site logo" width={28} height={28} className="h-7 w-7 object-contain" />
+            ) : (
+              <BookOpen className="h-6 w-6 text-primary" />
+            )}
             <span className="text-xl font-semibold">BookList</span>
-          </div>
+          </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-1">

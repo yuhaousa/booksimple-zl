@@ -169,27 +169,41 @@ export default function AdminOverview() {
         </CardHeader>
         <CardContent>
           {latestBooks.length > 0 ? (
-            <div className="space-y-3">
-              {latestBooks.map((book) => (
-                <div
-                  key={book.id}
-                  className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors"
-                >
-                  <div className="w-8 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded flex items-center justify-center text-blue-600 text-xs font-medium">
-                    <BookOpen className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{book.title || "Untitled"}</p>
-                    <p className="text-xs text-muted-foreground">{book.author ? `by ${book.author}` : "Unknown Author"}</p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <Calendar className="h-3 w-3 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(book.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="rounded-md border overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border">
+                    <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Title
+                    </th>
+                    <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Author
+                    </th>
+                    <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Added
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latestBooks.map((book) => (
+                    <tr key={book.id} className="border-b border-border/60 hover:bg-muted/30 transition-colors">
+                      <td className="p-3">
+                        <div className="flex items-center gap-2 min-w-[220px]">
+                          <BookOpen className="h-4 w-4 text-blue-600 shrink-0" />
+                          <span className="font-semibold text-foreground">{book.title || "Untitled"}</span>
+                        </div>
+                      </td>
+                      <td className="p-3 text-sm text-foreground">{book.author || "Unknown Author"}</td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          <span>{new Date(book.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="text-center py-4">

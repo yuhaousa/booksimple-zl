@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { requireR2Bucket } from "@/lib/server/cloudflare-bindings"
+import { getD1Database, requireR2Bucket } from "@/lib/server/cloudflare-bindings"
+import { resolveSessionUserIdFromRequest } from "@/lib/server/session"
 import { toAssetUrl } from "@/lib/server/storage"
 
-const ALLOWED_KINDS = new Set(["book-cover", "book-file", "video-file"])
+const ALLOWED_KINDS = new Set(["book-cover", "book-file", "video-file", "site-logo", "site-banner"])
+const ADMIN_ONLY_KINDS = new Set(["site-logo", "site-banner"])
 
 function sanitizeFileName(name: string) {
   const base = name
@@ -37,6 +39,26 @@ export async function POST(request: NextRequest) {
         { success: false, error: `Invalid kind. Allowed: ${Array.from(ALLOWED_KINDS).join(", ")}` },
         { status: 400 }
       )
+    }
+
+    if (ADMIN_ONLY_KINDS.has(kind)) {
+      const userId = resolveSessionUserIdFromRequest(request)
+      if (!userId) {
+        return NextResponse.json({ success: false, error: "Unauthorized. Login first." }, { status: 401 })
+      }
+
+      const db = getD1Database()
+      if (!db) {
+        return NextResponse.json({ success: false, error: "Cloudflare D1 binding `DB` is not configured" }, { status: 503 })
+      }
+
+      const adminRow = (await db
+        .prepare("SELECT user_id FROM admin_users WHERE user_id = ? LIMIT 1")
+        .bind(userId)
+        .first()) as { user_id: string } | null
+      if (!adminRow) {
+        return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 })
+      }
     }
 
     const key = getObjectKey(kind, file.name || "upload.bin")

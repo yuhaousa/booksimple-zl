@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-const banners = [
+const DEFAULT_BANNERS = [
   {
     id: 1,
     title: "Discover New Worlds",
@@ -27,26 +27,68 @@ const banners = [
 
 export default function BannerCarousel() {
   const [currentSlide, setCurrentSlide] = useState(0)
+  const [slides, setSlides] = useState(DEFAULT_BANNERS)
 
   useEffect(() => {
+    let cancelled = false
+
+    const fetchSiteSettings = async () => {
+      try {
+        const response = await fetch("/api/site-settings", { cache: "no-store" })
+        const result = await response.json().catch(() => null)
+        if (!response.ok || !result?.success || !Array.isArray(result?.banners)) return
+
+        const customBanners = (result.banners as string[]).filter((item) => typeof item === "string" && item.trim().length > 0)
+        if (!customBanners.length) return
+
+        const mappedSlides = customBanners.map((image, index) => {
+          const fallback = DEFAULT_BANNERS[index % DEFAULT_BANNERS.length]
+          return {
+            id: index + 1,
+            title: fallback.title,
+            subtitle: fallback.subtitle,
+            image,
+          }
+        })
+
+        if (!cancelled) {
+          setSlides(mappedSlides)
+          setCurrentSlide(0)
+        }
+      } catch {
+        // Keep defaults when site settings are unavailable.
+      }
+    }
+
+    void fetchSiteSettings()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (slides.length <= 1) return
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % banners.length)
+      setCurrentSlide((prev) => (prev + 1) % slides.length)
     }, 5000)
 
     return () => clearInterval(timer)
-  }, [])
+  }, [slides.length])
 
   const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % banners.length)
+    if (slides.length <= 1) return
+    setCurrentSlide((prev) => (prev + 1) % slides.length)
   }
 
   const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + banners.length) % banners.length)
+    if (slides.length <= 1) return
+    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
   }
 
   return (
     <div className="relative w-full h-96 overflow-hidden rounded-lg">
-      {banners.map((banner, index) => (
+      {slides.map((banner, index) => (
         <div
           key={banner.id}
           className={`absolute inset-0 transition-transform duration-500 ease-in-out ${
@@ -89,7 +131,7 @@ export default function BannerCarousel() {
 
       {/* Dots Indicator */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2">
-        {banners.map((_, index) => (
+        {slides.map((_, index) => (
           <button
             key={index}
             className={`w-3 h-3 rounded-full transition-colors ${index === currentSlide ? "bg-white" : "bg-white/50"}`}

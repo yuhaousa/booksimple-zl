@@ -41,6 +41,7 @@ import {
   Settings
 } from 'lucide-react'
 import Link from 'next/link'
+import { ensureBookInReadingList } from '@/lib/book-tracking'
 
 
 
@@ -251,6 +252,21 @@ export function BookReader({ book }: BookReaderProps) {
 
   useEffect(() => {
     loadBookData()
+  }, [book.id])
+
+  // Ensure opening the reader marks the book as in the reading list.
+  useEffect(() => {
+    const markAsReading = async () => {
+      try {
+        const userId = await getCurrentUserId()
+        if (!userId) return
+        await ensureBookInReadingList(book.id, userId, 'reading')
+      } catch (error) {
+        console.warn('Could not sync reading-list status on reader open:', error)
+      }
+    }
+
+    markAsReading()
   }, [book.id])
 
   // Load reading mode preference on mount

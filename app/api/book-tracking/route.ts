@@ -17,6 +17,43 @@ function calculateProgress(currentPage: number, totalPages: number) {
   return Number(((clampedCurrent / totalPages) * 100).toFixed(2))
 }
 
+async function syncReadingListFromProgress(db: any, userId: string, bookId: number, progress: number) {
+  try {
+    const derivedStatus = progress >= 100 ? "completed" : "reading"
+
+    await db
+      .prepare(
+        `INSERT INTO reading_list_full (user_id, book_id, status)
+         VALUES (?, ?, ?)
+         ON CONFLICT(user_id, book_id) DO NOTHING`
+      )
+      .bind(userId, bookId, derivedStatus)
+      .run()
+
+    if (derivedStatus === "completed") {
+      await db
+        .prepare(
+          `UPDATE reading_list_full
+           SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = ? AND book_id = ? AND status != 'completed'`
+        )
+        .bind(userId, bookId)
+        .run()
+    } else {
+      await db
+        .prepare(
+          `UPDATE reading_list_full
+           SET status = 'reading', updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = ? AND book_id = ? AND status = 'to_read'`
+        )
+        .bind(userId, bookId)
+        .run()
+    }
+  } catch {
+    // Ignore sync errors so reading progress updates still succeed.
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const db = requireD1Database()
@@ -116,6 +153,8 @@ export async function POST(request: NextRequest) {
       .bind(userId, bookId, currentPage, totalPages, progress)
       .run()
 
+    await syncReadingListFromProgress(db, userId, bookId, progress)
+
     const row = (await db
       .prepare(
         `SELECT
@@ -150,4 +189,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

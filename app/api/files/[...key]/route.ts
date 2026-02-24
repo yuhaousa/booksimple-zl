@@ -12,13 +12,13 @@ function getCandidateKeys(rawKey: string) {
 
   const lower = rawKey.toLowerCase()
   if (lower.endsWith(".pdf")) {
-    return [rawKey, `book-file/${rawKey}`, `video-file/${rawKey}`, `book-cover/${rawKey}`]
+    return [rawKey, `book-file/${rawKey}`, `video-file/${rawKey}`, `book-cover/${rawKey}`, `site-banner/${rawKey}`, `site-logo/${rawKey}`]
   }
   if (/\.(png|jpe?g|gif|webp|bmp|svg)$/.test(lower)) {
-    return [rawKey, `book-cover/${rawKey}`, `book-file/${rawKey}`, `video-file/${rawKey}`]
+    return [rawKey, `book-cover/${rawKey}`, `site-logo/${rawKey}`, `site-banner/${rawKey}`, `book-file/${rawKey}`, `video-file/${rawKey}`]
   }
 
-  return [rawKey, `book-file/${rawKey}`, `book-cover/${rawKey}`, `video-file/${rawKey}`]
+  return [rawKey, `book-file/${rawKey}`, `book-cover/${rawKey}`, `video-file/${rawKey}`, `site-logo/${rawKey}`, `site-banner/${rawKey}`]
 }
 
 export async function GET(

@@ -17,9 +17,9 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "v0 App",
-  description: "Created with v0",
-  generator: "v0.app",
+  title: "NovaRead",
+  description: "NovaRead",
+  generator: "NovaRead",
 }
 
 export default function RootLayout({

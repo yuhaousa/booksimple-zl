@@ -37,6 +37,43 @@ export const recordBookClick = async (
   }
 }
 
+export const ensureBookInReadingList = async (
+  bookId: number,
+  userId?: string,
+  status: 'to_read' | 'reading' | 'completed' = 'reading'
+) => {
+  try {
+    let resolvedUserId = userId || null
+
+    if (!resolvedUserId) {
+      const meResponse = await fetch('/api/auth/me', { cache: 'no-store' })
+      const meResult = await meResponse.json().catch(() => null)
+      resolvedUserId = meResult?.success && meResult?.user?.id ? String(meResult.user.id) : null
+    }
+
+    if (!resolvedUserId) {
+      return false
+    }
+
+    const response = await fetch('/api/reading-list', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': resolvedUserId,
+      },
+      body: JSON.stringify({
+        book_id: bookId,
+        status,
+      }),
+    })
+    const result = await response.json().catch(() => null)
+
+    return Boolean(response.ok && result?.success)
+  } catch {
+    return false
+  }
+}
+
 // Function to get book click statistics
 export const getBookClickStats = async () => {
   try {
