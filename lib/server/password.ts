@@ -2,7 +2,13 @@ import "server-only"
 
 import { randomBytes, timingSafeEqual } from "crypto"
 
-const DEFAULT_ITERATIONS = 120_000
+const MIN_ITERATIONS = 10_000
+const MAX_ITERATIONS = 100_000
+
+const configuredIterations = Number.parseInt(process.env.AUTH_PBKDF2_ITERATIONS ?? "", 10)
+const DEFAULT_ITERATIONS = Number.isFinite(configuredIterations)
+  ? Math.min(MAX_ITERATIONS, Math.max(MIN_ITERATIONS, configuredIterations))
+  : MAX_ITERATIONS
 
 function toHex(bytes: Uint8Array) {
   return Buffer.from(bytes).toString("hex")
@@ -55,12 +61,14 @@ export async function verifyPassword(password: string, encoded: string) {
   const salt = fromHex(parts[2])
   const expected = fromHex(parts[3])
 
-  if (!Number.isFinite(iterations) || iterations < 10_000) return false
+  if (!Number.isFinite(iterations) || iterations < MIN_ITERATIONS || iterations > MAX_ITERATIONS) return false
   if (!salt || !expected) return false
 
-  const actual = await deriveHash(password, salt, iterations)
-  if (actual.byteLength !== expected.byteLength) return false
-
-  return timingSafeEqual(Buffer.from(actual), Buffer.from(expected))
+  try {
+    const actual = await deriveHash(password, salt, iterations)
+    if (actual.byteLength !== expected.byteLength) return false
+    return timingSafeEqual(Buffer.from(actual), Buffer.from(expected))
+  } catch {
+    return false
+  }
 }
-
