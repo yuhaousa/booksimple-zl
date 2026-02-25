@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { BOOK_SELECT_SQL, BookRow, normalizeBookForResponse } from "@/lib/server/books-db"
 import { getR2Bucket, requireD1Database } from "@/lib/server/cloudflare-bindings"
+import { resolveSessionUserIdFromRequest } from "@/lib/server/session"
 import { extractAssetKey } from "@/lib/server/storage"
 
 type UpdateBookPayload = {
@@ -60,12 +61,30 @@ async function deleteR2ObjectIfPresent(bucket: any, storedValue: string | null) 
   await bucket.delete(key)
 }
 
+async function isAdminUser(db: any, userId: string | null) {
+  if (!userId) return false
+  const row = (await db
+    .prepare("SELECT user_id FROM admin_users WHERE user_id = ? LIMIT 1")
+    .bind(userId)
+    .first()) as { user_id: string } | null
+  return !!row
+}
+
+function canAccessBook(requesterUserId: string | null, ownerUserId: string | null, admin: boolean) {
+  if (admin) return true
+  if (!requesterUserId) return false
+  if (!ownerUserId) return false
+  return requesterUserId === ownerUserId
+}
+
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const db = requireD1Database()
+    const requesterUserId = resolveSessionUserIdFromRequest(request)
+    const admin = await isAdminUser(db, requesterUserId)
     const { id: rawId } = await params
     const id = parseId(rawId)
     if (!id) {
@@ -79,6 +98,10 @@ export async function GET(
 
     if (!row) {
       return NextResponse.json({ success: false, error: "Book not found" }, { status: 404 })
+    }
+
+    if (!canAccessBook(requesterUserId, row.user_id, admin)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 })
     }
 
     return NextResponse.json({
@@ -98,12 +121,14 @@ export async function GET(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const db = requireD1Database()
     const bucket = getR2Bucket()
+    const requesterUserId = resolveSessionUserIdFromRequest(request)
+    const admin = await isAdminUser(db, requesterUserId)
 
     const { id: rawId } = await params
     const id = parseId(rawId)
@@ -112,12 +137,22 @@ export async function DELETE(
     }
 
     const existing = (await db
-      .prepare('SELECT id, cover_url, file_url, video_file_url FROM "Booklist" WHERE id = ? LIMIT 1')
+      .prepare('SELECT id, user_id, cover_url, file_url, video_file_url FROM "Booklist" WHERE id = ? LIMIT 1')
       .bind(id)
-      .first()) as { id: number; cover_url: string | null; file_url: string | null; video_file_url: string | null } | null
+      .first()) as {
+      id: number
+      user_id: string | null
+      cover_url: string | null
+      file_url: string | null
+      video_file_url: string | null
+    } | null
 
     if (!existing) {
       return NextResponse.json({ success: false, error: "Book not found" }, { status: 404 })
+    }
+
+    if (!canAccessBook(requesterUserId, existing.user_id, admin)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 })
     }
 
     await db.prepare('DELETE FROM "Booklist" WHERE id = ?').bind(id).run()
@@ -154,6 +189,8 @@ export async function PATCH(
 ) {
   try {
     const db = requireD1Database()
+    const requesterUserId = resolveSessionUserIdFromRequest(request)
+    const admin = await isAdminUser(db, requesterUserId)
     const { id: rawId } = await params
     const id = parseId(rawId)
     if (!id) {
@@ -166,12 +203,16 @@ export async function PATCH(
     }
 
     const existing = (await db
-      .prepare('SELECT id FROM "Booklist" WHERE id = ? LIMIT 1')
+      .prepare('SELECT id, user_id FROM "Booklist" WHERE id = ? LIMIT 1')
       .bind(id)
-      .first()) as { id: number } | null
+      .first()) as { id: number; user_id: string | null } | null
 
     if (!existing) {
       return NextResponse.json({ success: false, error: "Book not found" }, { status: 404 })
+    }
+
+    if (!canAccessBook(requesterUserId, existing.user_id, admin)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 })
     }
 
     const updates: Record<string, unknown> = {}

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { BOOK_SELECT_SQL, BookRow, normalizeBookForResponse, parsePositiveInt } from "@/lib/server/books-db"
 import { requireD1Database } from "@/lib/server/cloudflare-bindings"
 import { resolveUserIdFromRequest } from "@/lib/server/request-user"
+import { resolveSessionUserIdFromRequest } from "@/lib/server/session"
 import { extractAssetKey } from "@/lib/server/storage"
 
 const DEFAULT_PAGE_SIZE = 12
@@ -56,6 +57,15 @@ function clampPageSize(value: number) {
   return Math.min(value, MAX_PAGE_SIZE)
 }
 
+async function isAdminUser(db: any, userId: string | null) {
+  if (!userId) return false
+  const row = (await db
+    .prepare("SELECT user_id FROM admin_users WHERE user_id = ? LIMIT 1")
+    .bind(userId)
+    .first()) as { user_id: string } | null
+  return !!row
+}
+
 function resolveBookOwnerUserId(request: NextRequest, explicitUserId: unknown) {
   const explicit = asNullableString(explicitUserId)
   if (explicit) return explicit
@@ -69,19 +79,41 @@ export async function GET(request: NextRequest) {
   try {
     const db = requireD1Database()
     const url = new URL(request.url)
+    const requesterUserId = resolveSessionUserIdFromRequest(request)
+    const includeAll = url.searchParams.get("includeAll") === "true" || url.searchParams.get("includeAll") === "1"
+
+    if (includeAll) {
+      const admin = await isAdminUser(db, requesterUserId)
+      if (!admin) {
+        return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 })
+      }
+    }
 
     const page = parsePositiveInt(url.searchParams.get("page"), 1)
     const pageSize = clampPageSize(parsePositiveInt(url.searchParams.get("pageSize"), DEFAULT_PAGE_SIZE))
     const offset = (page - 1) * pageSize
 
-    const totalRow = (await db.prepare('SELECT COUNT(*) AS count FROM "Booklist"').first()) as
+    if (!includeAll && !requesterUserId) {
+      return NextResponse.json({
+        success: true,
+        page,
+        pageSize,
+        total: 0,
+        books: [],
+      })
+    }
+
+    const whereClause = includeAll ? "" : 'WHERE user_id = ?'
+    const whereBindings = includeAll ? [] : [requesterUserId]
+
+    const totalRow = (await db.prepare(`SELECT COUNT(*) AS count FROM "Booklist" ${whereClause}`).bind(...whereBindings).first()) as
       | { count: number }
       | null
     const total = Number(totalRow?.count ?? 0)
 
     const rowsResult = (await db
-      .prepare(`${BOOK_SELECT_SQL} ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?`)
-      .bind(pageSize, offset)
+      .prepare(`${BOOK_SELECT_SQL} ${whereClause} ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?`)
+      .bind(...whereBindings, pageSize, offset)
       .all()) as { results?: BookRow[] }
 
     const books = (rowsResult?.results ?? []).map(normalizeBookForResponse)

@@ -25,7 +25,7 @@ async function fetchAllBooks() {
   let total = 0
 
   do {
-    const response = await fetch(`/api/books?page=${page}&pageSize=50`, { cache: "no-store" })
+    const response = await fetch(`/api/books?page=${page}&pageSize=50&includeAll=true`, { cache: "no-store" })
     const result = await response.json().catch(() => null)
     if (!response.ok || !result?.success) {
       throw new Error(result?.details || result?.error || "Failed to fetch books")
