@@ -272,38 +272,63 @@ export default function AdminSettingsPage() {
     }
   }
 
-  const handleSaveOpenAI = async (e: FormEvent) => {
+  const handleSaveOpenAIKey = async (e: FormEvent) => {
     e.preventDefault()
-    const payload: Record<string, string> = { openaiModel }
+    const payload: Record<string, string> = {}
     const key = openaiApiKey.trim()
-    if (key) payload.openaiApiKey = key
+    if (!key) {
+      toast({
+        title: "Key required",
+        description: "Enter an OpenAI API key to update it.",
+        variant: "destructive",
+      })
+      return
+    }
+    payload.openaiApiKey = key
     await saveSettings(payload)
   }
 
-  const handleSaveMiniMax = async (e: FormEvent) => {
+  const handleSaveMiniMaxKey = async (e: FormEvent) => {
     e.preventDefault()
-    const payload: Record<string, string> = {
+    const payload: Record<string, string> = {}
+    const key = minimaxApiKey.trim()
+    if (!key) {
+      toast({
+        title: "Key required",
+        description: "Enter a MiniMax API key to update it.",
+        variant: "destructive",
+      })
+      return
+    }
+    payload.minimaxApiKey = key
+    await saveSettings(payload)
+  }
+
+  const handleSaveGoogleKey = async (e: FormEvent) => {
+    e.preventDefault()
+    const payload: Record<string, string> = {}
+    const key = googleApiKey.trim()
+    if (!key) {
+      toast({
+        title: "Key required",
+        description: "Enter a Google API key to update it.",
+        variant: "destructive",
+      })
+      return
+    }
+    payload.googleApiKey = key
+    await saveSettings(payload)
+  }
+
+  const handleSaveModelSelection = async () => {
+    await saveSettings({
+      defaultProvider,
+      openaiModel,
       minimaxModel,
       minimaxBaseUrl,
-    }
-    const key = minimaxApiKey.trim()
-    if (key) payload.minimaxApiKey = key
-    await saveSettings(payload)
-  }
-
-  const handleSaveGoogle = async (e: FormEvent) => {
-    e.preventDefault()
-    const payload: Record<string, string> = {
       googleModel,
       googleBaseUrl,
-    }
-    const key = googleApiKey.trim()
-    if (key) payload.googleApiKey = key
-    await saveSettings(payload)
-  }
-
-  const handleSaveDefaultProvider = async () => {
-    await saveSettings({ defaultProvider })
+    })
   }
 
   const clearKey = async (provider: "openai" | "minimax" | "google") => {
@@ -460,23 +485,23 @@ export default function AdminSettingsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="general" className="w-full">
+      <Tabs defaultValue="branding" className="w-full">
         <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="branding">Site Branding</TabsTrigger>
+          <TabsTrigger value="models">Model Selection</TabsTrigger>
           <TabsTrigger value="openai">OpenAI</TabsTrigger>
           <TabsTrigger value="minimax">MiniMax</TabsTrigger>
           <TabsTrigger value="google">Google</TabsTrigger>
-          <TabsTrigger value="branding">Site Branding</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general">
+        <TabsContent value="models">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <KeyRound className="h-5 w-5" />
-                Active AI Provider
+                Model Selection
               </CardTitle>
-              <CardDescription>Choose which provider the app should use by default.</CardDescription>
+              <CardDescription>Choose the default provider and model settings used for AI generation.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -514,11 +539,56 @@ export default function AdminSettingsPage() {
                     <option value="google">Google</option>
                     <option value="minimax">MiniMax</option>
                   </select>
-                  <Button type="button" disabled={saving || loadingSettings} onClick={handleSaveDefaultProvider}>
+                  <Button type="button" disabled={saving || loadingSettings} onClick={handleSaveModelSelection}>
                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Save
                   </Button>
                 </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[220px_1fr] sm:items-center">
+                <Label htmlFor="openai-model">OpenAI Model</Label>
+                <Input
+                  id="openai-model"
+                  value={openaiModel}
+                  onChange={(e) => setOpenaiModel(e.target.value)}
+                  placeholder="gpt-4o-mini"
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[220px_1fr] sm:items-center">
+                <Label htmlFor="google-model">Google Model</Label>
+                <Input
+                  id="google-model"
+                  value={googleModel}
+                  onChange={(e) => setGoogleModel(e.target.value)}
+                  placeholder="gemini-2.0-flash"
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[220px_1fr] sm:items-center">
+                <Label htmlFor="google-baseurl">Google Base URL</Label>
+                <Input
+                  id="google-baseurl"
+                  value={googleBaseUrl}
+                  onChange={(e) => setGoogleBaseUrl(e.target.value)}
+                  placeholder="https://generativelanguage.googleapis.com/v1beta/openai/"
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[220px_1fr] sm:items-center">
+                <Label htmlFor="minimax-model">MiniMax Model</Label>
+                <Input
+                  id="minimax-model"
+                  value={minimaxModel}
+                  onChange={(e) => setMinimaxModel(e.target.value)}
+                  placeholder="MiniMax-M2.5"
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[220px_1fr] sm:items-center">
+                <Label htmlFor="minimax-baseurl">MiniMax Base URL</Label>
+                <Input
+                  id="minimax-baseurl"
+                  value={minimaxBaseUrl}
+                  onChange={(e) => setMinimaxBaseUrl(e.target.value)}
+                  placeholder="https://api.minimax.io/v1"
+                />
               </div>
               <div className="text-xs text-muted-foreground">Current default source: {settings.defaultProviderSource}</div>
             </CardContent>
@@ -529,16 +599,16 @@ export default function AdminSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>OpenAI</CardTitle>
-              <CardDescription>Configure OpenAI key and model.</CardDescription>
+              <CardDescription>Configure OpenAI API key.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="text-sm text-muted-foreground">
                 Key: {settings.openai.databaseKeyConfigured ? settings.openai.databaseKeyPreview : "not set"}
                 {settings.openai.keyUpdatedAt && ` - Updated ${new Date(settings.openai.keyUpdatedAt).toLocaleString()}`}
               </div>
-              <form onSubmit={handleSaveOpenAI} className="space-y-3">
+              <form onSubmit={handleSaveOpenAIKey} className="space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="openai-key">OpenAI API Key (optional if unchanged)</Label>
+                  <Label htmlFor="openai-key">OpenAI API Key</Label>
                   <div className="relative">
                     <Input
                       id="openai-key"
@@ -560,15 +630,6 @@ export default function AdminSettingsPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="openai-model">OpenAI Model</Label>
-                  <Input
-                    id="openai-model"
-                    value={openaiModel}
-                    onChange={(e) => setOpenaiModel(e.target.value)}
-                    placeholder="gpt-4o-mini"
-                  />
-                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={saving || loadingSettings}>
                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -587,16 +648,16 @@ export default function AdminSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>MiniMax</CardTitle>
-              <CardDescription>Configure MiniMax key, model, and base URL.</CardDescription>
+              <CardDescription>Configure MiniMax API key.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="text-sm text-muted-foreground">
                 Key: {settings.minimax.databaseKeyConfigured ? settings.minimax.databaseKeyPreview : "not set"}
                 {settings.minimax.keyUpdatedAt && ` - Updated ${new Date(settings.minimax.keyUpdatedAt).toLocaleString()}`}
               </div>
-              <form onSubmit={handleSaveMiniMax} className="space-y-3">
+              <form onSubmit={handleSaveMiniMaxKey} className="space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="minimax-key">MiniMax API Key (optional if unchanged)</Label>
+                  <Label htmlFor="minimax-key">MiniMax API Key</Label>
                   <div className="relative">
                     <Input
                       id="minimax-key"
@@ -617,24 +678,6 @@ export default function AdminSettingsPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="minimax-model">MiniMax Model</Label>
-                  <Input
-                    id="minimax-model"
-                    value={minimaxModel}
-                    onChange={(e) => setMinimaxModel(e.target.value)}
-                    placeholder="MiniMax-M2.5"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="minimax-baseurl">MiniMax Base URL</Label>
-                  <Input
-                    id="minimax-baseurl"
-                    value={minimaxBaseUrl}
-                    onChange={(e) => setMinimaxBaseUrl(e.target.value)}
-                    placeholder="https://api.minimax.io/v1"
-                  />
-                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={saving || loadingSettings}>
                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -653,16 +696,16 @@ export default function AdminSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Google</CardTitle>
-              <CardDescription>Configure Google AI Studio key, model, and OpenAI-compatible base URL.</CardDescription>
+              <CardDescription>Configure Google AI Studio API key.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="text-sm text-muted-foreground">
                 Key: {settings.google.databaseKeyConfigured ? settings.google.databaseKeyPreview : "not set"}
                 {settings.google.keyUpdatedAt && ` - Updated ${new Date(settings.google.keyUpdatedAt).toLocaleString()}`}
               </div>
-              <form onSubmit={handleSaveGoogle} className="space-y-3">
+              <form onSubmit={handleSaveGoogleKey} className="space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="google-key">Google API Key (optional if unchanged)</Label>
+                  <Label htmlFor="google-key">Google API Key</Label>
                   <div className="relative">
                     <Input
                       id="google-key"
@@ -682,24 +725,6 @@ export default function AdminSettingsPage() {
                       {showGoogleKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="google-model">Google Model</Label>
-                  <Input
-                    id="google-model"
-                    value={googleModel}
-                    onChange={(e) => setGoogleModel(e.target.value)}
-                    placeholder="gemini-2.0-flash"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="google-baseurl">Google Base URL</Label>
-                  <Input
-                    id="google-baseurl"
-                    value={googleBaseUrl}
-                    onChange={(e) => setGoogleBaseUrl(e.target.value)}
-                    placeholder="https://generativelanguage.googleapis.com/v1beta/openai/"
-                  />
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={saving || loadingSettings}>

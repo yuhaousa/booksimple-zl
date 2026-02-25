@@ -88,7 +88,7 @@ export default function RegisterPage() {
             <BookOpen className="h-12 w-12 text-primary" />
           </div>
           <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-          <CardDescription>Join BookList to manage your reading collection</CardDescription>
+          <CardDescription>Join Book365 to manage your reading collection</CardDescription>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>

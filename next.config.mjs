@@ -5,7 +5,7 @@ const projectRoot = dirname(fileURLToPath(import.meta.url))
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
+  // OpenNext handles worker output; standalone causes Windows symlink issues during build.
   eslint: {
     ignoreDuringBuilds: true,
   },

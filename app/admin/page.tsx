@@ -91,7 +91,7 @@ export default function AdminOverview() {
       title: "Total Users",
       value: stats.totalUsers,
       icon: Users,
-      description: "Unique uploaders (from D1 Booklist)",
+      description: "Unique uploaders (from D1 books)",
       color: "text-blue-600",
     },
     {

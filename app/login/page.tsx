@@ -112,7 +112,7 @@ export default function LoginPage() {
             <BookOpen className="h-12 w-12 text-primary" />
           </div>
           <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-          <CardDescription>Sign in to your BookList account</CardDescription>
+          <CardDescription>Sign in to your Book365 account</CardDescription>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
