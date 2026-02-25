@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Cormorant_Garamond, Jost, Playfair_Display } from "next/font/google"
-import { ArrowRight, BookOpen, Brain, Library, ShieldCheck, Sparkles } from "lucide-react"
+import { ArrowRight, BookOpen, Brain, Library, ShieldCheck } from "lucide-react"
 
-import BannerCarousel from "@/components/banner-carousel"
 import { Button } from "@/components/ui/button"
 
 interface Book {
@@ -176,27 +175,38 @@ export default function HomePage() {
           </div>
 
           <div className="relative">
-            <div className="home-float rounded-3xl border border-[#b2cebb80] bg-gradient-to-br from-white/85 to-[#d6e8dc]/60 p-6 shadow-[0_24px_80px_rgba(74,124,90,0.14)] backdrop-blur-xl">
-              <div className="relative overflow-hidden rounded-2xl border border-[#b2cebb70] bg-white/70">
-                <div className="relative aspect-[3/4]">
-                  <Image
-                    src={latestBooks[0]?.cover_url || "/abstract-book-cover.png"}
-                    alt={latestBooks[0]?.title || "Book365 default cover"}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 1024px) 80vw, 28vw"
-                    onError={(e) => {
-                      e.currentTarget.src = "/abstract-book-cover.png"
-                    }}
-                  />
+            <div className="home-float relative rounded-3xl border border-[#b2cebb80] bg-gradient-to-br from-white/90 to-[#d6e8dc]/65 p-7 shadow-[0_24px_80px_rgba(74,124,90,0.14)] backdrop-blur-xl">
+              <div className="absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_20%_20%,rgba(178,206,187,0.35),transparent_55%)]" />
+              <div className="relative mx-auto flex min-h-[420px] max-w-[360px] flex-col items-center justify-center rounded-3xl border border-[#b2cebb80] bg-white/65 px-6 py-10 text-center shadow-[0_10px_35px_rgba(74,124,90,0.1)] backdrop-blur">
+                <svg className="constellation-spin h-52 w-52" viewBox="0 0 200 200" fill="none" aria-hidden>
+                  <polygon points="100,20 160,70 140,140 60,140 40,70" stroke="rgba(74,124,90,0.3)" strokeWidth="1.1" />
+                  <circle cx="100" cy="20" r="4" fill="rgba(122,170,135,0.65)" />
+                  <circle cx="160" cy="70" r="3" fill="rgba(122,170,135,0.55)" />
+                  <circle cx="140" cy="140" r="3.5" fill="rgba(122,170,135,0.58)" />
+                  <circle cx="60" cy="140" r="3" fill="rgba(122,170,135,0.55)" />
+                  <circle cx="40" cy="70" r="4" fill="rgba(122,170,135,0.65)" />
+                  <circle cx="100" cy="100" r="6" fill="rgba(74,124,90,0.25)" stroke="rgba(74,124,90,0.4)" strokeWidth="1" />
+                  <line x1="100" y1="20" x2="100" y2="100" stroke="rgba(74,124,90,0.16)" strokeWidth="0.9" />
+                  <line x1="160" y1="70" x2="100" y2="100" stroke="rgba(74,124,90,0.16)" strokeWidth="0.9" />
+                  <line x1="140" y1="140" x2="100" y2="100" stroke="rgba(74,124,90,0.16)" strokeWidth="0.9" />
+                  <line x1="60" y1="140" x2="100" y2="100" stroke="rgba(74,124,90,0.16)" strokeWidth="0.9" />
+                  <line x1="40" y1="70" x2="100" y2="100" stroke="rgba(74,124,90,0.16)" strokeWidth="0.9" />
+                  <circle cx="100" cy="100" r="70" stroke="rgba(122,170,135,0.13)" strokeWidth="1" strokeDasharray="3 5" />
+                  <circle cx="100" cy="100" r="50" stroke="rgba(122,170,135,0.1)" strokeWidth="0.8" strokeDasharray="2 6" />
+                </svg>
+                <p className="mt-2 text-2xl italic text-[#4a7c5a] [font-family:var(--font-home-serif)]">Reading Constellation</p>
+                <p className="mt-1 text-[11px] tracking-[0.2em] text-[#6f8d7a] uppercase">Focused Learning Path</p>
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  <span className="rounded-full border border-[#7aaa8740] bg-[#7aaa871f] px-3 py-1 text-[11px] tracking-[0.08em] text-[#4a7c5a] uppercase">
+                    Summaries
+                  </span>
+                  <span className="rounded-full border border-[#7aaa8740] bg-[#7aaa871f] px-3 py-1 text-[11px] tracking-[0.08em] text-[#4a7c5a] uppercase">
+                    Notes
+                  </span>
+                  <span className="rounded-full border border-[#7aaa8740] bg-[#7aaa871f] px-3 py-1 text-[11px] tracking-[0.08em] text-[#4a7c5a] uppercase">
+                    Highlights
+                  </span>
                 </div>
-              </div>
-              <div className="mt-4 flex items-center justify-between text-sm">
-                <div>
-                  <p className="text-[#4a7c5a] [font-family:var(--font-home-serif)]">Featured Right Now</p>
-                  <p className="text-[#5d7766]">{latestBooks[0]?.title || "Your next read starts here"}</p>
-                </div>
-                <Sparkles className="h-5 w-5 text-[#7aaa87]" />
               </div>
             </div>
 
@@ -206,8 +216,10 @@ export default function HomePage() {
             </div>
 
             <div className="absolute -left-3 bottom-8 rounded-xl border border-[#b2cebb80] bg-white/85 px-3 py-2 text-xs text-[#4d6655] shadow-[0_8px_28px_rgba(74,124,90,0.1)] backdrop-blur">
-              <p className="uppercase tracking-[0.14em]">AI Ready</p>
-              <p className="[font-family:var(--font-home-serif)] text-base text-[#2d5038]">D1 + R2</p>
+              <p className="uppercase tracking-[0.14em]">Latest Title</p>
+              <p className="max-w-[160px] truncate [font-family:var(--font-home-serif)] text-base text-[#2d5038]">
+                {latestBooks[0]?.title || "Your next read"}
+              </p>
             </div>
           </div>
         </section>
@@ -219,13 +231,6 @@ export default function HomePage() {
               <p className="mt-1 text-xs tracking-[0.16em] text-[#6f8d7a] uppercase">{stat.label}</p>
             </div>
           ))}
-        </section>
-
-        <section className="mt-12">
-          <div className="rounded-2xl border border-[#b2cebb66] bg-white/60 p-4 shadow-[0_4px_30px_rgba(74,124,90,0.08)] backdrop-blur md:p-6">
-            <p className="mb-4 text-xs tracking-[0.2em] text-[#6f8d7a] uppercase">Homepage Banner</p>
-            <BannerCarousel />
-          </div>
         </section>
 
         <section className="mt-14 rounded-2xl border border-[#b2cebb66] bg-white/60 p-4 shadow-[0_4px_30px_rgba(74,124,90,0.08)] backdrop-blur md:p-6">
@@ -417,6 +422,9 @@ export default function HomePage() {
         .home-float {
           animation: panelFloat 5s ease-in-out infinite;
         }
+        .constellation-spin {
+          animation: rotateSlow 32s linear infinite;
+        }
         @keyframes homeFloat {
           from {
             transform: translate(0, 0) scale(1);
@@ -432,6 +440,14 @@ export default function HomePage() {
           }
           50% {
             transform: translateY(-8px);
+          }
+        }
+        @keyframes rotateSlow {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
           }
         }
       `}</style>
