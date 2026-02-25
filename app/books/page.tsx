@@ -83,24 +83,28 @@ export default function BooksPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-primary text-balance">Book Collection</h1>
-          <p className="text-lg text-muted-foreground mt-2">Browse and manage your personal library</p>
+    <div className="min-h-screen bg-[linear-gradient(165deg,#eef5f0_0%,#d8ecdf_40%,#eaf3ec_100%)] text-[#2c3e30]">
+      <header className="border-b border-[#b2cebb66] bg-white/60 backdrop-blur">
+        <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#2d5038] text-balance">Book Collection</h1>
+          <p className="text-base md:text-lg text-[#5d7766] mt-2">Browse and manage your personal library</p>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <h2 className="text-xl md:text-2xl font-semibold text-foreground">All Books</h2>
-            <div className="flex items-center gap-2 border rounded-lg p-1">
+            <h2 className="text-xl md:text-2xl font-semibold text-[#2c3e30]">All Books</h2>
+            <div className="flex items-center gap-2 rounded-lg border border-[#b2cebb80] bg-white/70 p-1">
               <Button
                 variant={viewMode === "grid" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("grid")}
-                className="h-8 w-8 p-0"
+                className={`h-8 w-8 p-0 ${
+                  viewMode === "grid"
+                    ? "bg-[#4a7c5a] text-white hover:bg-[#2d5038]"
+                    : "text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                }`}
               >
                 <Grid3x3 className="h-4 w-4" />
               </Button>
@@ -108,13 +112,17 @@ export default function BooksPage() {
                 variant={viewMode === "list" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("list")}
-                className="h-8 w-8 p-0"
+                className={`h-8 w-8 p-0 ${
+                  viewMode === "list"
+                    ? "bg-[#4a7c5a] text-white hover:bg-[#2d5038]"
+                    : "text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                }`}
               >
                 <List className="h-4 w-4" />
               </Button>
             </div>
           </div>
-          <div className="text-base text-muted-foreground">
+          <div className="text-sm md:text-base text-[#5d7766]">
             {totalBooks} {totalBooks === 1 ? "book" : "books"} total
             {totalBooks > 0 && totalPages > 1 && (
               <span className="ml-2">
@@ -128,14 +136,14 @@ export default function BooksPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: BOOKS_PER_PAGE }).map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="bg-muted rounded-lg h-80" />
+                <div className="rounded-lg h-80 bg-[#d6e8dc]" />
               </div>
             ))}
           </div>
         ) : totalBooks === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-muted-foreground text-xl mb-2">No books in your collection yet</div>
-            <p className="text-base text-muted-foreground">Add your first book using the upload page</p>
+          <div className="text-center py-12 rounded-2xl border border-[#b2cebb66] bg-white/60 backdrop-blur">
+            <div className="text-[#5d7766] text-xl mb-2">No books in your collection yet</div>
+            <p className="text-base text-[#6f8d7a]">Add your first book using the upload page</p>
           </div>
         ) : (
           <>
@@ -153,9 +161,9 @@ export default function BooksPage() {
                 ))}
               </div>
             ) : (
-              <div className="bg-card border rounded-lg overflow-hidden">
+              <div className="overflow-hidden rounded-lg border border-[#b2cebb66] bg-white/70 backdrop-blur">
                 <table className="w-full">
-                  <thead className="bg-muted border-b">
+                  <thead className="border-b border-[#b2cebb66] bg-[#d6e8dc66]">
                     <tr>
                       <th className="text-left px-4 py-3 font-semibold text-sm">Book</th>
                       <th className="text-left px-4 py-3 font-semibold text-sm">Details</th>
@@ -166,7 +174,7 @@ export default function BooksPage() {
                   </thead>
                   <tbody>
                     {books.map((book) => (
-                      <tr key={book.id} className="border-b hover:bg-muted/50 transition-colors">
+                      <tr key={book.id} className="border-b border-[#b2cebb44] transition-colors hover:bg-[#d6e8dc55]">
                         <td className="px-4 py-3">
                           <Link href={`/books/${book.id}/reader`} className="flex items-center gap-3 hover:underline">
                             {book.cover_url ? (
@@ -176,17 +184,20 @@ export default function BooksPage() {
                                 width={40}
                                 height={56}
                                 className="rounded object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = "/abstract-book-cover.png"
+                                }}
                               />
                             ) : (
-                              <div className="w-10 h-14 bg-muted rounded flex items-center justify-center">
-                                <BookIcon className="w-5 h-5 text-muted-foreground" />
+                              <div className="w-10 h-14 bg-[#d6e8dc] rounded flex items-center justify-center">
+                                <BookIcon className="w-5 h-5 text-[#6f8d7a]" />
                               </div>
                             )}
                             <span className="font-medium line-clamp-2">{book.title}</span>
                           </Link>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-sm text-muted-foreground">
+                          <div className="text-sm text-[#5d7766]">
                             {book.author && <div>Author: {book.author}</div>}
                             {book.publisher && <div>Publisher: {book.publisher}</div>}
                           </div>
@@ -215,7 +226,7 @@ export default function BooksPage() {
                           <div className="flex items-center justify-center gap-2">
                             {book.file_url && (
                               <Link href={`/books/${book.id}/reader`}>
-                                <Button variant="outline" size="sm">
+                                <Button variant="outline" size="sm" className="border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]">
                                   Read
                                 </Button>
                               </Link>
@@ -231,13 +242,20 @@ export default function BooksPage() {
 
             {totalPages > 1 && (
               <div className="flex items-center justify-center space-x-2 mt-8">
-                <Button variant="outline" size="sm" onClick={() => handlePageChange(1)} disabled={currentPage === 1}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                  onClick={() => handlePageChange(1)}
+                  disabled={currentPage === 1}
+                >
                   <ChevronsLeft className="h-4 w-4" />
                 </Button>
 
                 <Button
                   variant="outline"
                   size="sm"
+                  className="border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
                 >
@@ -260,10 +278,14 @@ export default function BooksPage() {
                     return (
                       <Button
                         key={pageNumber}
-                        variant={currentPage === pageNumber ? "default" : "outline"}
+                        variant="outline"
                         size="sm"
                         onClick={() => handlePageChange(pageNumber)}
-                        className="min-w-[2.5rem]"
+                        className={`min-w-[2.5rem] ${
+                          currentPage === pageNumber
+                            ? "border-[#4a7c5a] bg-[#4a7c5a] text-white hover:bg-[#2d5038]"
+                            : "border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                        }`}
                       >
                         {pageNumber}
                       </Button>
@@ -274,6 +296,7 @@ export default function BooksPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
                 >
@@ -283,6 +306,7 @@ export default function BooksPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
                   onClick={() => handlePageChange(totalPages)}
                   disabled={currentPage === totalPages}
                 >

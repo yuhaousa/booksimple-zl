@@ -96,19 +96,21 @@ export function Navigation() {
   }
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+    <nav className="sticky top-0 z-50 border-b border-[#b2cebb66] bg-[#eef5f0cc] backdrop-blur-xl">
+      <div className="mx-auto w-full max-w-7xl px-4 md:px-8">
+        <div className="flex h-[72px] items-center justify-between">
           <Link href="/" className="flex items-center">
             {siteLogoUrl ? (
-              <Image src={siteLogoUrl} alt="Site logo" width={180} height={48} className="h-10 w-auto object-contain" priority />
+              <Image src={siteLogoUrl} alt="Site logo" width={180} height={48} className="h-11 w-auto object-contain" priority />
             ) : (
-              <BookOpen className="h-6 w-6 text-primary" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#7aaa8750] bg-white/70 text-[#4a7c5a] shadow-sm">
+                <BookOpen className="h-5 w-5" />
+              </div>
             )}
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-1">
+          <div className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href
@@ -117,9 +119,13 @@ export function Navigation() {
                 <Button
                   key={item.href}
                   asChild
-                  variant={isActive ? "default" : "ghost"}
+                  variant="ghost"
                   size="sm"
-                  className="flex items-center space-x-2"
+                  className={`flex items-center space-x-2 border ${
+                    isActive
+                      ? "border-[#4a7c5a] bg-[#4a7c5a] text-white hover:bg-[#2d5038]"
+                      : "border-transparent text-[#4d6655] hover:border-[#b2cebb80] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                  }`}
                 >
                   <Link href={item.href}>
                     <Icon className="h-4 w-4" />
@@ -132,16 +138,26 @@ export function Navigation() {
             {user ? (
               <>
                 <div className="px-2 text-right leading-tight">
-                  <div className="text-xs font-medium text-foreground">{userPrimaryLabel}</div>
-                  {userSecondaryLabel && <div className="text-[11px] text-muted-foreground">{userSecondaryLabel}</div>}
+                  <div className="text-xs font-medium text-[#2d5038]">{userPrimaryLabel}</div>
+                  {userSecondaryLabel && <div className="text-[11px] text-[#6f8d7a]">{userSecondaryLabel}</div>}
                 </div>
-                <Button variant="ghost" size="sm" className="flex items-center space-x-2" onClick={handleLogout}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center space-x-2 border border-[#b2cebb80] bg-white/70 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                  onClick={handleLogout}
+                >
                   <LogOut className="h-4 w-4" />
                   <span>Logout</span>
                 </Button>
               </>
             ) : (
-              <Button asChild variant="ghost" size="sm" className="flex items-center space-x-2">
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="flex items-center space-x-2 border border-[#b2cebb80] bg-white/70 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+              >
                 <Link href="/login">
                   <LogIn className="h-4 w-4" />
                   <span>Login</span>
@@ -156,7 +172,7 @@ export function Navigation() {
               variant="ghost"
               size="sm"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-2 border border-[#b2cebb80] bg-white/70 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
@@ -165,13 +181,13 @@ export function Navigation() {
 
         {/* Mobile Navigation Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t py-4">
+          <div className="md:hidden border-t border-[#b2cebb66] py-4">
             <div className="flex flex-col space-y-2">
               {user && (
-                <div className="mx-1 mb-2 rounded-md border border-border px-3 py-2">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Logged in as</div>
-                  <div className="text-sm font-medium text-foreground break-all">{userPrimaryLabel}</div>
-                  {userSecondaryLabel && <div className="text-xs text-muted-foreground break-all">{userSecondaryLabel}</div>}
+                <div className="mx-1 mb-2 rounded-md border border-[#b2cebb80] bg-white/70 px-3 py-2">
+                  <div className="text-xs uppercase tracking-wide text-[#6f8d7a]">Logged in as</div>
+                  <div className="text-sm font-medium text-[#2d5038] break-all">{userPrimaryLabel}</div>
+                  {userSecondaryLabel && <div className="text-xs text-[#6f8d7a] break-all">{userSecondaryLabel}</div>}
                 </div>
               )}
 
@@ -183,9 +199,13 @@ export function Navigation() {
                   <Button
                     key={item.href}
                     asChild
-                    variant={isActive ? "default" : "ghost"}
+                    variant="ghost"
                     size="sm"
-                    className="justify-start flex items-center space-x-2"
+                    className={`justify-start flex items-center space-x-2 border ${
+                      isActive
+                        ? "border-[#4a7c5a] bg-[#4a7c5a] text-white hover:bg-[#2d5038]"
+                        : "border-transparent text-[#4d6655] hover:border-[#b2cebb80] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                    }`}
                     onClick={closeMobileMenu}
                   >
                     <Link href={item.href}>
@@ -197,12 +217,23 @@ export function Navigation() {
               })}
 
               {user ? (
-                <Button variant="ghost" size="sm" className="justify-start flex items-center space-x-2" onClick={handleLogout}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start flex items-center space-x-2 border border-[#b2cebb80] bg-white/70 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                  onClick={handleLogout}
+                >
                   <LogOut className="h-4 w-4" />
                   <span>Logout</span>
                 </Button>
               ) : (
-                <Button asChild variant="ghost" size="sm" className="justify-start flex items-center space-x-2" onClick={closeMobileMenu}>
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start flex items-center space-x-2 border border-[#b2cebb80] bg-white/70 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                  onClick={closeMobileMenu}
+                >
                   <Link href="/login">
                     <LogIn className="h-4 w-4" />
                     <span>Login</span>
