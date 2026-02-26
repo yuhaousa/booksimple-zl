@@ -203,7 +203,7 @@ export default function AdminBooks() {
                         {book.file_url ? (
                           <button
                             onClick={() => window.open(book.file_url || "", "_blank")}
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm hover:underline cursor-pointer"
+                            className="inline-flex items-center gap-1 text-[#4a7c5a] hover:text-[#2d5038] text-sm hover:underline cursor-pointer"
                           >
                             <Download className="h-4 w-4" />
                             Open PDF

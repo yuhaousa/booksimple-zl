@@ -61,9 +61,9 @@ export default function DeleteUserPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <div className="min-h-screen bg-[linear-gradient(165deg,#eef5f0_0%,#d8ecdf_40%,#eaf3ec_100%)] p-8">
       <div className="max-w-2xl mx-auto">
-        <Card>
+        <Card className="border-[#b2cebb80] bg-white/85 backdrop-blur">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Trash2 className="w-5 h-5 text-red-500" />

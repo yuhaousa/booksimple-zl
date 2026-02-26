@@ -19,10 +19,10 @@ export default function CheckEmailPage() {
   }, [searchParams])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen bg-[linear-gradient(165deg,#eef5f0_0%,#d8ecdf_40%,#eaf3ec_100%)] flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-[#b2cebb80] bg-white/85 backdrop-blur">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-[#7aaa87] to-[#4a7c5a] rounded-full flex items-center justify-center">
             <Mail className="w-8 h-8 text-white" />
           </div>
           <div>
@@ -36,9 +36,9 @@ export default function CheckEmailPage() {
         <CardContent className="space-y-6">
           {/* Email address display */}
           {email && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+            <div className="bg-[#d6e8dc66] border border-[#b2cebb80] rounded-lg p-4 text-center">
               <p className="text-sm text-muted-foreground mb-1">Confirmation email sent to:</p>
-              <p className="font-medium text-purple-900">{email}</p>
+              <p className="font-medium text-[#2d5038]">{email}</p>
             </div>
           )}
 
@@ -58,7 +58,7 @@ export default function CheckEmailPage() {
 
             <div className="flex items-start gap-3">
               <div className="mt-0.5">
-                <AlertCircle className="w-5 h-5 text-orange-500" />
+                <AlertCircle className="w-5 h-5 text-[#7aaa87]" />
               </div>
               <div>
                 <h3 className="font-semibold text-sm">Step 2: Check spam folder</h3>
@@ -70,7 +70,7 @@ export default function CheckEmailPage() {
 
             <div className="flex items-start gap-3">
               <div className="mt-0.5">
-                <Clock className="w-5 h-5 text-blue-500" />
+                <Clock className="w-5 h-5 text-[#4a7c5a]" />
               </div>
               <div>
                 <h3 className="font-semibold text-sm">Step 3: Click the confirmation link</h3>

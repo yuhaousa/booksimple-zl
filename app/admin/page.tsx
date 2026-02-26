@@ -92,28 +92,28 @@ export default function AdminOverview() {
       value: stats.totalUsers,
       icon: Users,
       description: "Unique uploaders (from D1 books)",
-      color: "text-blue-600",
+      color: "text-[#4a7c5a]",
     },
     {
       title: "Total Books",
       value: stats.totalBooks,
       icon: BookOpen,
       description: "Books in D1",
-      color: "text-green-600",
+      color: "text-[#2d5038]",
     },
     {
       title: "Study Notes",
       value: stats.totalNotes,
       icon: FileText,
       description: "Not migrated in this view",
-      color: "text-purple-600",
+      color: "text-[#6f8d7a]",
     },
     {
       title: "Recent Activity",
       value: stats.recentActivity,
       icon: TrendingUp,
       description: "Books added in last 7 days",
-      color: "text-orange-600",
+      color: "text-[#7aaa87]",
     },
   ]
 
@@ -163,7 +163,7 @@ export default function AdminOverview() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-blue-600" />
+            <BookOpen className="h-5 w-5 text-[#4a7c5a]" />
             Latest Books Added
           </CardTitle>
         </CardHeader>
@@ -189,7 +189,7 @@ export default function AdminOverview() {
                     <tr key={book.id} className="border-b border-border/60 hover:bg-muted/30 transition-colors">
                       <td className="p-3">
                         <div className="flex items-center gap-2 min-w-[220px]">
-                          <BookOpen className="h-4 w-4 text-blue-600 shrink-0" />
+                          <BookOpen className="h-4 w-4 text-[#4a7c5a] shrink-0" />
                           <span className="font-semibold text-foreground">{book.title || "Untitled"}</span>
                         </div>
                       </td>

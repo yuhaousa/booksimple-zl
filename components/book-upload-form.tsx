@@ -350,7 +350,7 @@ export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormPro
             </div>
           )}
 
-          {uploadProgress && <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">{uploadProgress}</div>}
+          {uploadProgress && <div className="text-sm text-[#4a7c5a] bg-[#d6e8dc66] p-2 rounded">{uploadProgress}</div>}
 
           <Button
             type="submit"
@@ -364,3 +364,4 @@ export function BookUploadForm({ addBookToList, onBookAdded }: BookUploadFormPro
     </Card>
   )
 }
+

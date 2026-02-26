@@ -81,8 +81,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-[linear-gradient(165deg,#eef5f0_0%,#d8ecdf_40%,#eaf3ec_100%)] p-4">
+      <Card className="w-full max-w-md border-[#b2cebb80] bg-white/85 backdrop-blur">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <BookOpen className="h-12 w-12 text-primary" />

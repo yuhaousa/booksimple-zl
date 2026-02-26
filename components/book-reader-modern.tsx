@@ -51,10 +51,10 @@ import { toast } from 'sonner'
 
 const HIGHLIGHT_COLORS = [
   { name: 'Yellow', value: '#FBBF24', class: 'bg-yellow-400' },
-  { name: 'Blue', value: '#3B82F6', class: 'bg-blue-400' },
+  { name: 'Sage', value: '#3B82F6', class: 'bg-[#7aaa87]' },
   { name: 'Green', value: '#10B981', class: 'bg-green-400' },
   { name: 'Pink', value: '#EC4899', class: 'bg-pink-400' },
-  { name: 'Purple', value: '#8B5CF6', class: 'bg-purple-400' },
+  { name: 'Moss', value: '#8B5CF6', class: 'bg-[#b2cebb]' },
 ]
 
 // Reading mode styles
@@ -746,7 +746,7 @@ export function ModernBookReader({ book }: BookReaderProps) {
                                     <Card key={chapterIndex} className={`${styles.card} border`}>
                                       <CardContent className="p-4">
                                         <h4 className={`text-sm font-semibold ${styles.text} mb-3 flex items-center`}>
-                                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-bold mr-2">
+                                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#d6e8dc] text-[#4a7c5a] text-xs font-bold mr-2">
                                             {chapterIndex + 1}
                                           </span>
                                           {chapter.title}
@@ -758,7 +758,7 @@ export function ModernBookReader({ book }: BookReaderProps) {
                                             <p className={`text-xs font-medium ${styles.textMuted} mb-2`}>📑 主要内容</p>
                                             <div className="space-y-1">
                                               {chapter.sections.map((section: string, sIndex: number) => (
-                                                <div key={sIndex} className={`text-sm ${styles.text} pl-4 border-l-2 border-blue-200`}>
+                                                <div key={sIndex} className={`text-sm ${styles.text} pl-4 border-l-2 border-[#b2cebb80]`}>
                                                   • {section}
                                                 </div>
                                               ))}
@@ -792,7 +792,7 @@ export function ModernBookReader({ book }: BookReaderProps) {
                                     <h4 className={`text-sm font-semibold ${styles.text} mb-3`}>🎯 核心主题</h4>
                                     <div className="flex flex-wrap gap-2">
                                       {aiOutline.main_themes.map((theme: string, index: number) => (
-                                        <Badge key={index} variant="outline" className="text-xs bg-purple-50 dark:bg-purple-900/20 border-purple-200">
+                                        <Badge key={index} variant="outline" className="text-xs bg-[#d6e8dc66] dark:bg-[#32493a] border-[#b2cebb80]">
                                           {theme}
                                         </Badge>
                                       ))}
@@ -1129,4 +1129,6 @@ export function ModernBookReader({ book }: BookReaderProps) {
     </div>
   )
 }
+
+
 

@@ -47,10 +47,10 @@ import { ensureBookInReadingList } from '@/lib/book-tracking'
 
 const HIGHLIGHT_COLORS = [
   { name: 'Yellow', value: '#FBBF24', class: 'bg-yellow-300' },
-  { name: 'Blue', value: '#3B82F6', class: 'bg-blue-300' },
+  { name: 'Sage', value: '#3B82F6', class: 'bg-[#7aaa87]' },
   { name: 'Green', value: '#10B981', class: 'bg-green-300' },
   { name: 'Pink', value: '#EC4899', class: 'bg-pink-300' },
-  { name: 'Purple', value: '#8B5CF6', class: 'bg-purple-300' },
+  { name: 'Moss', value: '#8B5CF6', class: 'bg-[#b2cebb]' },
 ]
 
 // Reading mode utility functions
@@ -1233,7 +1233,7 @@ export function BookReader({ book }: BookReaderProps) {
                             setNewOutlineTitle('')
                             setNewOutlinePage(pageNumber)
                           }}
-                          className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                          className="text-xs bg-[#4a7c5a] text-white px-2 py-1 rounded hover:bg-[#2d5038]"
                         >
                           {isEditingOutline ? 'Cancel' : 'Add Bookmark'}
                         </button>
@@ -1446,10 +1446,10 @@ export function BookReader({ book }: BookReaderProps) {
                 {activeTab === 'notes' && (
                   <div className="bg-muted/30 p-4 rounded-lg border border-border/50 space-y-3">
                     {showNoteForm && (
-                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+                      <div className="p-4 bg-[#d6e8dc66] border border-[#b2cebb80] rounded-lg space-y-3">
                         <h4 className="font-medium text-sm">Add Note</h4>
                         {selectedText && (
-                          <div className="text-xs bg-gray-100 p-2 rounded border-l-4 border-blue-400">
+                          <div className="text-xs bg-gray-100 p-2 rounded border-l-4 border-[#4a7c5a]">
                             <strong>Selected text:</strong> "{selectedText}"
                           </div>
                         )}
@@ -1677,7 +1677,7 @@ export function BookReader({ book }: BookReaderProps) {
                     <StickyNote className="w-4 h-4" />
                   </Button>
                   {isNoteMode && (
-                    <div className="text-xs text-blue-600 px-2 py-1 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="text-xs text-[#4a7c5a] px-2 py-1 bg-[#d6e8dc66] border border-[#b2cebb80] rounded-md">
                       Select text to add note • Zoom-aware positioning
                     </div>
                   )}
@@ -2049,7 +2049,7 @@ export function BookReader({ book }: BookReaderProps) {
                                 <div
                                   className={`absolute border-2 rounded-lg p-3 shadow-lg z-10 ${
                                     side === 'left' 
-                                      ? 'bg-blue-50 border-blue-400' 
+                                      ? 'bg-[#d6e8dc66] border-[#4a7c5a]' 
                                       : 'bg-yellow-100 border-yellow-400'
                                   }`}
                                   style={{
@@ -2067,7 +2067,7 @@ export function BookReader({ book }: BookReaderProps) {
                                 >
                                   <div className={`text-xs mb-2 border-b pb-1 ${
                                     side === 'left' 
-                                      ? 'text-blue-600 border-blue-300' 
+                                      ? 'text-[#4a7c5a] border-[#7aaa87]' 
                                       : 'text-yellow-600 border-yellow-300'
                                   }`}>
                                     {new Date(note.createdAt).toLocaleDateString('en-US', {
@@ -2114,3 +2114,5 @@ export function BookReader({ book }: BookReaderProps) {
     </div>
   )
 }
+
+

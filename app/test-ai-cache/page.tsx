@@ -78,7 +78,7 @@ export default function TestAICachePage() {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
+    <div className="container mx-auto max-w-4xl p-6">
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>AI Analysis Cache Test</CardTitle>
@@ -115,9 +115,9 @@ export default function TestAICachePage() {
             <CardTitle>Logs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="bg-gray-100 p-4 rounded h-64 overflow-y-auto font-mono text-sm">
+            <div className="bg-[#d6e8dc66] p-4 rounded h-64 overflow-y-auto font-mono text-sm">
               {logs.length === 0 ? (
-                <div className="text-gray-500">No logs yet...</div>
+                <div className="text-[#6f8d7a]">No logs yet...</div>
               ) : (
                 logs.map((log, index) => (
                   <div key={index} className="mb-1">
@@ -134,13 +134,13 @@ export default function TestAICachePage() {
             <CardTitle>Response</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="bg-gray-100 p-4 rounded h-64 overflow-y-auto">
+            <div className="bg-[#d6e8dc66] p-4 rounded h-64 overflow-y-auto">
               {result ? (
                 <pre className="text-sm whitespace-pre-wrap">
                   {JSON.stringify(result, null, 2)}
                 </pre>
               ) : (
-                <div className="text-gray-500">No response yet...</div>
+                <div className="text-[#6f8d7a]">No response yet...</div>
               )}
             </div>
           </CardContent>
@@ -156,7 +156,7 @@ export default function TestAICachePage() {
           <p><strong>Step 2:</strong> Click "Test POST" - should generate new analysis and cache it</p>
           <p><strong>Step 3:</strong> Click "Test GET" again - should return cached analysis</p>
           <p><strong>Step 4:</strong> Click "Test POST" again - should return cached analysis without calling AI</p>
-          <p className="text-blue-600">Watch the browser network tab to see response times (cached should be much faster)</p>
+          <p className="text-[#4a7c5a]">Watch the browser network tab to see response times (cached should be much faster)</p>
         </CardContent>
       </Card>
     </div>

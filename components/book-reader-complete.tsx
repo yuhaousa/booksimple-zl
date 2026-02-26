@@ -43,10 +43,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.4.394/lega
 
 const HIGHLIGHT_COLORS = [
   { name: 'Yellow', value: '#FBBF24', class: 'bg-yellow-300' },
-  { name: 'Blue', value: '#3B82F6', class: 'bg-blue-300' },
+  { name: 'Sage', value: '#3B82F6', class: 'bg-[#7aaa87]' },
   { name: 'Green', value: '#10B981', class: 'bg-green-300' },
   { name: 'Pink', value: '#EC4899', class: 'bg-pink-300' },
-  { name: 'Purple', value: '#8B5CF6', class: 'bg-purple-300' },
+  { name: 'Moss', value: '#8B5CF6', class: 'bg-[#b2cebb]' },
 ]
 
 // Reading mode utility functions
@@ -630,7 +630,7 @@ export function BookReader({ book }: BookReaderProps) {
                             setNewOutlineTitle('')
                             setNewOutlinePage(pageNumber)
                           }}
-                          className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                          className="text-xs bg-[#4a7c5a] text-white px-2 py-1 rounded hover:bg-[#2d5038]"
                         >
                           {isEditingOutline ? 'Cancel' : 'Add Bookmark'}
                         </button>
@@ -1036,3 +1036,5 @@ export function BookReader({ book }: BookReaderProps) {
     </div>
   )
 }
+
+

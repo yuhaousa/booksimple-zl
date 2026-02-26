@@ -1,14 +1,29 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter, JetBrains_Mono } from "next/font/google"
+import { Cormorant_Garamond, JetBrains_Mono, Jost, Playfair_Display } from "next/font/google"
 import "./globals.css"
 import { Navigation } from "@/components/navigation"
 import { Toaster } from "@/components/ui/toaster"
 import { Suspense } from "react"
 
-const inter = Inter({
+const jost = Jost({
   subsets: ["latin"],
+  weight: ["300", "400", "500"],
   variable: "--font-sans",
+})
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["400", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-serif",
+})
+
+const cormorant = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["300", "400"],
+  style: ["italic"],
+  variable: "--font-quote",
 })
 
 const jetbrainsMono = JetBrains_Mono({
@@ -28,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
+    <html lang="en" className={`${jost.variable} ${playfair.variable} ${cormorant.variable} ${jetbrainsMono.variable} antialiased`}>
       <body>
         <Suspense fallback={<div>Loading...</div>}>
           <Navigation />
