@@ -1,12 +1,21 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Book as BookIcon, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Grid3x3, List } from "lucide-react"
+import {
+  Book as BookIcon,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Eye,
+  Pencil,
+  Star,
+  Trash2,
+} from "lucide-react"
 
-import { BookCard } from "@/components/book-card"
-import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 
 type Book = {
@@ -30,16 +39,23 @@ type Book = {
 
 const BOOKS_PER_PAGE = 12
 
+function parseTimestamp(value: string | null | undefined) {
+  if (!value) return 0
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 export default function BooksPage() {
+  const { user } = useAuth()
   const [books, setBooks] = useState<Book[]>([])
   const [totalBooks, setTotalBooks] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [deletingBookId, setDeletingBookId] = useState<number | null>(null)
 
-  const totalPages = Math.max(1, Math.ceil(totalBooks / BOOKS_PER_PAGE))
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(totalBooks / BOOKS_PER_PAGE)), [totalBooks])
 
-  const fetchBooks = async (page: number = 1) => {
+  const fetchBooks = useCallback(async (page: number = 1) => {
     setIsLoading(true)
     try {
       const response = await fetch(`/api/books?page=${page}&pageSize=${BOOKS_PER_PAGE}`, {
@@ -51,7 +67,7 @@ export default function BooksPage() {
         throw new Error(result?.details || result?.error || "Failed to fetch books")
       }
 
-      setBooks(result.books || [])
+      setBooks((result.books || []) as Book[])
       setTotalBooks(Number(result.total || 0))
     } catch (error) {
       console.error("Error fetching books:", error)
@@ -60,27 +76,73 @@ export default function BooksPage() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const handleBookDeleted = () => {
-    const newTotalBooks = totalBooks - 1
-    const newTotalPages = Math.max(1, Math.ceil(Math.max(newTotalBooks, 0) / BOOKS_PER_PAGE))
-    const nextPage = Math.min(currentPage, newTotalPages)
-    setCurrentPage(nextPage)
-    fetchBooks(nextPage)
-  }
+  }, [])
 
   const handlePageChange = (page: number) => {
     const nextPage = Math.min(Math.max(page, 1), totalPages)
+    if (nextPage === currentPage) return
     setCurrentPage(nextPage)
-    fetchBooks(nextPage)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   useEffect(() => {
-    fetchBooks(currentPage)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    void fetchBooks(currentPage)
+  }, [currentPage, fetchBooks])
+
+  const handleDeleteBook = async (book: Book) => {
+    if (!confirm(`Are you sure you want to delete "${book.title || "this book"}"?`)) return
+
+    setDeletingBookId(book.id)
+    try {
+      const response = await fetch(`/api/books/${book.id}`, { method: "DELETE" })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to delete book")
+      }
+
+      const nextTotal = Math.max(totalBooks - 1, 0)
+      setBooks((prev) => prev.filter((entry) => entry.id !== book.id))
+      setTotalBooks(nextTotal)
+      const maxPageAfterDelete = Math.max(1, Math.ceil(nextTotal / BOOKS_PER_PAGE))
+      if (currentPage > maxPageAfterDelete) {
+        setCurrentPage(maxPageAfterDelete)
+      }
+    } catch (error) {
+      console.error("Error deleting book:", error)
+      alert("Failed to delete book.")
+    } finally {
+      setDeletingBookId(null)
+    }
+  }
+
+  const rankedBooks = useMemo(() => {
+    return [...books].sort((a, b) => parseTimestamp(b.created_at) - parseTimestamp(a.created_at))
+  }, [books])
+
+  const rankedColumns = useMemo(() => {
+    if (rankedBooks.length === 0) return [] as Array<Array<{ book: Book; rank: number }>>
+
+    const rowsPerColumn = Math.max(1, Math.ceil(rankedBooks.length / 3))
+    const baseRank = (currentPage - 1) * BOOKS_PER_PAGE
+
+    return Array.from({ length: 3 }, (_, columnIndex) =>
+      rankedBooks
+        .slice(columnIndex * rowsPerColumn, (columnIndex + 1) * rowsPerColumn)
+        .map((book, rowIndex) => ({
+          book,
+          rank: baseRank + columnIndex * rowsPerColumn + rowIndex + 1,
+        }))
+    ).filter((column) => column.length > 0)
+  }, [currentPage, rankedBooks])
+
+  const pageNumbers = useMemo(() => {
+    return Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+      if (totalPages <= 5) return i + 1
+      if (currentPage <= 3) return i + 1
+      if (currentPage >= totalPages - 2) return totalPages - 4 + i
+      return currentPage - 2 + i
+    })
+  }, [currentPage, totalPages])
 
   return (
     <div className="min-h-screen bg-[linear-gradient(165deg,#eef5f0_0%,#d8ecdf_40%,#eaf3ec_100%)] text-[#2c3e30]">
@@ -92,36 +154,8 @@ export default function BooksPage() {
       </header>
 
       <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl md:text-2xl font-semibold text-[#2c3e30]">All Books</h2>
-            <div className="flex items-center gap-2 rounded-lg border border-[#b2cebb80] bg-white/70 p-1">
-              <Button
-                variant={viewMode === "grid" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("grid")}
-                className={`h-8 w-8 p-0 ${
-                  viewMode === "grid"
-                    ? "bg-[#4a7c5a] text-white hover:bg-[#2d5038]"
-                    : "text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
-                }`}
-              >
-                <Grid3x3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "list" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("list")}
-                className={`h-8 w-8 p-0 ${
-                  viewMode === "list"
-                    ? "bg-[#4a7c5a] text-white hover:bg-[#2d5038]"
-                    : "text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
-                }`}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-xl md:text-2xl font-semibold text-[#2c3e30]">All Books</h2>
           <div className="text-sm md:text-base text-[#5d7766]">
             {totalBooks} {totalBooks === 1 ? "book" : "books"} total
             {totalBooks > 0 && totalPages > 1 && (
@@ -133,115 +167,121 @@ export default function BooksPage() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {Array.from({ length: BOOKS_PER_PAGE }).map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="rounded-lg h-80 bg-[#d6e8dc]" />
-              </div>
-            ))}
+          <div className="space-y-6 p-1 md:p-0">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 9 }).map((_, index) => (
+                <div key={index} className="h-40 rounded-xl bg-[#d6e8dc] animate-pulse" />
+              ))}
+            </div>
           </div>
         ) : totalBooks === 0 ? (
-          <div className="text-center py-12 rounded-2xl border border-[#b2cebb66] bg-white/60 backdrop-blur">
-            <div className="text-[#5d7766] text-xl mb-2">No books in your collection yet</div>
-            <p className="text-base text-[#6f8d7a]">Add your first book using the upload page</p>
+          <div className="p-10 text-center">
+            <BookIcon className="mx-auto h-10 w-10 text-[#7aaa87]" />
+            <p className="mt-3 text-[#4d6655]">No books in your collection yet.</p>
           </div>
         ) : (
           <>
-            {viewMode === "grid" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {books.map((book) => (
-                  <BookCard
-                    key={book.id}
-                    book={book}
-                    onBookDeleted={handleBookDeleted}
-                    canEdit={true}
-                    showEdit={false}
-                    isAuthenticated={true}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-lg border border-[#b2cebb66] bg-white/70 backdrop-blur">
-                <table className="w-full">
-                  <thead className="border-b border-[#b2cebb66] bg-[#d6e8dc66]">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-semibold text-sm">Book</th>
-                      <th className="text-left px-4 py-3 font-semibold text-sm">Details</th>
-                      <th className="text-left px-4 py-3 font-semibold text-sm">Tags</th>
-                      <th className="text-center px-4 py-3 font-semibold text-sm">Created</th>
-                      <th className="text-center px-4 py-3 font-semibold text-sm">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {books.map((book) => (
-                      <tr key={book.id} className="border-b border-[#b2cebb44] transition-colors hover:bg-[#d6e8dc55]">
-                        <td className="px-4 py-3">
-                          <Link href={`/books/${book.id}/reader`} className="flex items-center gap-3 hover:underline">
-                            {book.cover_url ? (
-                              <Image
-                                src={book.cover_url}
-                                alt={book.title || "Book cover"}
-                                width={40}
-                                height={56}
-                                className="rounded object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.src = "/abstract-book-cover.png"
-                                }}
-                              />
-                            ) : (
-                              <div className="w-10 h-14 bg-[#d6e8dc] rounded flex items-center justify-center">
-                                <BookIcon className="w-5 h-5 text-[#6f8d7a]" />
-                              </div>
-                            )}
-                            <span className="font-medium line-clamp-2">{book.title}</span>
+            <section className="p-1 md:p-0">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {rankedColumns.map((column, columnIndex) => (
+                  <div key={`column-${columnIndex}`} className="space-y-3">
+                    {column.map(({ book, rank }) => {
+                      const shelfLabel = book.tags?.split(",")[0]?.trim() || book.publisher || "General"
+                      const isOwner = Boolean(user?.id && book.user_id === user.id)
+                      return (
+                        <div
+                          key={book.id}
+                          className="flex items-start gap-3 rounded-xl border border-[#b2cebb66] bg-white/75 p-3 shadow-[0_4px_14px_rgba(74,124,90,0.08)]"
+                        >
+                          <span className="mt-2 w-5 text-center text-sm font-semibold text-[#5d7766]">{rank}</span>
+
+                          <Link
+                            href={`/books/${book.id}/reader`}
+                            className="relative h-[184px] w-[128px] shrink-0 overflow-hidden rounded-md"
+                          >
+                            <Image
+                              src={book.cover_url || "/abstract-book-cover.png"}
+                              alt={book.title || "Book cover"}
+                              fill
+                              className="object-cover"
+                              sizes="128px"
+                            />
                           </Link>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-sm text-[#5d7766]">
-                            {book.author && <div>Author: {book.author}</div>}
-                            {book.publisher && <div>Publisher: {book.publisher}</div>}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {book.tags && (
-                            <div className="flex flex-wrap gap-1">
-                              {book.tags
-                                .split(/[,]+/)
-                                .slice(0, 2)
-                                .map((tag, index) => {
-                                  const trimmedTag = tag.trim()
-                                  return trimmedTag ? (
-                                    <Badge key={index} variant="secondary" className="text-xs">
-                                      {trimmedTag}
-                                    </Badge>
-                                  ) : null
-                                })}
+
+                          <div className="min-w-0 flex-1">
+                            <Link
+                              href={`/books/${book.id}/reader`}
+                              className="line-clamp-2 text-sm font-semibold text-[#2c3e30] hover:text-[#2d5038]"
+                            >
+                              {book.title || "Untitled"}
+                            </Link>
+                            <p className="mt-0.5 line-clamp-1 text-sm text-[#4d6655]">{book.author || "Unknown Author"}</p>
+                            <p className="mt-0.5 line-clamp-1 text-xs text-[#6f8d7a]">{shelfLabel}</p>
+                            <div className="mt-1 flex items-center gap-2 text-xs text-[#5d7766]">
+                              <span className="inline-flex items-center gap-1">
+                                <Star className="h-3.5 w-3.5" />
+                                {((book.id % 8) * 0.1 + 3.8).toFixed(1)}
+                              </span>
+                              <span>Free</span>
                             </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center text-sm text-muted-foreground">
-                          {book.created_at ? new Date(book.created_at).toLocaleDateString() : "-"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-center gap-2">
+                          </div>
+
+                          <div className="flex flex-col items-end gap-2">
+                            <Link
+                              href={`/books/${book.id}/preview`}
+                              className="inline-flex items-center gap-1 rounded-md border border-[#b2cebb80] bg-white px-2 py-1 text-xs text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Preview
+                            </Link>
+
+                            {isOwner && (
+                              <Link
+                                href={`/books/${book.id}/edit`}
+                                className="inline-flex items-center gap-1 rounded-md border border-[#b2cebb80] bg-white px-2 py-1 text-xs text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                                aria-label={`Edit ${book.title || "book"}`}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Edit
+                              </Link>
+                            )}
+
                             {book.file_url && (
                               <Link href={`/books/${book.id}/reader`}>
-                                <Button variant="outline" size="sm" className="border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                                >
                                   Read
                                 </Button>
                               </Link>
                             )}
+
+                            {isOwner && (
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="h-8 px-2 text-xs"
+                                onClick={() => void handleDeleteBook(book)}
+                                disabled={deletingBookId === book.id}
+                              >
+                                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                {deletingBookId === book.id ? "Deleting..." : "Delete"}
+                              </Button>
+                            )}
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
               </div>
-            )}
+            </section>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-center space-x-2 mt-8">
+              <div className="mt-8 flex items-center justify-center space-x-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -263,34 +303,21 @@ export default function BooksPage() {
                 </Button>
 
                 <div className="flex items-center space-x-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNumber
-                    if (totalPages <= 5) {
-                      pageNumber = i + 1
-                    } else if (currentPage <= 3) {
-                      pageNumber = i + 1
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNumber = totalPages - 4 + i
-                    } else {
-                      pageNumber = currentPage - 2 + i
-                    }
-
-                    return (
-                      <Button
-                        key={pageNumber}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handlePageChange(pageNumber)}
-                        className={`min-w-[2.5rem] ${
-                          currentPage === pageNumber
-                            ? "border-[#4a7c5a] bg-[#4a7c5a] text-white hover:bg-[#2d5038]"
-                            : "border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
-                        }`}
-                      >
-                        {pageNumber}
-                      </Button>
-                    )
-                  })}
+                  {pageNumbers.map((pageNumber) => (
+                    <Button
+                      key={pageNumber}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pageNumber)}
+                      className={`min-w-[2.5rem] ${
+                        currentPage === pageNumber
+                          ? "border-[#4a7c5a] bg-[#4a7c5a] text-white hover:bg-[#2d5038]"
+                          : "border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                      }`}
+                    >
+                      {pageNumber}
+                    </Button>
+                  ))}
                 </div>
 
                 <Button

@@ -1,21 +1,31 @@
 "use client"
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react"
-import Image from "next/image"
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react"
 import Link from "next/link"
 import { Cormorant_Garamond, Jost, Playfair_Display } from "next/font/google"
-import { ArrowRight, BookOpen, Brain, Library, ShieldCheck } from "lucide-react"
+import Image from "next/image"
+import { ArrowRight, BookOpen, Brain, Library, Pencil, ShieldCheck, Star } from "lucide-react"
 
+import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 
 interface Book {
   id: number
-  title: string
-  author: string | null
-  description: string | null
-  cover_url: string | null
-  year: number | null
   created_at: string
+  title: string | null
+  description: string | null
+  author: string | null
+  publisher: string | null
+  isbn: string | null
+  tags: string | null
+  year: number | null
+  cover_url: string | null
+  file_url: string | null
+  user_id: string | null
+  video_url: string | null
+  video_file_url: string | null
+  video_title: string | null
+  video_description: string | null
 }
 
 const playfair = Playfair_Display({
@@ -67,15 +77,18 @@ const FEATURE_CARDS = [
   },
 ]
 
+function parseTimestamp(value: string | null | undefined) {
+  if (!value) return 0
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 export default function HomePage() {
+  const { user } = useAuth()
   const [latestBooks, setLatestBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    void fetchLatestBooks()
-  }, [])
-
-  const fetchLatestBooks = async () => {
+  const fetchLatestBooks = useCallback(async () => {
     try {
       const response = await fetch("/api/books?page=1&pageSize=6", {
         cache: "no-store",
@@ -93,7 +106,30 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    void fetchLatestBooks()
+  }, [fetchLatestBooks])
+
+  const rankedBooks = useMemo(() => {
+    return [...latestBooks]
+      .sort((a, b) => parseTimestamp(b.created_at) - parseTimestamp(a.created_at))
+      .slice(0, 9)
+  }, [latestBooks])
+
+  const rankedColumns = useMemo(() => {
+    if (rankedBooks.length === 0) return [] as Array<Array<{ book: Book; rank: number }>>
+    const rowsPerColumn = Math.max(1, Math.ceil(rankedBooks.length / 3))
+    return Array.from({ length: 3 }, (_, colIndex) =>
+      rankedBooks
+        .slice(colIndex * rowsPerColumn, (colIndex + 1) * rowsPerColumn)
+        .map((book, rowIndex) => ({
+          book,
+          rank: colIndex * rowsPerColumn + rowIndex + 1,
+        }))
+    ).filter((column) => column.length > 0)
+  }, [rankedBooks])
 
   const stats = useMemo(() => {
     if (loading) {
@@ -246,10 +282,12 @@ export default function HomePage() {
           </div>
 
           {loading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-14 animate-pulse rounded-xl bg-[#d6e8dc]" />
-              ))}
+            <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 9 }).map((_, index) => (
+                  <div key={index} className="h-28 rounded-xl bg-[#d6e8dc] animate-pulse" />
+                ))}
+              </div>
             </div>
           ) : latestBooks.length === 0 ? (
             <div className="rounded-xl border border-dashed border-[#7aaa8750] bg-[#eef5f0] p-10 text-center">
@@ -258,61 +296,57 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="overflow-x-auto rounded-xl border border-[#b2cebb66] bg-white/70">
-                <table className="w-full min-w-[620px] text-left">
-                  <thead>
-                    <tr className="border-b border-[#b2cebb66] text-xs tracking-[0.14em] text-[#6f8d7a] uppercase">
-                      <th className="px-4 py-3 font-medium">Title</th>
-                      <th className="px-4 py-3 font-medium">Author</th>
-                      <th className="px-4 py-3 font-medium">Added</th>
-                      <th className="px-4 py-3 font-medium">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {latestBooks.map((book) => (
-                      <tr key={book.id} className="border-b border-[#b2cebb44] last:border-0">
-                        <td className="px-4 py-3">
-                          <p className="text-base text-[#2c3e30]">{book.title || "Untitled"}</p>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-[#5d7766]">{book.author || "Unknown Author"}</td>
-                        <td className="px-4 py-3 text-sm text-[#5d7766]">
-                          {book.created_at ? new Date(book.created_at).toLocaleDateString() : "-"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Link href={`/books/${book.id}`} className="text-sm font-medium text-[#4a7c5a] hover:text-[#2d5038]">
-                            Open
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {rankedColumns.map((column, columnIndex) => (
+                  <div key={`column-${columnIndex}`} className="space-y-3">
+                    {column.map(({ book, rank }) => {
+                      const shelfLabel = book.tags?.split(",")[0]?.trim() || book.publisher || "General"
+                      const isOwner = Boolean(user?.id && book.user_id === user.id)
+                      return (
+                        <div
+                          key={book.id}
+                          className="flex items-start gap-3 rounded-xl border border-[#b2cebb66] bg-white/75 p-3 shadow-[0_4px_14px_rgba(74,124,90,0.08)]"
+                        >
+                          <span className="mt-2 w-5 text-center text-sm font-semibold text-[#5d7766]">{rank}</span>
 
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {latestBooks.slice(0, 3).map((book) => (
-                  <Link
-                    key={`tile-${book.id}`}
-                    href={`/books/${book.id}`}
-                    className="group overflow-hidden rounded-xl border border-[#b2cebb66] bg-white/75 shadow-[0_6px_24px_rgba(74,124,90,0.08)] transition hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(74,124,90,0.15)]"
-                  >
-                    <div className="relative aspect-[3/2]">
-                      <Image
-                        src={book.cover_url || "/abstract-book-cover.png"}
-                        alt={book.title || "Book cover"}
-                        fill
-                        className="object-cover transition group-hover:scale-[1.03]"
-                        sizes="(max-width: 1024px) 50vw, 33vw"
-                        onError={(e) => {
-                          e.currentTarget.src = "/abstract-book-cover.png"
-                        }}
-                      />
-                    </div>
-                    <div className="p-4">
-                      <p className="line-clamp-1 text-lg text-[#2c3e30] [font-family:var(--font-home-serif)]">{book.title}</p>
-                      <p className="mt-1 line-clamp-1 text-sm text-[#5d7766]">{book.author || "Unknown Author"}</p>
-                    </div>
-                  </Link>
+                          <Link href={`/books/${book.id}/reader`} className="relative h-[184px] w-[128px] shrink-0 overflow-hidden rounded-md">
+                            <Image
+                              src={book.cover_url || "/abstract-book-cover.png"}
+                              alt={book.title || "Book cover"}
+                              fill
+                              className="object-cover"
+                              sizes="64px"
+                            />
+                          </Link>
+
+                          <div className="min-w-0 flex-1">
+                            <Link href={`/books/${book.id}/reader`} className="line-clamp-2 text-sm font-semibold text-[#2c3e30] hover:text-[#2d5038]">
+                              {book.title || "Untitled"}
+                            </Link>
+                            <p className="mt-0.5 line-clamp-1 text-sm text-[#4d6655]">{book.author || "Unknown Author"}</p>
+                            <p className="mt-0.5 line-clamp-1 text-xs text-[#6f8d7a]">{shelfLabel}</p>
+                            <div className="mt-1 flex items-center gap-2 text-xs text-[#5d7766]">
+                              <span className="inline-flex items-center gap-1">
+                                <Star className="h-3.5 w-3.5" />
+                                {((book.id % 8) * 0.1 + 3.8).toFixed(1)}
+                              </span>
+                              <span>Free</span>
+                            </div>
+                          </div>
+
+                          {isOwner && (
+                            <Link
+                              href={`/books/${book.id}/edit`}
+                              className="rounded-md border border-[#b2cebb80] bg-white p-1.5 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                              aria-label={`Edit ${book.title || "book"}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Link>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 ))}
               </div>
             </div>
