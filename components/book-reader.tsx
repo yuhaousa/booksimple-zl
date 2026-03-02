@@ -80,6 +80,18 @@ const getReadingModeStyles = (mode: 'light' | 'dark' | 'sepia') => {
   }
 }
 
+const formatHighlightDateTime = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 interface Book {
   id: number
   title: string
@@ -1431,6 +1443,9 @@ export function BookReader({ book }: BookReaderProps) {
                           onClick={() => goToPage(highlight.page)}
                         >
                           {highlight.text}
+                          <div className="mt-2 text-[11px] text-muted-foreground">
+                            {formatHighlightDateTime(highlight.createdAt)}
+                          </div>
                         </div>
                       </div>
                     ))}

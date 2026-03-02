@@ -28,6 +28,18 @@ interface Book {
   cover_url: string | null
 }
 
+function formatHighlightDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export default function HighlightsPage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -226,13 +238,7 @@ export default function HighlightsPage() {
                         <div className="flex items-center justify-between text-sm text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <Calendar className="w-3 h-3" />
-                            {new Date(highlight.created_at).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                            {formatHighlightDateTime(highlight.created_at)}
                           </div>
                           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Button
@@ -283,13 +289,7 @@ export default function HighlightsPage() {
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-3 h-3" />
-                      {new Date(highlight.created_at).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                      {formatHighlightDateTime(highlight.created_at)}
                     </div>
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button

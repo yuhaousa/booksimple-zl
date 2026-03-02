@@ -305,7 +305,7 @@ export default function HomePage() {
                       return (
                         <div
                           key={book.id}
-                          className="flex items-start gap-3 rounded-xl border border-[#b2cebb66] bg-white/75 p-3 shadow-[0_4px_14px_rgba(74,124,90,0.08)]"
+                          className="flex items-stretch gap-3 rounded-xl border border-[#b2cebb66] bg-white/75 p-3 shadow-[0_4px_14px_rgba(74,124,90,0.08)]"
                         >
                           <span className="mt-2 w-5 text-center text-sm font-semibold text-[#5d7766]">{rank}</span>
 
@@ -330,18 +330,19 @@ export default function HomePage() {
                                 <Star className="h-3.5 w-3.5" />
                                 {((book.id % 8) * 0.1 + 3.8).toFixed(1)}
                               </span>
-                              <span>Free</span>
                             </div>
                           </div>
 
                           {isOwner && (
-                            <Link
-                              href={`/books/${book.id}/edit`}
-                              className="rounded-md border border-[#b2cebb80] bg-white p-1.5 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
-                              aria-label={`Edit ${book.title || "book"}`}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Link>
+                            <div className="flex h-[184px] items-end">
+                              <Link
+                                href={`/books/${book.id}/edit`}
+                                className="rounded-md border border-[#b2cebb80] bg-white p-1.5 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                                aria-label={`Edit ${book.title || "book"}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Link>
+                            </div>
                           )}
                         </div>
                       )

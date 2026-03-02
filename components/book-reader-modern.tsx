@@ -90,6 +90,18 @@ const getReadingModeStyles = (mode: 'light' | 'dark' | 'sepia') => {
   }
 }
 
+const formatHighlightDateTime = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 interface Book {
   id: number
   title: string
@@ -864,7 +876,7 @@ export function ModernBookReader({ book }: BookReaderProps) {
                             <div className="flex items-center justify-between">
                               <span className={`text-xs ${styles.textMuted}`}>
                                 <Calendar className="w-3 h-3 inline mr-1" />
-                                {new Date(highlight.created_at).toLocaleDateString()}
+                                {formatHighlightDateTime(highlight.created_at)}
                               </span>
                               <Button
                                 variant="ghost"
@@ -912,6 +924,9 @@ export function ModernBookReader({ book }: BookReaderProps) {
                               >
                                 <p className={`text-sm ${styles.text} line-clamp-2`}>
                                   {highlight.text}
+                                </p>
+                                <p className={`mt-1 text-xs ${styles.textMuted}`}>
+                                  {formatHighlightDateTime(highlight.created_at)}
                                 </p>
                               </div>
                             </CardContent>

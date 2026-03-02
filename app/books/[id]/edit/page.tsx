@@ -5,11 +5,10 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, Save, ImageIcon, FileText, Upload } from "lucide-react"
+import { ArrowLeft, Save, ImageIcon, FileText } from "lucide-react"
 import { toast } from "sonner"
 
 interface Book {
@@ -28,6 +27,9 @@ interface Book {
   video_title: string | null
   video_description: string | null
 }
+
+const formInputClass =
+  "border-[#b2cebb80] bg-white/80 text-[#2c3e30] placeholder:text-[#6f8d7a] focus-visible:ring-[#7aaa87] focus-visible:ring-offset-0"
 
 export default function BookEditPage() {
   const params = useParams()
@@ -210,19 +212,19 @@ export default function BookEditPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="border-b border-border bg-card">
-          <div className="container mx-auto px-4 py-6">
-            <h1 className="text-3xl font-bold text-primary">Edit Book</h1>
-            <p className="text-muted-foreground mt-2">Update your book information</p>
+      <div className="min-h-screen bg-[linear-gradient(165deg,#eef5f0_0%,#d8ecdf_40%,#eaf3ec_100%)] text-[#2c3e30]">
+        <header className="border-b border-[#b2cebb66] bg-white/60 backdrop-blur">
+          <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2d5038] text-balance">Edit Book</h1>
+            <p className="text-base md:text-lg text-[#5d7766] mt-2">Update your book information</p>
           </div>
         </header>
-        <main className="container mx-auto px-4 py-8">
-          <div className="max-w-2xl mx-auto">
+        <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8">
+          <div className="mx-auto max-w-2xl rounded-2xl border border-[#b2cebb66] bg-white/70 p-4 shadow-[0_6px_24px_rgba(74,124,90,0.08)] backdrop-blur md:p-6">
             <div className="flex items-center justify-center min-h-[400px]">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Loading book details...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4a7c5a] mx-auto mb-4"></div>
+                <p className="text-[#5d7766]">Loading book details...</p>
               </div>
             </div>
           </div>
@@ -233,19 +235,19 @@ export default function BookEditPage() {
 
   if (!book) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="border-b border-border bg-card">
-          <div className="container mx-auto px-4 py-6">
-            <h1 className="text-3xl font-bold text-primary">Edit Book</h1>
-            <p className="text-muted-foreground mt-2">Update your book information</p>
+      <div className="min-h-screen bg-[linear-gradient(165deg,#eef5f0_0%,#d8ecdf_40%,#eaf3ec_100%)] text-[#2c3e30]">
+        <header className="border-b border-[#b2cebb66] bg-white/60 backdrop-blur">
+          <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2d5038] text-balance">Edit Book</h1>
+            <p className="text-base md:text-lg text-[#5d7766] mt-2">Update your book information</p>
           </div>
         </header>
-        <main className="container mx-auto px-4 py-8">
-          <div className="max-w-2xl mx-auto">
+        <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8">
+          <div className="mx-auto max-w-2xl rounded-2xl border border-[#b2cebb66] bg-white/70 p-4 shadow-[0_6px_24px_rgba(74,124,90,0.08)] backdrop-blur md:p-6">
             <div className="text-center py-12">
               <h3 className="text-lg font-semibold mb-2">Book not found</h3>
-              <p className="text-sm text-muted-foreground mb-4">The requested book could not be found.</p>
-              <Button asChild>
+              <p className="text-sm text-[#5d7766] mb-4">The requested book could not be found.</p>
+              <Button asChild className="bg-[#4a7c5a] text-white hover:bg-[#2d5038]">
                 <Link href="/books">
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back to Books
@@ -259,37 +261,31 @@ export default function BookEditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-[linear-gradient(165deg,#eef5f0_0%,#d8ecdf_40%,#eaf3ec_100%)] text-[#2c3e30]">
+      <header className="border-b border-[#b2cebb66] bg-white/60 backdrop-blur">
+        <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">
           <div className="flex items-center gap-4 mb-2">
             <Link href="/books">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Books
               </Button>
             </Link>
           </div>
-          <h1 className="text-3xl font-bold text-primary">Edit Book</h1>
-          <p className="text-muted-foreground mt-2">Update your book information</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#2d5038] text-balance">Edit Book</h1>
+          <p className="text-base md:text-lg text-[#5d7766] mt-2">Update your book information</p>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle>Book Information</CardTitle>
-              <CardDescription>Update the details of your book</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8">
+        <div className="mx-auto max-w-2xl rounded-2xl border border-[#b2cebb66] bg-white/70 p-4 shadow-[0_6px_24px_rgba(74,124,90,0.08)] backdrop-blur md:p-6">
+          <form onSubmit={handleSubmit} className="space-y-6 text-[#2c3e30]">
                 {/* Book Cover Upload */}
                 <div className="space-y-2">
-                  <Label htmlFor="cover">Book Cover</Label>
+                  <Label htmlFor="cover" className="text-[#2c3e30]">Book Cover</Label>
                   <div className="flex items-start space-x-4">
                     <div className="flex-shrink-0">
-                      <div className="w-32 h-40 bg-muted border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center overflow-hidden">
+                      <div className="w-32 h-40 bg-[#eef5f0] border-2 border-dashed border-[#b2cebb80] rounded-lg flex items-center justify-center overflow-hidden">
                         {coverPreview ? (
                           <Image
                             src={coverPreview}
@@ -300,8 +296,8 @@ export default function BookEditPage() {
                           />
                         ) : (
                           <div className="text-center">
-                            <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground" />
-                            <p className="mt-1 text-sm text-muted-foreground">No cover</p>
+                            <ImageIcon className="mx-auto h-8 w-8 text-[#6f8d7a]" />
+                            <p className="mt-1 text-sm text-[#5d7766]">No cover</p>
                           </div>
                         )}
                       </div>
@@ -312,9 +308,9 @@ export default function BookEditPage() {
                         type="file"
                         accept="image/*"
                         onChange={handleCoverChange}
-                        className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
+                        className={`${formInputClass} file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#4a7c5a] file:text-white hover:file:bg-[#2d5038]`}
                       />
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <p className="mt-1 text-sm text-[#5d7766]">
                         Upload a cover image for your book. Accepted formats: JPG, PNG, GIF (max 10MB)
                       </p>
                     </div>
@@ -323,13 +319,13 @@ export default function BookEditPage() {
 
                 {/* PDF File Upload */}
                 <div className="space-y-2">
-                  <Label htmlFor="pdf">PDF File</Label>
+                  <Label htmlFor="pdf" className="text-[#2c3e30]">PDF File</Label>
                   <div className="flex items-start space-x-4">
                     <div className="flex-shrink-0">
-                      <div className="w-32 h-20 bg-muted border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center">
+                      <div className="w-32 h-20 bg-[#eef5f0] border-2 border-dashed border-[#b2cebb80] rounded-lg flex items-center justify-center">
                         <div className="text-center">
-                          <FileText className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
-                          <p className="text-xs text-muted-foreground">PDF File</p>
+                          <FileText className="mx-auto h-6 w-6 text-[#6f8d7a] mb-1" />
+                          <p className="text-xs text-[#5d7766]">PDF File</p>
                         </div>
                       </div>
                     </div>
@@ -339,15 +335,15 @@ export default function BookEditPage() {
                         type="file"
                         accept=".pdf,application/pdf"
                         onChange={handlePdfChange}
-                        className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
+                        className={`${formInputClass} file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#4a7c5a] file:text-white hover:file:bg-[#2d5038]`}
                       />
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <p className="mt-1 text-sm text-[#5d7766]">
                         Upload a new PDF file to replace the current one. Accepted format: PDF (max 100MB)
                       </p>
                       {pdfFileName && (
-                        <div className="mt-2 flex items-center gap-2 p-2 bg-muted rounded-md">
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">
+                        <div className="mt-2 flex items-center gap-2 p-2 bg-[#eef5f0] rounded-md border border-[#b2cebb66]">
+                          <FileText className="h-4 w-4 text-[#6f8d7a]" />
+                          <span className="text-sm text-[#5d7766]">
                             {pdfFile ? "New: " : "Current: "}{pdfFileName}
                           </span>
                           {pdfFile && (
@@ -363,52 +359,56 @@ export default function BookEditPage() {
 
                 {/* Book Title */}
                 <div className="space-y-2">
-                  <Label htmlFor="title">Book Title *</Label>
+                  <Label htmlFor="title" className="text-[#2c3e30]">Book Title *</Label>
                   <Input
                     id="title"
                     name="title"
                     defaultValue={book.title}
                     placeholder="Enter the book title"
                     required
+                    className={formInputClass}
                   />
                 </div>
 
                 {/* Author */}
                 <div className="space-y-2">
-                  <Label htmlFor="author">Author</Label>
+                  <Label htmlFor="author" className="text-[#2c3e30]">Author</Label>
                   <Input
                     id="author"
                     name="author"
                     defaultValue={book.author || ""}
                     placeholder="Enter the author's name"
+                    className={formInputClass}
                   />
                 </div>
 
                 {/* Description */}
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
+                  <Label htmlFor="description" className="text-[#2c3e30]">Description</Label>
                   <Textarea
                     id="description"
                     name="description"
                     defaultValue={book.description || ""}
                     placeholder="Enter a brief description of the book"
                     rows={4}
+                    className={formInputClass}
                   />
                 </div>
 
                 {/* Publisher and Year */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="publisher">Publisher</Label>
+                    <Label htmlFor="publisher" className="text-[#2c3e30]">Publisher</Label>
                     <Input
                       id="publisher"
                       name="publisher"
                       defaultValue={book.publisher || ""}
                       placeholder="Enter the publisher"
+                      className={formInputClass}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="year">Publication Year</Label>
+                    <Label htmlFor="year" className="text-[#2c3e30]">Publication Year</Label>
                     <Input
                       id="year"
                       name="year"
@@ -417,84 +417,90 @@ export default function BookEditPage() {
                       placeholder="Enter the publication year"
                       min="1000"
                       max={new Date().getFullYear()}
+                      className={formInputClass}
                     />
                   </div>
                 </div>
 
                 {/* ISBN */}
                 <div className="space-y-2">
-                  <Label htmlFor="isbn">ISBN</Label>
+                  <Label htmlFor="isbn" className="text-[#2c3e30]">ISBN</Label>
                   <Input
                     id="isbn"
                     name="isbn"
                     defaultValue={book.isbn || ""}
                     placeholder="Enter the ISBN"
+                    className={formInputClass}
                   />
                 </div>
 
                 {/* Tags */}
                 <div className="space-y-2">
-                  <Label htmlFor="tags">Tags</Label>
+                  <Label htmlFor="tags" className="text-[#2c3e30]">Tags</Label>
                   <Input
                     id="tags"
                     name="tags"
                     defaultValue={book.tags || ""}
                     placeholder="Enter tags separated by commas (e.g., fiction, mystery, thriller)"
+                    className={formInputClass}
                   />
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-[#5d7766]">
                     Separate multiple tags with commas to help categorize your book
                   </p>
                 </div>
 
                 {/* Video Section */}
-                <div className="space-y-4 pt-4 border-t">
+                <div className="space-y-4 pt-4 border-t border-[#b2cebb66]">
                   <h3 className="text-lg font-semibold">Related Video (Optional)</h3>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="video_url">Video URL</Label>
+                    <Label htmlFor="video_url" className="text-[#2c3e30]">Video URL</Label>
                     <Input
                       id="video_url"
                       name="video_url"
                       defaultValue={book.video_url || ""}
                       placeholder="Enter YouTube, Vimeo, or other video URL"
                       type="url"
+                      className={formInputClass}
                     />
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-[#5d7766]">
                       Paste a link to a video related to this book (YouTube, Vimeo, etc.)
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="video_title">Video Title</Label>
+                    <Label htmlFor="video_title" className="text-[#2c3e30]">Video Title</Label>
                     <Input
                       id="video_title"
                       name="video_title"
                       defaultValue={book.video_title || ""}
                       placeholder="Enter video title"
+                      className={formInputClass}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="video_description">Video Description</Label>
+                    <Label htmlFor="video_description" className="text-[#2c3e30]">Video Description</Label>
                     <Textarea
                       id="video_description"
                       name="video_description"
                       defaultValue={book.video_description || ""}
                       placeholder="Describe what the video is about"
                       rows={3}
+                      className={formInputClass}
                     />
                   </div>
                 </div>
 
                 {/* Submit Button */}
                 <div className="flex items-center justify-end space-x-2">
-                  <Button type="button" variant="outline" asChild>
+                  <Button type="button" variant="outline" asChild className="border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]">
                     <Link href={`/books/${book.id}`}>Cancel</Link>
                   </Button>
-                  <Button type="submit" disabled={saving}>
+                  <Button type="submit" disabled={saving} className="bg-[#4a7c5a] text-white hover:bg-[#2d5038]">
                     {saving ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground mr-2"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                         {(coverFile || pdfFile) ? "Uploading Files..." : "Updating Book..."}
                       </>
                     ) : (
@@ -505,9 +511,7 @@ export default function BookEditPage() {
                     )}
                   </Button>
                 </div>
-              </form>
-            </CardContent>
-          </Card>
+          </form>
         </div>
       </main>
     </div>

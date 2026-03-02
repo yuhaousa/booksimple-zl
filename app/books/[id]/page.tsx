@@ -67,6 +67,18 @@ interface Book {
   video_description: string | null
 }
 
+function formatHighlightDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 async function getBook(id: string) {
   const response = await fetch(`/api/books/${id}`, {
     cache: "no-store",
@@ -564,7 +576,7 @@ export default function BookDetailPage({ params }: BookDetailPageProps) {
                         <p className="text-sm mb-2 line-clamp-3">{highlight.text}</p>
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>Page {highlight.page_number}</span>
-                          <span>{new Date(highlight.created_at).toLocaleDateString()}</span>
+                          <span>{formatHighlightDateTime(highlight.created_at)}</span>
                         </div>
                       </div>
                     ))}

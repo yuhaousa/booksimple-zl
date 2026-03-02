@@ -70,7 +70,7 @@ export function BookActions({ bookId, fileUrl }: BookActionsProps) {
             </Button>
           )}
 
-          <Link href={`/books/${bookId}/preview`} className="block">
+          <Link href={`/books/${bookId}`} className="block">
             <Button variant="outline" className="w-full bg-transparent">
               <Brain className="w-4 h-4 mr-2" />
               Book Preview

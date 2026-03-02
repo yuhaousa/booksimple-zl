@@ -191,7 +191,7 @@ export default function BooksPage() {
                       return (
                         <div
                           key={book.id}
-                          className="flex items-start gap-3 rounded-xl border border-[#b2cebb66] bg-white/75 p-3 shadow-[0_4px_14px_rgba(74,124,90,0.08)]"
+                          className="flex items-stretch gap-3 rounded-xl border border-[#b2cebb66] bg-white/75 p-3 shadow-[0_4px_14px_rgba(74,124,90,0.08)]"
                         >
                           <span className="mt-2 w-5 text-center text-sm font-semibold text-[#5d7766]">{rank}</span>
 
@@ -222,13 +222,12 @@ export default function BooksPage() {
                                 <Star className="h-3.5 w-3.5" />
                                 {((book.id % 8) * 0.1 + 3.8).toFixed(1)}
                               </span>
-                              <span>Free</span>
                             </div>
                           </div>
 
-                          <div className="flex flex-col items-end gap-2">
+                          <div className="ml-auto flex h-[184px] flex-col items-end justify-end gap-2">
                             <Link
-                              href={`/books/${book.id}/preview`}
+                              href={`/books/${book.id}`}
                               className="inline-flex items-center gap-1 rounded-md border border-[#b2cebb80] bg-white px-2 py-1 text-xs text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
                             >
                               <Eye className="h-3.5 w-3.5" />
