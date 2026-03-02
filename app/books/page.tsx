@@ -191,41 +191,46 @@ export default function BooksPage() {
                       return (
                         <div
                           key={book.id}
-                          className="flex items-stretch gap-3 rounded-xl border border-[#b2cebb66] bg-white/75 p-3 shadow-[0_4px_14px_rgba(74,124,90,0.08)]"
+                          className="flex flex-col rounded-xl border border-[#b2cebb66] bg-white/75 p-3 shadow-[0_4px_14px_rgba(74,124,90,0.08)]"
                         >
-                          <span className="mt-2 w-5 text-center text-sm font-semibold text-[#5d7766]">{rank}</span>
+                          <div className="flex items-start gap-3">
+                            <span className="mt-2 w-5 text-center text-sm font-semibold text-[#5d7766]">{rank}</span>
 
-                          <Link
-                            href={`/books/${book.id}/reader`}
-                            className="relative h-[184px] w-[128px] shrink-0 overflow-hidden rounded-md"
-                          >
-                            <Image
-                              src={book.cover_url || "/abstract-book-cover.png"}
-                              alt={book.title || "Book cover"}
-                              fill
-                              className="object-cover"
-                              sizes="128px"
-                            />
-                          </Link>
-
-                          <div className="min-w-0 flex-1">
                             <Link
                               href={`/books/${book.id}/reader`}
-                              className="line-clamp-2 text-sm font-semibold text-[#2c3e30] hover:text-[#2d5038]"
+                              className="relative h-[184px] w-[128px] shrink-0 overflow-hidden rounded-md"
                             >
-                              {book.title || "Untitled"}
+                              <Image
+                                src={book.cover_url || "/abstract-book-cover.png"}
+                                alt={book.title || "Book cover"}
+                                fill
+                                className="object-cover"
+                                sizes="128px"
+                              />
                             </Link>
-                            <p className="mt-0.5 line-clamp-1 text-sm text-[#4d6655]">{book.author || "Unknown Author"}</p>
-                            <p className="mt-0.5 line-clamp-1 text-xs text-[#6f8d7a]">{shelfLabel}</p>
-                            <div className="mt-1 flex items-center gap-2 text-xs text-[#5d7766]">
-                              <span className="inline-flex items-center gap-1">
-                                <Star className="h-3.5 w-3.5" />
-                                {((book.id % 8) * 0.1 + 3.8).toFixed(1)}
-                              </span>
+
+                            <div className="min-w-0 flex-1">
+                              <Link
+                                href={`/books/${book.id}/reader`}
+                                className="line-clamp-2 text-sm font-semibold text-[#2c3e30] hover:text-[#2d5038]"
+                              >
+                                {book.title || "Untitled"}
+                              </Link>
+                              <p className="mt-0.5 line-clamp-1 text-sm text-[#4d6655]">{book.author || "Unknown Author"}</p>
+                              <p className="mt-0.5 line-clamp-1 text-xs text-[#6f8d7a]">{shelfLabel}</p>
+                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#5d7766]">
+                                {book.description?.trim() || "No description available."}
+                              </p>
+                              <div className="mt-2 flex items-center gap-2 text-xs text-[#5d7766]">
+                                <span className="inline-flex items-center gap-1">
+                                  <Star className="h-3.5 w-3.5" />
+                                  {((book.id % 8) * 0.1 + 3.8).toFixed(1)}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
-                          <div className="ml-auto flex h-[184px] flex-col items-end justify-end gap-2">
+                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#b2cebb66] pt-3">
                             <Link
                               href={`/books/${book.id}`}
                               className="inline-flex items-center gap-1 rounded-md border border-[#b2cebb80] bg-white px-2 py-1 text-xs text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
