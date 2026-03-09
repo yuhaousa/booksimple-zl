@@ -3,12 +3,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { getD1Database } from "@/lib/server/cloudflare-bindings"
 import { resolveSessionUserIdFromRequest } from "@/lib/server/session"
 
+// Resend HTTP API — works in Cloudflare Workers (no TCP sockets needed)
 const KEYS = {
-  host: "email_host",
-  port: "email_port",
-  user: "email_user",
-  password: "email_password",
+  apiKey: "email_resend_api_key",
+  from: "email_from",
   fromName: "email_from_name",
+  to: "email_to",
 } as const
 
 function normalizeValue(value: unknown) {
@@ -36,7 +36,10 @@ async function requireAdminAccess(request: NextRequest) {
     }
   } catch (error) {
     return {
-      error: NextResponse.json({ error: "Failed to verify admin", details: error instanceof Error ? error.message : "Unknown" }, { status: 500 }),
+      error: NextResponse.json(
+        { error: "Failed to verify admin", details: error instanceof Error ? error.message : "Unknown" },
+        { status: 500 }
+      ),
       db: null,
       userId: null,
     }
@@ -46,8 +49,8 @@ async function requireAdminAccess(request: NextRequest) {
 
 async function getEmailSettings(db: any) {
   const rows = (await db
-    .prepare(`SELECT setting_key, setting_value FROM admin_settings WHERE setting_key IN (?, ?, ?, ?, ?)`)
-    .bind(KEYS.host, KEYS.port, KEYS.user, KEYS.password, KEYS.fromName)
+    .prepare(`SELECT setting_key, setting_value FROM admin_settings WHERE setting_key IN (?, ?, ?, ?)`)
+    .bind(KEYS.apiKey, KEYS.from, KEYS.fromName, KEYS.to)
     .all()) as { results: { setting_key: string; setting_value: string }[] }
 
   const map: Record<string, string> = {}
@@ -55,14 +58,13 @@ async function getEmailSettings(db: any) {
     map[row.setting_key] = row.setting_value
   }
 
-  const password = map[KEYS.password]
+  const apiKey = map[KEYS.apiKey]
   return {
-    host: map[KEYS.host] ?? null,
-    port: map[KEYS.port] ?? null,
-    user: map[KEYS.user] ?? null,
-    passwordConfigured: Boolean(password),
-    passwordPreview: password ? `${password.slice(0, 4)}${"*".repeat(Math.max(0, password.length - 4))}` : null,
+    apiKeyConfigured: Boolean(apiKey),
+    apiKeyPreview: apiKey ? `${apiKey.slice(0, 7)}${"*".repeat(Math.max(0, apiKey.length - 7))}` : null,
+    from: map[KEYS.from] ?? null,
     fromName: map[KEYS.fromName] ?? null,
+    to: map[KEYS.to] ?? null,
   }
 }
 
@@ -73,7 +75,10 @@ export async function GET(request: NextRequest) {
     const emailSettings = await getEmailSettings(access.db)
     return NextResponse.json({ success: true, ...emailSettings })
   } catch (error) {
-    return NextResponse.json({ error: "Failed to load email settings", details: error instanceof Error ? error.message : "Unknown" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to load email settings", details: error instanceof Error ? error.message : "Unknown" },
+      { status: 500 }
+    )
   }
 }
 
@@ -88,11 +93,10 @@ export async function PUT(request: NextRequest) {
   const updates: { setting_key: string; setting_value: string; updated_at: string; updated_by: string }[] = []
 
   const fieldMap: [string, keyof typeof KEYS][] = [
-    ["host", "host"],
-    ["port", "port"],
-    ["user", "user"],
-    ["password", "password"],
+    ["apiKey", "apiKey"],
+    ["from", "from"],
     ["fromName", "fromName"],
+    ["to", "to"],
   ]
 
   for (const [bodyKey, settingKey] of fieldMap) {
@@ -126,7 +130,10 @@ export async function PUT(request: NextRequest) {
       for (const s of statements) await s.run()
     }
   } catch (error) {
-    return NextResponse.json({ error: "Failed to save email settings", details: error instanceof Error ? error.message : "Unknown" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to save email settings", details: error instanceof Error ? error.message : "Unknown" },
+      { status: 500 }
+    )
   }
 
   const emailSettings = await getEmailSettings(db)
@@ -147,7 +154,10 @@ export async function DELETE(request: NextRequest) {
       .bind(...allKeys)
       .run()
   } catch (error) {
-    return NextResponse.json({ error: "Failed to clear email settings", details: error instanceof Error ? error.message : "Unknown" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to clear email settings", details: error instanceof Error ? error.message : "Unknown" },
+      { status: 500 }
+    )
   }
 
   return NextResponse.json({ success: true, message: "Email settings cleared" })

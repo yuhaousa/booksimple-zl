@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/hooks/use-auth"
-import { Eye, EyeOff, KeyRound, Loader2, Mail, RefreshCw, ShieldAlert, Trash2, Upload } from "lucide-react"
+import { Eye, EyeOff, KeyRound, Loader2, Mail, RefreshCw, Send, ShieldAlert, Trash2, Upload } from "lucide-react"
 
 type AIProvider = "openai" | "minimax" | "google"
 
@@ -132,14 +132,14 @@ export default function AdminSettingsPage() {
   const [logoUploading, setLogoUploading] = useState(false)
   const [bannersUploading, setBannersUploading] = useState(false)
 
-  const [showEmailPassword, setShowEmailPassword] = useState(false)
-  const [emailHost, setEmailHost] = useState("smtp.gmail.com")
-  const [emailPort, setEmailPort] = useState("587")
-  const [emailUser, setEmailUser] = useState("")
-  const [emailPassword, setEmailPassword] = useState("")
+  const [showResendKey, setShowResendKey] = useState(false)
+  const [emailResendApiKey, setEmailResendApiKey] = useState("")
+  const [emailFrom, setEmailFrom] = useState("")
   const [emailFromName, setEmailFromName] = useState("")
-  const [emailPasswordConfigured, setEmailPasswordConfigured] = useState(false)
-  const [emailPasswordPreview, setEmailPasswordPreview] = useState<string | null>(null)
+  const [emailTo, setEmailTo] = useState("")
+  const [emailApiKeyConfigured, setEmailApiKeyConfigured] = useState(false)
+  const [emailApiKeyPreview, setEmailApiKeyPreview] = useState<string | null>(null)
+  const [sendingTestEmail, setSendingTestEmail] = useState(false)
 
   const hydrateForm = (result: AISettingsResponse) => {
     setOpenaiModel(result.openai.model || "gpt-4o-mini")
@@ -229,12 +229,11 @@ export default function AdminSettingsPage() {
       const response = await fetch("/api/admin/settings/email", { cache: "no-store" })
       const result = await response.json().catch(() => null)
       if (!response.ok || !result?.success) return
-      if (result.host) setEmailHost(result.host)
-      if (result.port) setEmailPort(result.port)
-      if (result.user) setEmailUser(result.user)
+      if (result.from) setEmailFrom(result.from)
       if (result.fromName) setEmailFromName(result.fromName)
-      setEmailPasswordConfigured(Boolean(result.passwordConfigured))
-      setEmailPasswordPreview(result.passwordPreview ?? null)
+      if (result.to) setEmailTo(result.to)
+      setEmailApiKeyConfigured(Boolean(result.apiKeyConfigured))
+      setEmailApiKeyPreview(result.apiKeyPreview ?? null)
     } catch {
       // silently ignore
     }
@@ -245,11 +244,10 @@ export default function AdminSettingsPage() {
     setSaving(true)
     try {
       const payload: Record<string, string> = {}
-      if (emailHost.trim()) payload.host = emailHost.trim()
-      if (emailPort.trim()) payload.port = emailPort.trim()
-      if (emailUser.trim()) payload.user = emailUser.trim()
-      if (emailPassword.trim()) payload.password = emailPassword.trim()
+      if (emailResendApiKey.trim()) payload.apiKey = emailResendApiKey.trim()
+      if (emailFrom.trim()) payload.from = emailFrom.trim()
       if (emailFromName.trim()) payload.fromName = emailFromName.trim()
+      if (emailTo.trim()) payload.to = emailTo.trim()
       if (Object.keys(payload).length === 0) {
         toast({ title: "Nothing to save", description: "Fill in at least one field.", variant: "destructive" })
         return
@@ -263,9 +261,9 @@ export default function AdminSettingsPage() {
       if (!response.ok || !result?.success) {
         throw new Error(result?.details || result?.error || "Failed to save email settings")
       }
-      setEmailPassword("")
-      setEmailPasswordConfigured(Boolean(result.passwordConfigured))
-      setEmailPasswordPreview(result.passwordPreview ?? null)
+      setEmailResendApiKey("")
+      setEmailApiKeyConfigured(Boolean(result.apiKeyConfigured))
+      setEmailApiKeyPreview(result.apiKeyPreview ?? null)
       toast({ title: "Saved", description: "Email settings updated." })
     } catch (error: any) {
       toast({ title: "Save failed", description: error?.message || "Unknown error", variant: "destructive" })
@@ -282,18 +280,33 @@ export default function AdminSettingsPage() {
       if (!response.ok || !result?.success) {
         throw new Error(result?.details || result?.error || "Failed to clear email settings")
       }
-      setEmailHost("smtp.gmail.com")
-      setEmailPort("587")
-      setEmailUser("")
-      setEmailPassword("")
+      setEmailResendApiKey("")
+      setEmailFrom("")
       setEmailFromName("")
-      setEmailPasswordConfigured(false)
-      setEmailPasswordPreview(null)
+      setEmailTo("")
+      setEmailApiKeyConfigured(false)
+      setEmailApiKeyPreview(null)
       toast({ title: "Cleared", description: "Email settings removed." })
     } catch (error: any) {
       toast({ title: "Clear failed", description: error?.message || "Unknown error", variant: "destructive" })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSendTestEmail = async () => {
+    setSendingTestEmail(true)
+    try {
+      const response = await fetch("/api/admin/settings/email/test", { method: "POST" })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to send test email")
+      }
+      toast({ title: "Test email sent", description: result.message || "Check your inbox." })
+    } catch (error: any) {
+      toast({ title: "Send failed", description: error?.message || "Unknown error", variant: "destructive" })
+    } finally {
+      setSendingTestEmail(false)
     }
   }
 
@@ -588,55 +601,32 @@ export default function AdminSettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Mail className="h-5 w-5" />
-                Email / SMTP Settings
+                Email Settings (Resend)
               </CardTitle>
-              <CardDescription>Configure the outgoing mailbox for system emails (e.g. Gmail SMTP or any SMTP provider).</CardDescription>
+              <CardDescription>
+                Uses the{" "}
+                <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="underline">
+                  Resend
+                </a>{" "}
+                HTTP API — works natively on Cloudflare Workers. Sign up for a free account, verify your sending domain, then paste your API key below.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {emailPasswordConfigured && (
+              {emailApiKeyConfigured && (
                 <div className="text-sm text-muted-foreground">
-                  Password: {emailPasswordPreview} (saved)
+                  API Key: {emailApiKeyPreview} (saved)
                 </div>
               )}
               <form onSubmit={handleSaveEmail} className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
-                  <Label htmlFor="email-host">SMTP Host</Label>
-                  <Input
-                    id="email-host"
-                    value={emailHost}
-                    onChange={(e) => setEmailHost(e.target.value)}
-                    placeholder="smtp.gmail.com"
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
-                  <Label htmlFor="email-port">SMTP Port</Label>
-                  <Input
-                    id="email-port"
-                    value={emailPort}
-                    onChange={(e) => setEmailPort(e.target.value)}
-                    placeholder="587"
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
-                  <Label htmlFor="email-user">Email Address</Label>
-                  <Input
-                    id="email-user"
-                    type="email"
-                    value={emailUser}
-                    onChange={(e) => setEmailUser(e.target.value)}
-                    placeholder="you@gmail.com"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
-                  <Label htmlFor="email-password">App Password</Label>
+                  <Label htmlFor="email-resend-key">Resend API Key</Label>
                   <div className="relative">
                     <Input
-                      id="email-password"
-                      type={showEmailPassword ? "text" : "password"}
-                      value={emailPassword}
-                      onChange={(e) => setEmailPassword(e.target.value)}
-                      placeholder={emailPasswordConfigured ? "Leave blank to keep existing" : "Enter app password"}
+                      id="email-resend-key"
+                      type={showResendKey ? "text" : "password"}
+                      value={emailResendApiKey}
+                      onChange={(e) => setEmailResendApiKey(e.target.value)}
+                      placeholder={emailApiKeyConfigured ? "Leave blank to keep existing" : "re_..."}
                       autoComplete="off"
                       className="pr-10"
                     />
@@ -645,11 +635,22 @@ export default function AdminSettingsPage() {
                       variant="ghost"
                       size="sm"
                       className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowEmailPassword((v) => !v)}
+                      onClick={() => setShowResendKey((v) => !v)}
                     >
-                      {showEmailPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showResendKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
+                  <Label htmlFor="email-from">From Email</Label>
+                  <Input
+                    id="email-from"
+                    type="email"
+                    value={emailFrom}
+                    onChange={(e) => setEmailFrom(e.target.value)}
+                    placeholder="no-reply@yourdomain.com"
+                    autoComplete="off"
+                  />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
                   <Label htmlFor="email-from-name">From Name</Label>
@@ -660,10 +661,34 @@ export default function AdminSettingsPage() {
                     placeholder="Book365"
                   />
                 </div>
+                <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
+                  <Label htmlFor="email-to">Test Recipient</Label>
+                  <Input
+                    id="email-to"
+                    type="email"
+                    value={emailTo}
+                    onChange={(e) => setEmailTo(e.target.value)}
+                    placeholder="admin@example.com"
+                    autoComplete="off"
+                  />
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={saving || loadingSettings}>
                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Save Email Settings
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={sendingTestEmail || saving}
+                    onClick={handleSendTestEmail}
+                  >
+                    {sendingTestEmail ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="mr-2 h-4 w-4" />
+                    )}
+                    Send Test Email
                   </Button>
                   <Button type="button" variant="destructive" disabled={saving} onClick={handleClearEmail}>
                     Clear All
