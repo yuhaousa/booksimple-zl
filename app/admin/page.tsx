@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, BookOpen, FileText, TrendingUp, Calendar } from "lucide-react"
+import { Users, BookOpen, FileText, TrendingUp, Calendar, Highlighter, StickyNote } from "lucide-react"
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts"
 
 type Book = {
   id: number
@@ -17,6 +26,15 @@ type Stats = {
   totalBooks: number
   totalNotes: number
   recentActivity: number
+}
+
+type DayStat = {
+  day: string
+  date: string
+  booksAdded: number
+  logins: number
+  highlights: number
+  readingNotes: number
 }
 
 async function fetchAllBooks() {
@@ -44,6 +62,7 @@ async function fetchAllBooks() {
 
 export default function AdminOverview() {
   const [books, setBooks] = useState<Book[]>([])
+  const [chartData, setChartData] = useState<DayStat[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -53,8 +72,14 @@ export default function AdminOverview() {
   const loadOverview = async () => {
     setLoading(true)
     try {
-      const allBooks = await fetchAllBooks()
+      const [allBooks, statsRes] = await Promise.all([
+        fetchAllBooks(),
+        fetch("/api/admin/stats", { cache: "no-store" }).then((r) => r.json()).catch(() => null),
+      ])
       setBooks(allBooks)
+      if (statsRes?.success && Array.isArray(statsRes.data)) {
+        setChartData(statsRes.data as DayStat[])
+      }
     } catch (error) {
       console.error("Error loading admin overview:", error)
       setBooks([])
@@ -134,6 +159,14 @@ export default function AdminOverview() {
             </Card>
           ))}
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="pb-2"><div className="h-4 bg-muted rounded w-1/2" /></CardHeader>
+              <CardContent><div className="h-48 bg-muted rounded" /></CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     )
   }
@@ -142,7 +175,7 @@ export default function AdminOverview() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Admin Overview</h1>
-        <p className="text-muted-foreground mt-2">Cloudflare D1/R2 overview for this project</p>
+        <p className="text-muted-foreground mt-2">Overview of the platform</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -158,6 +191,107 @@ export default function AdminOverview() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Bar charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-4 w-4 text-[#4a7c5a]" />
+              Daily Logins (last 14 days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  formatter={(value: number) => [value, "Logins"]}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Bar dataKey="logins" fill="#4a7c5a" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BookOpen className="h-4 w-4 text-[#2d5038]" />
+              Daily Books Added (last 14 days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  formatter={(value: number) => [value, "Books Added"]}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Bar dataKey="booksAdded" fill="#7aaa87" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Highlighter className="h-4 w-4 text-[#e8a838]" />
+              Daily Highlights Added (last 14 days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  formatter={(value: number) => [value, "Highlights"]}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Bar dataKey="highlights" fill="#e8a838" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <StickyNote className="h-4 w-4 text-[#6b8dd6]" />
+              Daily Reading Notes Added (last 14 days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  formatter={(value: number) => [value, "Reading Notes"]}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Bar dataKey="readingNotes" fill="#6b8dd6" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -197,7 +331,7 @@ export default function AdminOverview() {
                       <td className="p-3">
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                           <Calendar className="h-3 w-3" />
-                          <span>{new Date(book.created_at).toLocaleDateString()}</span>
+                          <span>{new Date(book.created_at).toLocaleDateString("en-SG", { timeZone: "Asia/Singapore" })}</span>
                         </div>
                       </td>
                     </tr>

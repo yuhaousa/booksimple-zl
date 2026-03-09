@@ -128,6 +128,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 })
     }
 
+    // Record login event (fire-and-forget, do not fail login on error)
+    db.prepare("INSERT INTO login_log (user_id, logged_in_at) VALUES (?, CURRENT_TIMESTAMP)")
+      .bind(row.user_id)
+      .run()
+      .catch(() => {})
+
     const token = createSessionToken(row.user_id)
     const response = NextResponse.json({
       success: true,

@@ -162,6 +162,7 @@ export default function AdminBooks() {
                     <th className="text-left p-4 font-medium text-foreground">Book Title</th>
                     <th className="text-left p-4 font-medium text-foreground">Author</th>
                     <th className="text-left p-4 font-medium text-foreground">Publisher</th>
+                    <th className="text-left p-4 font-medium text-foreground">Tags</th>
                     <th className="text-left p-4 font-medium text-foreground">Updated</th>
                     <th className="text-left p-4 font-medium text-foreground">PDF</th>
                     <th className="text-left p-4 font-medium text-foreground">Actions</th>
@@ -192,11 +193,24 @@ export default function AdminBooks() {
                         <div className="text-sm text-foreground">{book.publisher || "Unknown Publisher"}</div>
                       </td>
                       <td className="p-4">
+                        {book.tags ? (
+                          <div className="flex flex-wrap gap-1 max-w-[160px]">
+                            {book.tags.split(",").slice(0, 4).map((tag, i) => (
+                              <span key={i} className="rounded-md border border-[#b2cebb] bg-[#d6e8dc] px-1.5 py-0.5 text-xs font-medium text-[#4a7c5a]">
+                                {tag.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-4">
                         <div className="text-sm text-foreground">
-                          {new Date(book.updated_at || book.created_at).toLocaleDateString()}
+                          {new Date(book.updated_at || book.created_at).toLocaleDateString("en-SG", { timeZone: "Asia/Singapore" })}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(book.updated_at || book.created_at).toLocaleTimeString()}
+                          {new Date(book.updated_at || book.created_at).toLocaleTimeString("en-SG", { timeZone: "Asia/Singapore" })}
                         </div>
                       </td>
                       <td className="p-4">

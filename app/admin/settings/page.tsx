@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/hooks/use-auth"
-import { Eye, EyeOff, KeyRound, Loader2, RefreshCw, ShieldAlert, Trash2, Upload } from "lucide-react"
+import { Eye, EyeOff, KeyRound, Loader2, Mail, RefreshCw, ShieldAlert, Trash2, Upload } from "lucide-react"
 
 type AIProvider = "openai" | "minimax" | "google"
 
@@ -132,6 +132,15 @@ export default function AdminSettingsPage() {
   const [logoUploading, setLogoUploading] = useState(false)
   const [bannersUploading, setBannersUploading] = useState(false)
 
+  const [showEmailPassword, setShowEmailPassword] = useState(false)
+  const [emailHost, setEmailHost] = useState("smtp.gmail.com")
+  const [emailPort, setEmailPort] = useState("587")
+  const [emailUser, setEmailUser] = useState("")
+  const [emailPassword, setEmailPassword] = useState("")
+  const [emailFromName, setEmailFromName] = useState("")
+  const [emailPasswordConfigured, setEmailPasswordConfigured] = useState(false)
+  const [emailPasswordPreview, setEmailPasswordPreview] = useState<string | null>(null)
+
   const hydrateForm = (result: AISettingsResponse) => {
     setOpenaiModel(result.openai.model || "gpt-4o-mini")
     setMinimaxModel(result.minimax.model || "MiniMax-M2.5")
@@ -165,6 +174,7 @@ export default function AdminSettingsPage() {
       setSettings(result)
       hydrateForm(result)
       await fetchSiteContentSettings(false)
+      await fetchEmailSettings()
       setIsAdmin(true)
     } catch (error: any) {
       toast({
@@ -211,6 +221,79 @@ export default function AdminSettingsPage() {
           variant: "destructive",
         })
       }
+    }
+  }
+
+  const fetchEmailSettings = async () => {
+    try {
+      const response = await fetch("/api/admin/settings/email", { cache: "no-store" })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) return
+      if (result.host) setEmailHost(result.host)
+      if (result.port) setEmailPort(result.port)
+      if (result.user) setEmailUser(result.user)
+      if (result.fromName) setEmailFromName(result.fromName)
+      setEmailPasswordConfigured(Boolean(result.passwordConfigured))
+      setEmailPasswordPreview(result.passwordPreview ?? null)
+    } catch {
+      // silently ignore
+    }
+  }
+
+  const handleSaveEmail = async (e: FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const payload: Record<string, string> = {}
+      if (emailHost.trim()) payload.host = emailHost.trim()
+      if (emailPort.trim()) payload.port = emailPort.trim()
+      if (emailUser.trim()) payload.user = emailUser.trim()
+      if (emailPassword.trim()) payload.password = emailPassword.trim()
+      if (emailFromName.trim()) payload.fromName = emailFromName.trim()
+      if (Object.keys(payload).length === 0) {
+        toast({ title: "Nothing to save", description: "Fill in at least one field.", variant: "destructive" })
+        return
+      }
+      const response = await fetch("/api/admin/settings/email", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to save email settings")
+      }
+      setEmailPassword("")
+      setEmailPasswordConfigured(Boolean(result.passwordConfigured))
+      setEmailPasswordPreview(result.passwordPreview ?? null)
+      toast({ title: "Saved", description: "Email settings updated." })
+    } catch (error: any) {
+      toast({ title: "Save failed", description: error?.message || "Unknown error", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleClearEmail = async () => {
+    setSaving(true)
+    try {
+      const response = await fetch("/api/admin/settings/email", { method: "DELETE" })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to clear email settings")
+      }
+      setEmailHost("smtp.gmail.com")
+      setEmailPort("587")
+      setEmailUser("")
+      setEmailPassword("")
+      setEmailFromName("")
+      setEmailPasswordConfigured(false)
+      setEmailPasswordPreview(null)
+      toast({ title: "Cleared", description: "Email settings removed." })
+    } catch (error: any) {
+      toast({ title: "Clear failed", description: error?.message || "Unknown error", variant: "destructive" })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -285,6 +368,7 @@ export default function AdminSettingsPage() {
       return
     }
     payload.openaiApiKey = key
+    if (openaiModel.trim()) payload.openaiModel = openaiModel.trim()
     await saveSettings(payload)
   }
 
@@ -301,6 +385,8 @@ export default function AdminSettingsPage() {
       return
     }
     payload.minimaxApiKey = key
+    if (minimaxModel.trim()) payload.minimaxModel = minimaxModel.trim()
+    if (minimaxBaseUrl.trim()) payload.minimaxBaseUrl = minimaxBaseUrl.trim()
     await saveSettings(payload)
   }
 
@@ -317,6 +403,8 @@ export default function AdminSettingsPage() {
       return
     }
     payload.googleApiKey = key
+    if (googleModel.trim()) payload.googleModel = googleModel.trim()
+    if (googleBaseUrl.trim()) payload.googleBaseUrl = googleBaseUrl.trim()
     await saveSettings(payload)
   }
 
@@ -488,11 +576,103 @@ export default function AdminSettingsPage() {
       <Tabs defaultValue="branding" className="w-full">
         <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="branding">Site Branding</TabsTrigger>
+          <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="models">Model Selection</TabsTrigger>
           <TabsTrigger value="openai">OpenAI</TabsTrigger>
           <TabsTrigger value="minimax">MiniMax</TabsTrigger>
           <TabsTrigger value="google">Google</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="email">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Email / SMTP Settings
+              </CardTitle>
+              <CardDescription>Configure the outgoing mailbox for system emails (e.g. Gmail SMTP or any SMTP provider).</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {emailPasswordConfigured && (
+                <div className="text-sm text-muted-foreground">
+                  Password: {emailPasswordPreview} (saved)
+                </div>
+              )}
+              <form onSubmit={handleSaveEmail} className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
+                  <Label htmlFor="email-host">SMTP Host</Label>
+                  <Input
+                    id="email-host"
+                    value={emailHost}
+                    onChange={(e) => setEmailHost(e.target.value)}
+                    placeholder="smtp.gmail.com"
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
+                  <Label htmlFor="email-port">SMTP Port</Label>
+                  <Input
+                    id="email-port"
+                    value={emailPort}
+                    onChange={(e) => setEmailPort(e.target.value)}
+                    placeholder="587"
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
+                  <Label htmlFor="email-user">Email Address</Label>
+                  <Input
+                    id="email-user"
+                    type="email"
+                    value={emailUser}
+                    onChange={(e) => setEmailUser(e.target.value)}
+                    placeholder="you@gmail.com"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
+                  <Label htmlFor="email-password">App Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="email-password"
+                      type={showEmailPassword ? "text" : "password"}
+                      value={emailPassword}
+                      onChange={(e) => setEmailPassword(e.target.value)}
+                      placeholder={emailPasswordConfigured ? "Leave blank to keep existing" : "Enter app password"}
+                      autoComplete="off"
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowEmailPassword((v) => !v)}
+                    >
+                      {showEmailPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-center">
+                  <Label htmlFor="email-from-name">From Name</Label>
+                  <Input
+                    id="email-from-name"
+                    value={emailFromName}
+                    onChange={(e) => setEmailFromName(e.target.value)}
+                    placeholder="Book365"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" disabled={saving || loadingSettings}>
+                    {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Email Settings
+                  </Button>
+                  <Button type="button" variant="destructive" disabled={saving} onClick={handleClearEmail}>
+                    Clear All
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="models">
           <Card>
@@ -604,7 +784,7 @@ export default function AdminSettingsPage() {
             <CardContent className="space-y-4">
               <div className="text-sm text-muted-foreground">
                 Key: {settings.openai.databaseKeyConfigured ? settings.openai.databaseKeyPreview : "not set"}
-                {settings.openai.keyUpdatedAt && ` - Updated ${new Date(settings.openai.keyUpdatedAt).toLocaleString()}`}
+                {settings.openai.keyUpdatedAt && ` - Updated ${new Date(settings.openai.keyUpdatedAt).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}`}
               </div>
               <form onSubmit={handleSaveOpenAIKey} className="space-y-3">
                 <div className="space-y-2">
@@ -630,6 +810,15 @@ export default function AdminSettingsPage() {
                     </Button>
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="openai-model-tab">Model</Label>
+                  <Input
+                    id="openai-model-tab"
+                    value={openaiModel}
+                    onChange={(e) => setOpenaiModel(e.target.value)}
+                    placeholder="gpt-4o-mini"
+                  />
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={saving || loadingSettings}>
                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -653,7 +842,7 @@ export default function AdminSettingsPage() {
             <CardContent className="space-y-4">
               <div className="text-sm text-muted-foreground">
                 Key: {settings.minimax.databaseKeyConfigured ? settings.minimax.databaseKeyPreview : "not set"}
-                {settings.minimax.keyUpdatedAt && ` - Updated ${new Date(settings.minimax.keyUpdatedAt).toLocaleString()}`}
+                {settings.minimax.keyUpdatedAt && ` - Updated ${new Date(settings.minimax.keyUpdatedAt).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}`}
               </div>
               <form onSubmit={handleSaveMiniMaxKey} className="space-y-3">
                 <div className="space-y-2">
@@ -678,6 +867,24 @@ export default function AdminSettingsPage() {
                     </Button>
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="minimax-model-tab">Model</Label>
+                  <Input
+                    id="minimax-model-tab"
+                    value={minimaxModel}
+                    onChange={(e) => setMinimaxModel(e.target.value)}
+                    placeholder="MiniMax-M2.5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="minimax-baseurl-tab">Base URL</Label>
+                  <Input
+                    id="minimax-baseurl-tab"
+                    value={minimaxBaseUrl}
+                    onChange={(e) => setMinimaxBaseUrl(e.target.value)}
+                    placeholder="https://api.minimax.io/v1"
+                  />
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={saving || loadingSettings}>
                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -701,7 +908,7 @@ export default function AdminSettingsPage() {
             <CardContent className="space-y-4">
               <div className="text-sm text-muted-foreground">
                 Key: {settings.google.databaseKeyConfigured ? settings.google.databaseKeyPreview : "not set"}
-                {settings.google.keyUpdatedAt && ` - Updated ${new Date(settings.google.keyUpdatedAt).toLocaleString()}`}
+                {settings.google.keyUpdatedAt && ` - Updated ${new Date(settings.google.keyUpdatedAt).toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}`}
               </div>
               <form onSubmit={handleSaveGoogleKey} className="space-y-3">
                 <div className="space-y-2">
@@ -725,6 +932,24 @@ export default function AdminSettingsPage() {
                       {showGoogleKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="google-model-tab">Model</Label>
+                  <Input
+                    id="google-model-tab"
+                    value={googleModel}
+                    onChange={(e) => setGoogleModel(e.target.value)}
+                    placeholder="gemini-2.0-flash"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="google-baseurl-tab">Base URL</Label>
+                  <Input
+                    id="google-baseurl-tab"
+                    value={googleBaseUrl}
+                    onChange={(e) => setGoogleBaseUrl(e.target.value)}
+                    placeholder="https://generativelanguage.googleapis.com/v1beta/openai/"
+                  />
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={saving || loadingSettings}>

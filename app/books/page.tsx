@@ -219,7 +219,7 @@ export default function BooksPage() {
                               {book.tags && (
                                 <div className="mt-2 flex flex-wrap gap-1">
                                   {book.tags.split(",").slice(0, 3).map((tag, i) => (
-                                    <span key={i} className="rounded-full bg-[#d6e8dc] px-2 py-0.5 text-xs text-[#4a7c5a]">
+                                    <span key={i} className="rounded-md border border-[#b2cebb] bg-[#d6e8dc] px-2 py-0.5 text-xs font-medium text-[#4a7c5a]">
                                       {tag.trim()}
                                     </span>
                                   ))}

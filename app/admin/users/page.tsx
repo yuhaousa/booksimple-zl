@@ -40,14 +40,16 @@ type AdminUsersApiResponse = {
   details?: string
 }
 
+const SGT = "Asia/Singapore"
+
 function asDateLabel(value: string | null | undefined) {
   if (!value || !Number.isFinite(Date.parse(value))) return "N/A"
-  return new Date(value).toLocaleDateString()
+  return new Date(value).toLocaleDateString("en-SG", { timeZone: SGT })
 }
 
 function asTimeLabel(value: string | null | undefined) {
   if (!value || !Number.isFinite(Date.parse(value))) return "N/A"
-  return new Date(value).toLocaleTimeString()
+  return new Date(value).toLocaleTimeString("en-SG", { timeZone: SGT })
 }
 
 export default function AdminUsers() {

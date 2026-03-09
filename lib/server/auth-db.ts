@@ -87,6 +87,17 @@ export async function ensureAuthTables(db: any) {
   await ensureColumn(db, "auth_credentials", "created_at", "created_at TEXT")
   await ensureColumn(db, "auth_credentials", "updated_at", "updated_at TEXT")
 
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS login_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        logged_in_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`
+    )
+    .run()
+
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_user_list_email_nocase ON user_list(email COLLATE NOCASE)").run()
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_user_list_auth_user_id ON user_list(auth_user_id)").run()
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_login_log_date ON login_log(logged_in_at)").run()
 }
