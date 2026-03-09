@@ -119,21 +119,6 @@ export default function BooksPage() {
     return [...books].sort((a, b) => parseTimestamp(b.created_at) - parseTimestamp(a.created_at))
   }, [books])
 
-  const rankedColumns = useMemo(() => {
-    if (rankedBooks.length === 0) return [] as Array<Array<{ book: Book; rank: number }>>
-
-    const rowsPerColumn = Math.max(1, Math.ceil(rankedBooks.length / 3))
-    const baseRank = (currentPage - 1) * BOOKS_PER_PAGE
-
-    return Array.from({ length: 3 }, (_, columnIndex) =>
-      rankedBooks
-        .slice(columnIndex * rowsPerColumn, (columnIndex + 1) * rowsPerColumn)
-        .map((book, rowIndex) => ({
-          book,
-          rank: baseRank + columnIndex * rowsPerColumn + rowIndex + 1,
-        }))
-    ).filter((column) => column.length > 0)
-  }, [currentPage, rankedBooks])
 
   const pageNumbers = useMemo(() => {
     return Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -168,7 +153,7 @@ export default function BooksPage() {
 
         {isLoading ? (
           <div className="space-y-6 p-1 md:p-0">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
               {Array.from({ length: 9 }).map((_, index) => (
                 <div key={index} className="h-40 rounded-xl bg-[#d6e8dc] animate-pulse" />
               ))}
@@ -182,13 +167,12 @@ export default function BooksPage() {
         ) : (
           <>
             <section className="p-1 md:p-0">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {rankedColumns.map((column, columnIndex) => (
-                  <div key={`column-${columnIndex}`} className="space-y-3">
-                    {column.map(({ book, rank }) => {
-                      const shelfLabel = book.tags?.split(",")[0]?.trim() || book.publisher || "General"
-                      const isOwner = Boolean(user?.id && book.user_id === user.id)
-                      return (
+              <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
+                {rankedBooks.map((book, index) => {
+                  const rank = (currentPage - 1) * BOOKS_PER_PAGE + index + 1
+                  const shelfLabel = book.tags?.split(",")[0]?.trim() || null
+                  const isOwner = Boolean(user?.id && book.user_id === user.id)
+                  return (
                         <div
                           key={book.id}
                           className="flex flex-col rounded-xl border border-[#b2cebb66] bg-white/75 p-3 shadow-[0_4px_14px_rgba(74,124,90,0.08)]"
@@ -217,7 +201,12 @@ export default function BooksPage() {
                                 {book.title || "Untitled"}
                               </Link>
                               <p className="mt-0.5 line-clamp-1 text-sm text-[#4d6655]">{book.author || "Unknown Author"}</p>
-                              <p className="mt-0.5 line-clamp-1 text-xs text-[#6f8d7a]">{shelfLabel}</p>
+                              {book.publisher && (
+                                <p className="mt-0.5 line-clamp-1 text-xs text-[#6f8d7a]">{book.publisher}</p>
+                              )}
+                              {shelfLabel && (
+                                <p className="mt-0.5 line-clamp-1 text-xs text-[#6f8d7a]">{shelfLabel}</p>
+                              )}
                               <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#5d7766]">
                                 {book.description?.trim() || "No description available."}
                               </p>
@@ -227,6 +216,15 @@ export default function BooksPage() {
                                   {((book.id % 8) * 0.1 + 3.8).toFixed(1)}
                                 </span>
                               </div>
+                              {book.tags && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {book.tags.split(",").slice(0, 3).map((tag, i) => (
+                                    <span key={i} className="rounded-full bg-[#d6e8dc] px-2 py-0.5 text-xs text-[#4a7c5a]">
+                                      {tag.trim()}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -255,7 +253,7 @@ export default function BooksPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
+                                  className="cursor-pointer border-[#b2cebb80] bg-white/80 text-[#4d6655] hover:bg-[#d6e8dc99] hover:text-[#2d5038]"
                                 >
                                   Read
                                 </Button>
@@ -267,7 +265,7 @@ export default function BooksPage() {
                                 type="button"
                                 variant="destructive"
                                 size="sm"
-                                className="h-8 px-2 text-xs"
+                                className="h-8 px-2 text-xs cursor-pointer"
                                 onClick={() => void handleDeleteBook(book)}
                                 disabled={deletingBookId === book.id}
                               >
@@ -277,10 +275,8 @@ export default function BooksPage() {
                             )}
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </section>
 

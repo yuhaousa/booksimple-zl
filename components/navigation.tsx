@@ -77,9 +77,9 @@ export function Navigation() {
     // Only show authenticated user features if logged in
     ...(user
       ? [
-          { href: "/upload", label: "Upload", icon: Upload },
           { href: "/reading-list", label: "Reading List", icon: BookOpen },
           { href: "/notes", label: "Study Notes", icon: FileText },
+          { href: "/upload", label: "Upload", icon: Upload },
           ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Settings }] : []),
         ]
       : []),
