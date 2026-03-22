@@ -13,6 +13,7 @@ export type AuthEmailMatchRow = {
   email: string | null
   display_name: string | null
   created_at: string | null
+  email_verified_at: string | null
   has_password: number | string | null
 }
 
@@ -49,6 +50,7 @@ export async function getAuthEmailMatches(db: any, email: string) {
         u.email,
         u.display_name,
         u.created_at,
+        u.email_verified_at,
         CASE WHEN c.user_id IS NOT NULL THEN 1 ELSE 0 END AS has_password
       FROM user_list u
       LEFT JOIN auth_credentials c ON c.user_id = u.auth_user_id
@@ -90,6 +92,7 @@ export async function ensureAuthTables(db: any) {
         auth_user_id TEXT UNIQUE,
         email TEXT NOT NULL,
         display_name TEXT,
+        email_verified_at TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`
     )
@@ -108,6 +111,21 @@ export async function ensureAuthTables(db: any) {
 
   await db
     .prepare(
+      `CREATE TABLE IF NOT EXISTS auth_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        email TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        token_type TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        used_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`
+    )
+    .run()
+
+  await db
+    .prepare(
       `CREATE TABLE IF NOT EXISTS admin_users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT NOT NULL UNIQUE,
@@ -120,10 +138,19 @@ export async function ensureAuthTables(db: any) {
   await ensureColumn(db, "user_list", "auth_user_id", "auth_user_id TEXT")
   await ensureColumn(db, "user_list", "email", "email TEXT")
   await ensureColumn(db, "user_list", "display_name", "display_name TEXT")
+  await ensureColumn(db, "user_list", "email_verified_at", "email_verified_at TEXT")
   await ensureColumn(db, "user_list", "created_at", "created_at TEXT")
 
   await ensureColumn(db, "auth_credentials", "created_at", "created_at TEXT")
   await ensureColumn(db, "auth_credentials", "updated_at", "updated_at TEXT")
+
+  await ensureColumn(db, "auth_tokens", "user_id", "user_id TEXT")
+  await ensureColumn(db, "auth_tokens", "email", "email TEXT")
+  await ensureColumn(db, "auth_tokens", "token_hash", "token_hash TEXT")
+  await ensureColumn(db, "auth_tokens", "token_type", "token_type TEXT")
+  await ensureColumn(db, "auth_tokens", "expires_at", "expires_at TEXT")
+  await ensureColumn(db, "auth_tokens", "used_at", "used_at TEXT")
+  await ensureColumn(db, "auth_tokens", "created_at", "created_at TEXT")
 
   await db
     .prepare(
@@ -137,5 +164,7 @@ export async function ensureAuthTables(db: any) {
 
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_user_list_email_nocase ON user_list(email COLLATE NOCASE)").run()
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_user_list_auth_user_id ON user_list(auth_user_id)").run()
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_auth_tokens_lookup ON auth_tokens(token_hash, token_type)").run()
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_type ON auth_tokens(user_id, token_type)").run()
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_login_log_date ON login_log(logged_in_at)").run()
 }

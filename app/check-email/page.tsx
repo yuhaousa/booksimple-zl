@@ -6,10 +6,12 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Mail, CheckCircle, Clock, AlertCircle } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 
 export default function CheckEmailPage() {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState<string>("")
+  const [isResending, setIsResending] = useState(false)
 
   useEffect(() => {
     const emailParam = searchParams.get("email")
@@ -17,6 +19,34 @@ export default function CheckEmailPage() {
       setEmail(emailParam)
     }
   }, [searchParams])
+
+  const handleResend = async () => {
+    if (!email) return
+    setIsResending(true)
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.details || result?.error || "Failed to resend email")
+      }
+      toast({
+        title: "Verification email sent",
+        description: "Check your inbox for a fresh verification link.",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Resend failed",
+        description: error?.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsResending(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(165deg,#eef5f0_0%,#d8ecdf_40%,#eaf3ec_100%)] flex items-center justify-center p-4">
@@ -97,6 +127,10 @@ export default function CheckEmailPage() {
               <Link href="/login">
                 Go to Login Page
               </Link>
+            </Button>
+
+            <Button type="button" variant="outline" className="w-full" onClick={handleResend} disabled={!email || isResending}>
+              {isResending ? "Resending..." : "Resend verification email"}
             </Button>
             
             <div className="text-center text-sm text-muted-foreground">

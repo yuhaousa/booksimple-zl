@@ -9,6 +9,7 @@ type LoginRow = {
   user_id: string
   email: string | null
   display_name: string | null
+  email_verified_at: string | null
   password_hash: string | null
 }
 
@@ -27,15 +28,20 @@ async function ensureBootstrapUser(db: any) {
   if (!existing) {
     await db
       .prepare(
-        `INSERT INTO user_list (auth_user_id, email, display_name, created_at)
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
+        `INSERT INTO user_list (auth_user_id, email, display_name, email_verified_at, created_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
       )
       .bind(userId, DEFAULT_EMAIL, DEFAULT_DISPLAY_NAME)
       .run()
   } else if (!existingUserId) {
     await db
-      .prepare("UPDATE user_list SET auth_user_id = ? WHERE id = ?")
+      .prepare("UPDATE user_list SET auth_user_id = ?, email_verified_at = CURRENT_TIMESTAMP WHERE id = ?")
       .bind(userId, existing.id)
+      .run()
+  } else if (!normalizeValue(existing.email_verified_at)) {
+    await db
+      .prepare("UPDATE user_list SET email_verified_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(existing.id)
       .run()
   }
 
@@ -98,6 +104,7 @@ export async function POST(request: NextRequest) {
           u.auth_user_id AS user_id,
           u.email AS email,
           u.display_name AS display_name,
+          u.email_verified_at AS email_verified_at,
           c.password_hash AS password_hash
         FROM user_list u
         LEFT JOIN auth_credentials c ON c.user_id = u.auth_user_id
@@ -124,6 +131,16 @@ export async function POST(request: NextRequest) {
             "This account needs to be activated after migration. Please register again with the same email to set a new password.",
         },
         { status: 409 }
+      )
+    }
+
+    if (!normalizeValue(row.email_verified_at)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Please verify your email before signing in. Check your inbox for the verification link.",
+        },
+        { status: 403 }
       )
     }
 
