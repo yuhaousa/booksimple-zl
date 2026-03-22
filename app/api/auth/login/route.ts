@@ -10,6 +10,7 @@ type LoginRow = {
   email: string | null
   display_name: string | null
   email_verified_at: string | null
+  verification_required: number | string | null
   password_hash: string | null
 }
 
@@ -28,19 +29,19 @@ async function ensureBootstrapUser(db: any) {
   if (!existing) {
     await db
       .prepare(
-        `INSERT INTO user_list (auth_user_id, email, display_name, email_verified_at, created_at)
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        `INSERT INTO user_list (auth_user_id, email, display_name, email_verified_at, verification_required, created_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP, 0, CURRENT_TIMESTAMP)`
       )
       .bind(userId, DEFAULT_EMAIL, DEFAULT_DISPLAY_NAME)
       .run()
   } else if (!existingUserId) {
     await db
-      .prepare("UPDATE user_list SET auth_user_id = ?, email_verified_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .prepare("UPDATE user_list SET auth_user_id = ?, email_verified_at = CURRENT_TIMESTAMP, verification_required = 0 WHERE id = ?")
       .bind(userId, existing.id)
       .run()
   } else if (!normalizeValue(existing.email_verified_at)) {
     await db
-      .prepare("UPDATE user_list SET email_verified_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .prepare("UPDATE user_list SET email_verified_at = CURRENT_TIMESTAMP, verification_required = 0 WHERE id = ?")
       .bind(existing.id)
       .run()
   }
@@ -105,6 +106,7 @@ export async function POST(request: NextRequest) {
           u.email AS email,
           u.display_name AS display_name,
           u.email_verified_at AS email_verified_at,
+          u.verification_required AS verification_required,
           c.password_hash AS password_hash
         FROM user_list u
         LEFT JOIN auth_credentials c ON c.user_id = u.auth_user_id
@@ -134,7 +136,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!normalizeValue(row.email_verified_at)) {
+    if (Number(row.verification_required ?? 0) === 1 && !normalizeValue(row.email_verified_at)) {
       return NextResponse.json(
         {
           success: false,

@@ -14,6 +14,7 @@ export type AuthEmailMatchRow = {
   display_name: string | null
   created_at: string | null
   email_verified_at: string | null
+  verification_required: number | string | null
   has_password: number | string | null
 }
 
@@ -51,6 +52,7 @@ export async function getAuthEmailMatches(db: any, email: string) {
         u.display_name,
         u.created_at,
         u.email_verified_at,
+        u.verification_required,
         CASE WHEN c.user_id IS NOT NULL THEN 1 ELSE 0 END AS has_password
       FROM user_list u
       LEFT JOIN auth_credentials c ON c.user_id = u.auth_user_id
@@ -93,6 +95,7 @@ export async function ensureAuthTables(db: any) {
         email TEXT NOT NULL,
         display_name TEXT,
         email_verified_at TEXT,
+        verification_required INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`
     )
@@ -139,6 +142,7 @@ export async function ensureAuthTables(db: any) {
   await ensureColumn(db, "user_list", "email", "email TEXT")
   await ensureColumn(db, "user_list", "display_name", "display_name TEXT")
   await ensureColumn(db, "user_list", "email_verified_at", "email_verified_at TEXT")
+  await ensureColumn(db, "user_list", "verification_required", "verification_required INTEGER NOT NULL DEFAULT 0")
   await ensureColumn(db, "user_list", "created_at", "created_at TEXT")
 
   await ensureColumn(db, "auth_credentials", "created_at", "created_at TEXT")

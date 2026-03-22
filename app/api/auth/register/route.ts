@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       (row) =>
         normalizeValue(row.auth_user_id) &&
         hasPasswordCredential(row) &&
-        normalizeValue(row.email_verified_at)
+        Number(row.verification_required ?? 0) === 0
     )
 
     if (registeredMatch) {
@@ -74,13 +74,15 @@ export async function POST(request: NextRequest) {
 
       if (normalizeValue(existing.auth_user_id)) {
         await db
-          .prepare("UPDATE user_list SET display_name = COALESCE(?, display_name), email_verified_at = NULL WHERE id = ?")
+          .prepare(
+            "UPDATE user_list SET display_name = COALESCE(?, display_name), email_verified_at = NULL, verification_required = 1 WHERE id = ?"
+          )
           .bind(finalDisplayName, existing.id)
           .run()
       } else {
         await db
           .prepare(
-            "UPDATE user_list SET auth_user_id = ?, display_name = COALESCE(?, display_name), email_verified_at = NULL WHERE id = ?"
+            "UPDATE user_list SET auth_user_id = ?, display_name = COALESCE(?, display_name), email_verified_at = NULL, verification_required = 1 WHERE id = ?"
           )
           .bind(userId, finalDisplayName, existing.id)
           .run()
@@ -97,8 +99,8 @@ export async function POST(request: NextRequest) {
       const passwordHash = await hashPassword(password)
       await db
         .prepare(
-          `INSERT INTO user_list (auth_user_id, email, display_name, email_verified_at, created_at)
-           VALUES (?, ?, ?, NULL, CURRENT_TIMESTAMP)`
+          `INSERT INTO user_list (auth_user_id, email, display_name, email_verified_at, verification_required, created_at)
+           VALUES (?, ?, ?, NULL, 1, CURRENT_TIMESTAMP)`
         )
         .bind(userId, email, finalDisplayName)
         .run()
