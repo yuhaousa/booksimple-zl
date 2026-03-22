@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         (match) =>
           normalizeValue(match.auth_user_id) &&
           hasPasswordCredential(match) &&
-          !!normalizeValue(match.email_verified_at)
+          (Number(match.verification_required ?? 0) === 0 || !!normalizeValue(match.email_verified_at))
       ) ?? null
 
     if (row) {
@@ -73,3 +73,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
