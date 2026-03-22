@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { ensureAuthTables, normalizeEmail, normalizeValue } from "@/lib/server/auth-db"
+import { ensureAuthTables, getAuthEmailMatches, normalizeEmail, normalizeValue } from "@/lib/server/auth-db"
 import { requireD1Database } from "@/lib/server/cloudflare-bindings"
 import { hashPassword, verifyPassword } from "@/lib/server/password"
 import { createSessionToken, setSessionCookie } from "@/lib/server/session"
@@ -18,12 +18,11 @@ const DEFAULT_PASSWORD = normalizeValue(process.env.DEFAULT_AUTH_PASSWORD) || "A
 const DEFAULT_DISPLAY_NAME = normalizeValue(process.env.DEFAULT_AUTH_DISPLAY_NAME) || "Default Admin"
 
 async function ensureBootstrapUser(db: any) {
-  const existing = (await db
-    .prepare(`SELECT auth_user_id FROM user_list WHERE lower(email) = ? LIMIT 1`)
-    .bind(DEFAULT_EMAIL)
-    .first()) as { auth_user_id: string | null } | null
+  const emailMatches = await getAuthEmailMatches(db, DEFAULT_EMAIL)
+  const existing = emailMatches.find((row) => normalizeValue(row.auth_user_id)) ?? emailMatches[0] ?? null
+  const existingUserId = existing ? normalizeValue(existing.auth_user_id) : null
 
-  let userId = existing?.auth_user_id || DEFAULT_USER_ID
+  let userId = existingUserId || DEFAULT_USER_ID
 
   if (!existing) {
     await db
@@ -33,10 +32,10 @@ async function ensureBootstrapUser(db: any) {
       )
       .bind(userId, DEFAULT_EMAIL, DEFAULT_DISPLAY_NAME)
       .run()
-  } else if (!existing.auth_user_id) {
+  } else if (!existingUserId) {
     await db
-      .prepare("UPDATE user_list SET auth_user_id = ? WHERE lower(email) = ?")
-      .bind(userId, DEFAULT_EMAIL)
+      .prepare("UPDATE user_list SET auth_user_id = ? WHERE id = ?")
+      .bind(userId, existing.id)
       .run()
   }
 
@@ -103,6 +102,11 @@ export async function POST(request: NextRequest) {
         FROM user_list u
         LEFT JOIN auth_credentials c ON c.user_id = u.auth_user_id
         WHERE lower(u.email) = ?
+        ORDER BY
+          CASE WHEN c.password_hash IS NOT NULL THEN 0 ELSE 1 END,
+          CASE WHEN u.auth_user_id IS NOT NULL THEN 0 ELSE 1 END,
+          datetime(COALESCE(u.created_at, CURRENT_TIMESTAMP)) ASC,
+          u.id ASC
         LIMIT 1`
       )
       .bind(email)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { ensureAuthTables, normalizeEmail, normalizeValue } from "@/lib/server/auth-db"
+import { ensureAuthTables, getAuthEmailMatches, hasPasswordCredential, normalizeEmail, normalizeValue } from "@/lib/server/auth-db"
 import { requireD1Database } from "@/lib/server/cloudflare-bindings"
 import { hashPassword } from "@/lib/server/password"
 import { createSessionToken, setSessionCookie } from "@/lib/server/session"
@@ -31,25 +31,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Password must be at least 8 characters" }, { status: 400 })
     }
 
-    const existing = (await db
-      .prepare(`SELECT auth_user_id FROM user_list WHERE lower(email) = ? LIMIT 1`)
-      .bind(email)
-      .first()) as { auth_user_id: string | null } | null
+    const emailMatches = await getAuthEmailMatches(db, email)
+    const registeredMatch = emailMatches.find((row) => normalizeValue(row.auth_user_id) && hasPasswordCredential(row))
 
-    if (existing) {
+    if (registeredMatch) {
       return NextResponse.json({ success: false, error: "User with this email already exists" }, { status: 409 })
     }
 
-    const userId = crypto.randomUUID()
+    const existing = emailMatches.find((row) => normalizeValue(row.auth_user_id)) ?? emailMatches[0] ?? null
+    const userId = existing ? normalizeValue(existing.auth_user_id) || crypto.randomUUID() : crypto.randomUUID()
     const passwordHash = await hashPassword(password)
 
-    await db
-      .prepare(
-        `INSERT INTO user_list (auth_user_id, email, display_name, created_at)
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
-      )
-      .bind(userId, email, displayName)
-      .run()
+    if (existing) {
+      if (normalizeValue(existing.auth_user_id)) {
+        await db
+          .prepare("UPDATE user_list SET display_name = COALESCE(?, display_name) WHERE id = ?")
+          .bind(displayName, existing.id)
+          .run()
+      } else {
+        await db
+          .prepare("UPDATE user_list SET auth_user_id = ?, display_name = COALESCE(?, display_name) WHERE id = ?")
+          .bind(userId, displayName, existing.id)
+          .run()
+      }
+    } else {
+      await db
+        .prepare(
+          `INSERT INTO user_list (auth_user_id, email, display_name, created_at)
+           VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
+        )
+        .bind(userId, email, displayName)
+        .run()
+    }
 
     await db
       .prepare(

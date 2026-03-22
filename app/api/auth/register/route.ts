@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { ensureAuthTables, normalizeEmail, normalizeValue } from "@/lib/server/auth-db"
+import { ensureAuthTables, getAuthEmailMatches, hasPasswordCredential, normalizeEmail, normalizeValue } from "@/lib/server/auth-db"
 import { requireD1Database } from "@/lib/server/cloudflare-bindings"
 import { hashPassword } from "@/lib/server/password"
 import { createSessionToken, setSessionCookie } from "@/lib/server/session"
@@ -31,37 +31,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Password must be at least 8 characters" }, { status: 400 })
     }
 
-    const existing = (await db
-      .prepare(`SELECT auth_user_id, display_name FROM user_list WHERE lower(email) = ? LIMIT 1`)
-      .bind(email)
-      .first()) as { auth_user_id: string | null; display_name: string | null } | null
-
     const passwordHash = await hashPassword(password)
+    const emailMatches = await getAuthEmailMatches(db, email)
+    const registeredMatch = emailMatches.find((row) => normalizeValue(row.auth_user_id) && hasPasswordCredential(row))
+
+    if (registeredMatch) {
+      return NextResponse.json({ success: false, error: "Email is already registered" }, { status: 409 })
+    }
+
+    const existing = emailMatches.find((row) => normalizeValue(row.auth_user_id)) ?? emailMatches[0] ?? null
     let userId = crypto.randomUUID()
     let finalDisplayName = displayName
 
     if (existing) {
-      userId = existing.auth_user_id || crypto.randomUUID()
-      finalDisplayName = displayName ?? existing.display_name ?? null
+      userId = normalizeValue(existing.auth_user_id) || crypto.randomUUID()
+      finalDisplayName = displayName ?? normalizeValue(existing.display_name) ?? null
 
-      const existingCredential = (await db
-        .prepare("SELECT user_id FROM auth_credentials WHERE user_id = ? LIMIT 1")
-        .bind(userId)
-        .first()) as { user_id: string } | null
-
-      if (existingCredential) {
-        return NextResponse.json({ success: false, error: "Email is already registered" }, { status: 409 })
-      }
-
-      if (existing.auth_user_id) {
+      if (normalizeValue(existing.auth_user_id)) {
         await db
-          .prepare("UPDATE user_list SET display_name = COALESCE(?, display_name) WHERE auth_user_id = ?")
-          .bind(finalDisplayName, userId)
+          .prepare("UPDATE user_list SET display_name = COALESCE(?, display_name) WHERE id = ?")
+          .bind(finalDisplayName, existing.id)
           .run()
       } else {
         await db
-          .prepare("UPDATE user_list SET auth_user_id = ?, display_name = COALESCE(?, display_name) WHERE lower(email) = ?")
-          .bind(userId, finalDisplayName, email)
+          .prepare("UPDATE user_list SET auth_user_id = ?, display_name = COALESCE(?, display_name) WHERE id = ?")
+          .bind(userId, finalDisplayName, existing.id)
           .run()
       }
 
