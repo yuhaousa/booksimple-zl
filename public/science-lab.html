@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>线上科学实验室</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: radial-gradient(circle at 20% 20%, #e0f2ff, transparent 30%),
+          radial-gradient(circle at 80% 0%, #ffe7c7, transparent 25%),
+          radial-gradient(circle at 50% 80%, #e0ffe4, transparent 30%),
+          #0b1021;
+        --panel: rgba(255, 255, 255, 0.09);
+        --panel-strong: rgba(255, 255, 255, 0.16);
+        --text: #e8ecf3;
+        --muted: #afbad4;
+        --primary: #7cd5ff;
+        --accent: #ffc857;
+        --border: rgba(255, 255, 255, 0.14);
+        --shadow: 0 30px 90px rgba(0, 0, 0, 0.35);
+        font-family: "Inter", "SF Pro Display", system-ui, -apple-system, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        backdrop-filter: blur(2px);
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(10px);
+        background: rgba(8, 9, 18, 0.75);
+        border-bottom: 1px solid var(--border);
+      }
+
+      nav {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 16px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: linear-gradient(120deg, rgba(124, 213, 255, 0.16), rgba(255, 200, 87, 0.16));
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-weight: 600;
+        box-shadow: var(--shadow);
+      }
+
+      main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px 24px 64px;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+      }
+
+      .hero {
+        background: linear-gradient(135deg, rgba(124, 213, 255, 0.16), rgba(255, 200, 87, 0.14));
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 32px;
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+        gap: 24px;
+        box-shadow: var(--shadow);
+      }
+
+      h1 {
+        font-size: 36px;
+        margin: 0 0 12px;
+        letter-spacing: 0.01em;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .cta {
+        margin-top: 20px;
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        background: linear-gradient(120deg, #7cd5ff, #54b3ff);
+        color: #04111f;
+        border-radius: 16px;
+        border: none;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 20px 50px rgba(84, 179, 255, 0.35);
+      }
+
+      .cta:hover {
+        transform: translateY(-2px);
+      }
+
+      section {
+        background: rgba(6, 10, 23, 0.7);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: var(--shadow);
+      }
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 18px;
+        margin: 0 0 16px;
+      }
+
+      .filters {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+
+      .filter-btn {
+        padding: 8px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+        cursor: pointer;
+        transition: background 0.2s ease, border 0.2s ease, transform 0.2s ease;
+      }
+
+      .filter-btn.active {
+        background: rgba(124, 213, 255, 0.16);
+        border-color: rgba(124, 213, 255, 0.7);
+        transform: translateY(-1px);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+      }
+
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 16px;
+        background: var(--panel);
+        backdrop-filter: blur(8px);
+        transition: transform 0.2s ease, border 0.2s ease;
+      }
+
+      .card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(124, 213, 255, 0.6);
+      }
+
+      .tag-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 12px 0;
+      }
+
+      .tag {
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.05);
+        font-size: 12px;
+      }
+
+      .stat {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+
+      .control {
+        border-radius: 16px;
+        padding: 16px;
+        border: 1px solid var(--border);
+        background: var(--panel-strong);
+      }
+
+      .control h3 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+
+      .metric {
+        display: flex;
+        justify-content: space-between;
+        margin: 6px 0 10px;
+        color: var(--muted);
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: #7cd5ff;
+      }
+
+      .progress-shell {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        height: 12px;
+      }
+
+      .progress {
+        height: 100%;
+        background: linear-gradient(90deg, #54b3ff, #7cd5ff, #ffc857);
+        width: 35%;
+      }
+
+      .log {
+        display: grid;
+        grid-template-columns: 2fr 3fr;
+        gap: 12px;
+      }
+
+      textarea {
+        width: 100%;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+        resize: vertical;
+        min-height: 120px;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 10px;
+      }
+
+      .timeline-item {
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(124, 213, 255, 0.14);
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      .small {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      footer {
+        text-align: center;
+        color: var(--muted);
+        padding: 12px 0 24px;
+      }
+
+      @media (max-width: 960px) {
+        nav {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .hero {
+          grid-template-columns: 1fr;
+        }
+
+        .log {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <div class="badge">
+          <span>🔬 量子云实验室</span>
+          <span class="small">集成物理 / 化学 / 生命 / 地学</span>
+        </div>
+        <div class="small">实时数据流 + 自适应安全守卫 + 互动演示</div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="badge">Beta 线上体验版 · 支持桌面与移动端</p>
+          <h1>构建沉浸式线上科学实验室</h1>
+          <p>
+            以可重复、可视化、可追踪为核心，为教学、演示与探究提供跨学科在线实验环境。
+            通过滑杆与可视化组件，即时调整参数、观测曲线并导出实验记录。
+          </p>
+          <button class="cta" id="startLab">🚀 进入实验模式</button>
+        </div>
+        <div class="grid" style="grid-template-columns: repeat(2, 1fr); gap: 12px">
+          <div class="stat">
+            <span>🧭 实验流</span>
+            <div>
+              <div>可视化数据链路</div>
+              <div class="small">多学科 14 套实验场景</div>
+            </div>
+          </div>
+          <div class="stat">
+            <span>🛡️ 安全守卫</span>
+            <div>
+              <div>实时区段保护</div>
+              <div class="small">自动校准 & 智能提示</div>
+            </div>
+          </div>
+          <div class="stat">
+            <span>📊 采样</span>
+            <div>
+              <div>1s 级数据刷新</div>
+              <div class="small">支持导出 CSV / JSON</div>
+            </div>
+          </div>
+          <div class="stat">
+            <span>🤝 协同</span>
+            <div>
+              <div>团队共创笔记</div>
+              <div class="small">角色权限与追踪</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">🧪 实验策展</h2>
+        <p class="small">
+          从基础探究到跨学科项目式学习，选择适合你的实验。点击筛选按钮查看对应学科，或直接进入“AI 设计建议”获取自动化实验步骤。
+        </p>
+        <div class="filters">
+          <button class="filter-btn active" data-filter="all">全部</button>
+          <button class="filter-btn" data-filter="physics">物理</button>
+          <button class="filter-btn" data-filter="chemistry">化学</button>
+          <button class="filter-btn" data-filter="biology">生命科学</button>
+          <button class="filter-btn" data-filter="earth">地球·天文</button>
+          <button class="filter-btn" data-filter="project">跨学科</button>
+        </div>
+        <div class="grid" id="experimentGrid"></div>
+      </section>
+
+      <section id="controls">
+        <h2 class="section-title">⚙️ 互动计算与实时反馈</h2>
+        <p class="small">调节参数即可实时看到曲线与安全提示，支持导出当前状态。</p>
+        <div class="controls">
+          <div class="control" id="ohmPanel">
+            <h3>欧姆定律电路</h3>
+            <div class="metric">
+              <span>电压 (V)</span>
+              <span id="voltageValue">12</span>
+            </div>
+            <input type="range" id="voltage" min="1" max="24" value="12" />
+            <div class="metric">
+              <span>电阻 (Ω)</span>
+              <span id="resistanceValue">60</span>
+            </div>
+            <input type="range" id="resistance" min="5" max="120" value="60" />
+            <div class="metric">
+              <span>电流 I</span>
+              <strong id="current">0.20 A</strong>
+            </div>
+            <div class="metric">
+              <span>功率 P</span>
+              <strong id="power">2.4 W</strong>
+            </div>
+            <div class="progress-shell">
+              <div class="progress" id="ohmProgress"></div>
+            </div>
+            <div class="small" id="ohmSafety">负载处于安全区间。</div>
+          </div>
+
+          <div class="control" id="pendulumPanel">
+            <h3>单摆周期</h3>
+            <div class="metric">
+              <span>摆长 (m)</span>
+              <span id="lengthValue">1.0</span>
+            </div>
+            <input type="range" id="length" min="0.2" max="3.5" step="0.1" value="1" />
+            <div class="metric">
+              <span>重力加速度 (m/s²)</span>
+              <span>9.81</span>
+            </div>
+            <div class="metric">
+              <span>周期 T</span>
+              <strong id="period">2.01 s</strong>
+            </div>
+            <div class="small">T = 2π √(L / g)。调整摆长即可实时获得周期预测，用于课堂演示或预设实验参数。</div>
+          </div>
+
+          <div class="control" id="titrationPanel">
+            <h3>酸碱滴定曲线</h3>
+            <div class="metric">
+              <span>NaOH 体积 (mL)</span>
+              <span id="baseValue">12</span>
+            </div>
+            <input type="range" id="baseVolume" min="0" max="50" value="12" />
+            <div class="metric">
+              <span>当前 pH</span>
+              <strong id="phValue">2.04</strong>
+            </div>
+            <div class="progress-shell">
+              <div class="progress" id="titrationProgress"></div>
+            </div>
+            <div class="small" id="titrationNote">强酸未完全中和，继续滴加碱液。</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">📘 实验记录与预约</h2>
+        <div class="log">
+          <div>
+            <p class="small">快速记录观察、假设或改进建议。提交后将同步到团队协作区。</p>
+            <textarea id="noteInput" placeholder="例如：调高电阻至 80Ω 后，LED 温升下降 12℃，建议在 5 分钟后再次采样。"></textarea>
+            <button class="cta" id="submitNote">保存记录</button>
+          </div>
+          <div>
+            <div class="timeline" id="timeline">
+              <div class="timeline-item">
+                <div>
+                  <div>🌌 深空天文摄影</div>
+                  <div class="small">本周六 20:00 · 远程望远镜 + 图像叠加</div>
+                </div>
+                <span class="pill">预约开放</span>
+              </div>
+              <div class="timeline-item">
+                <div>
+                  <div>🧫 微生物培养对比</div>
+                  <div class="small">周日 10:30 · 高中生物 / 温控与光照梯度</div>
+                </div>
+                <span class="pill">可加入</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">🛡️ 安全与合规模块</h2>
+        <div class="grid">
+          <div class="card">
+            <strong>自动安全审查</strong>
+            <p>电流、电压、温度设有软硬双重阈值，超过阈值会锁定控制并提示修正建议。</p>
+          </div>
+          <div class="card">
+            <strong>材料替代建议</strong>
+            <p>实时给出环保 / 易获取的替代方案，如用柠檬酸替代强酸完成酸碱指示实验。</p>
+          </div>
+          <div class="card">
+            <strong>数据合规</strong>
+            <p>所有日志可导出且附带哈希签名；用户数据符合 K12 与高校双重隐私规范。</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      线上科学实验室 · 支持课程演示、项目式学习与远程协作
+    </footer>
+
+    <script type="module" src="/science-lab.js"></script>
+  </body>
+</html>
